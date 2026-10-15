@@ -1,0 +1,21 @@
+{
+  "title": "FSK 피트보드",
+  "entry": "index.html",
+  "icon": "wrench",
+  "capabilities": {
+    "db": {
+      "rules": [
+        { "path": "config/roles", "write": "owner" },
+        { "path": "people", "read": "view", "write": "owner" },
+        { "path": "people/{self}", "write": "interact" },
+        { "path": "expenses", "read": "view", "write": "owner" },
+        { "path": "expenses/{self}", "write": "interact" },
+        { "path": "reviews", "read": "view", "write": "owner" },
+        { "path": "reviews/{self}", "write": "interact" }
+      ]
+    },
+    "user": { "scopes": ["profile"] },
+    "downloads": true,
+    "assets": {}
+  }
+}

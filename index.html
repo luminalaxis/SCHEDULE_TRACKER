@@ -1,0 +1,2545 @@
+<title>FSK 피트보드</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: pit-board header (car + D-day + next deadline + who am I) → tabs. 부품 현황 = gauges, department matrix, parts sheet. 테스트 세션 = list + pre-run checklist + per-department cards. 추이 분석 = metric chart + verdict matrix. 이슈, 일정 (timeline), 변경 이력 (activity log). Workshop-drawing neutrals, CAD-selection blue accent, part stages as a sequential ramp ending in green, departments as fixed categorical hues. */
+:root {
+  --bg: #EDF0F3; --surface: #FFFFFF; --surface-2: #F5F7F9; --ink: #131A24; --muted: #5A6575; --line: #D3D9E1; --grid: #E3E7EC;
+  --accent: #1E4CCB; --accent-ink: #FFFFFF; --accent-soft: #E2E9FA;
+  --ok: #1B8049; --ok-soft: #E3F3E9; --warn: #A86B12; --warn-soft: #FBF0DC; --bad: #C2352B; --bad-soft: #FBE9E7;
+  --s0: #C5CDD8; --s1: #A3B5E6; --s2: #7491E0; --s3: #4C6FD3; --s4: #2A4AAE; --s5: #1B8049;
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4;
+  --font-display: "Barlow Condensed", "Arial Narrow", "IBM Plex Sans KR", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443; --grid: #232C39;
+    --accent: #7D9CFF; --accent-ink: #0E131A; --accent-soft: #1F2A45;
+    --ok: #4CC07F; --ok-soft: #16301F; --warn: #E0A84B; --warn-soft: #33270F; --bad: #F07A6E; --bad-soft: #3A1E1D;
+    --s0: #3A4555; --s1: #3E5390; --s2: #4F6BC4; --s3: #6E8CEB; --s4: #9BB2FF; --s5: #4CC07F;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443; --grid: #232C39;
+  --accent: #7D9CFF; --accent-ink: #0E131A; --accent-soft: #1F2A45;
+  --ok: #4CC07F; --ok-soft: #16301F; --warn: #E0A84B; --warn-soft: #33270F; --bad: #F07A6E; --bad-soft: #3A1E1D;
+  --s0: #3A4555; --s1: #3E5390; --s2: #4F6BC4; --s3: #6E8CEB; --s4: #9BB2FF; --s5: #4CC07F;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* controls */
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 7px 12px; border-radius: var(--r); cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.sm { padding: 4px 9px; font-size: 12px; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.ghost:hover { color: var(--ink); border-color: var(--line); }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.btn:disabled { opacity: .5; cursor: default; }
+.field { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 7px 10px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar input[type="search"] { flex: 1 1 200px; }
+.dim { color: var(--muted); }
+.late { color: var(--bad); font-weight: 600; }
+
+/* header */
+.top { border-bottom: 1px solid var(--line); background: var(--surface); }
+.top-in { display: flex; flex-wrap: wrap; align-items: stretch; gap: 14px 24px; padding-block: 18px 0; }
+.ident { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; color: var(--muted); font-weight: 500; }
+.ident h1 { font-family: var(--font-display); font-weight: 700; font-size: 34px; line-height: 1.05; letter-spacing: .01em; overflow-wrap: anywhere; }
+.pit { display: grid; grid-template-columns: auto auto; align-items: end; column-gap: 12px; padding: 8px 14px; border: 2px solid var(--ink); border-radius: 4px; background: var(--surface-2); align-self: center; max-width: 100%; }
+.pit-label { font-size: 12px; color: var(--muted); grid-column: 1 / -1; letter-spacing: .06em; }
+.pit-num { font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; letter-spacing: .02em; }
+.pit-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-bottom: 4px; }
+.pit.unset .pit-num { color: var(--muted); font-size: 26px; }
+.pit-next { grid-column: 1 / -1; font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 4px; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; cursor: pointer; padding-left: 0; padding-right: 0; }
+.pit-next b { color: var(--ink); font-weight: 600; }
+.pit-next .soon { color: var(--bad); }
+.top-side { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 8px; }
+.me { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.me input { width: 110px; }
+.tabs { display: flex; gap: 2px; width: 100%; overflow-x: auto; }
+.tab { border: 0; background: none; padding: 10px 13px; border-bottom: 2px solid transparent; cursor: pointer; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.badge { font-size: 11px; background: var(--bad-soft); color: var(--bad); border-radius: 999px; padding: 0 7px; margin-left: 4px; }
+
+main { padding-block: 20px 72px; }
+.view { display: flex; flex-direction: column; gap: 24px; }
+.banner { padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 13px; margin-bottom: 16px; }
+.banner.bad { background: var(--bad-soft); }
+
+/* departments & verdicts */
+.dmark { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.d1 { background: var(--c1); } .d2 { background: var(--c2); } .d3 { background: var(--c3); } .d4 { background: var(--c4); } .d5 { background: var(--c5); }
+.dname { display: inline-flex; align-items: center; gap: 7px; }
+.stt { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.stt.ok { background: var(--ok-soft); color: var(--ok); }
+.stt.warn { background: var(--warn-soft); color: var(--warn); }
+.stt.bad { background: var(--bad-soft); color: var(--bad); }
+.stt.none { background: var(--surface-2); color: var(--muted); font-weight: 500; }
+.flag { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--bad); background: var(--bad-soft); border: 0; border-radius: 999px; padding: 1px 7px; cursor: pointer; white-space: nowrap; }
+.clip { margin-left: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* gauges */
+.gauges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.gauge { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.g-label { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.g-value { font-family: var(--font-display); font-weight: 600; font-size: 32px; line-height: 1; }
+.g-value small { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.g-value.alert { color: var(--bad); }
+.g-value.calm { color: var(--ok); }
+.g-sub { font-size: 12px; color: var(--muted); }
+.g-sub b { font-weight: 600; color: var(--ink); }
+.track { height: 8px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; display: flex; gap: 2px; }
+.track > span { display: block; height: 100%; }
+.fill { background: var(--accent); }
+.fill.over { background: var(--bad); }
+.fill.ok { background: var(--ok); }
+
+.sec { display: flex; flex-direction: column; gap: 12px; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.sec-head h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: .02em; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.legend i.ln { width: 14px; height: 2px; border-radius: 1px; }
+
+/* tables */
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface-2); letter-spacing: .03em; }
+tbody tr:last-child td { border-bottom: 0; }
+td.r, th.r { text-align: right; }
+tbody tr:hover td { background: var(--surface-2); }
+tr.link { cursor: pointer; }
+.sys-bar { width: 100%; min-width: 160px; }
+.issue-link { background: none; border: 0; padding: 0; cursor: pointer; color: var(--bad); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.count { font-size: 12px; color: var(--muted); }
+.pname { background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font-weight: 600; color: var(--ink); white-space: normal; }
+.pname:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.pno { display: block; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.pcell { min-width: 200px; white-space: normal; }
+.st { border: 1px solid var(--line); border-radius: 999px; padding: 3px 26px 3px 10px; font-size: 12px; font-weight: 600; appearance: none; -webkit-appearance: none; cursor: pointer;
+  background-color: var(--surface); background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%; background-size: 4px 4px; background-repeat: no-repeat; }
+.st:disabled { cursor: default; background-image: none; padding-right: 10px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag.make { border-color: var(--accent); color: var(--accent); }
+
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r); padding: 28px 24px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.empty h3 { font-family: var(--font-display); font-weight: 600; font-size: 24px; }
+.empty p { color: var(--muted); max-width: 62ch; }
+
+/* sessions */
+.split { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; align-items: start; }
+.slist { display: flex; flex-direction: column; gap: 8px; }
+.sitems { display: flex; flex-direction: column; gap: 8px; }
+.slist-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.slist-head h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
+.sitem { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.sitem:hover { border-color: var(--muted); }
+.sitem[aria-current="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.sitem-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sitem-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.sitem-ev { font-weight: 600; }
+.sitem-meta { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cover { display: flex; gap: 4px; align-items: center; }
+.cover i { width: 18px; height: 6px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--line); }
+.cover i.ok { background: var(--ok); border-color: var(--ok); }
+.cover i.warn { background: var(--warn); border-color: var(--warn); }
+.cover i.bad { background: var(--bad); border-color: var(--bad); }
+.detail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dhead { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.dhead-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.dhead h2 { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1.1; }
+.dhead .sub { color: var(--muted); font-size: 13px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px 16px; }
+.fact { display: flex; flex-direction: column; min-width: 0; }
+.fact span { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+.fact b { font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.goal { font-size: 13px; background: var(--surface-2); border-radius: var(--r); padding: 8px 12px; white-space: pre-wrap; }
+
+/* checklist */
+.ck { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.ck > summary { list-style: none; cursor: pointer; padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ck > summary::-webkit-details-marker { display: none; }
+.ck > summary h3 { font-size: 15px; font-weight: 600; }
+.ck > summary .track { flex: 1 1 120px; max-width: 260px; }
+.ck > summary .caret { margin-left: auto; color: var(--muted); font-size: 12px; }
+.ck[open] > summary .caret::after { content: "접기"; }
+.ck:not([open]) > summary .caret::after { content: "펼치기"; }
+.ckgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px 18px; padding: 4px 16px 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.ckdept { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ckdept h4 { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.ckdept h4 span { margin-left: auto; font-weight: 500; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ckdept h4 span.full { color: var(--ok); }
+.ckitem { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: start; font-size: 13px; cursor: pointer; }
+.ckitem input { margin-top: 3px; }
+.ckitem.done .ckt { color: var(--muted); }
+.ckby { grid-column: 2; font-size: 11px; color: var(--ok); }
+.ck-foot { padding: 0 16px 14px; display: flex; justify-content: flex-end; }
+
+.depts { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); display: flex; flex-direction: column; min-width: 0; }
+.dcard.mine { border-color: var(--accent); }
+.dcard-h { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.dcard-h h3 { font-size: 15px; font-weight: 600; flex: 1; }
+.dcard-h .you { font-size: 11px; color: var(--accent); font-weight: 600; }
+.dcard-empty { padding: 16px 14px; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.log { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--line); }
+.log:last-child { border-bottom: 0; }
+.log-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.log-h .who { font-size: 12px; color: var(--muted); flex: 1; min-width: 0; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 4px 12px; font-size: 12px; background: var(--surface-2); border-radius: var(--r); padding: 8px 10px; }
+.kv div { display: flex; justify-content: space-between; gap: 6px; }
+.kv span { color: var(--muted); }
+.kv b { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.txt { display: flex; flex-direction: column; gap: 2px; }
+.txt > span { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+.txt p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.action { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: var(--r); }
+.action input { margin-top: 4px; }
+.action.done p { text-decoration: line-through; color: var(--muted); }
+.cmts { display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.cmt { font-size: 13px; display: flex; flex-direction: column; gap: 1px; }
+.cmt-who { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.cmt p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cform { display: flex; gap: 6px; }
+.cform input { flex: 1; min-width: 0; font-size: 13px; padding: 5px 9px; }
+
+/* attachments & chips */
+.atts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.att-img { display: block; width: 88px; height: 66px; border-radius: 4px; border: 1px solid var(--line); overflow: hidden; background: var(--surface-2); }
+.att-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.att-file { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: var(--r); padding: 4px 8px; font-size: 12px; color: var(--ink); text-decoration: none; max-width: 240px; background: var(--surface); }
+.att-file:hover { border-color: var(--muted); }
+.att-file b { font-family: var(--font-mono); font-size: 10px; color: var(--accent); }
+.att-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 4px 2px 10px; background: var(--surface-2); max-width: 100%; }
+.chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.pend { border-style: dashed; }
+.chip button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0 5px; font-size: 14px; line-height: 1; }
+.chip button:hover { color: var(--bad); }
+.chip.static { padding-right: 10px; cursor: pointer; }
+.chip.static:hover { border-color: var(--muted); }
+
+/* trend */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panel-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
+.panel-h h3 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.panel-h .note { font-size: 12px; color: var(--muted); }
+.chart { position: relative; width: 100%; min-height: 120px; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.chart .dl { font-family: var(--font-body); fill: var(--ink); }
+.chart-empty { color: var(--muted); font-size: 13px; padding: 24px 0; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(10, 15, 25, .12); min-width: 140px; z-index: 2; }
+.tip b { display: block; font-weight: 600; margin-bottom: 4px; }
+.tip div { display: flex; align-items: center; gap: 12px; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.tip div span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.tip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+details.tbl summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+
+/* issues */
+.issues { display: flex; flex-direction: column; gap: 10px; }
+.issue { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; }
+.issue-h { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--muted); }
+.issue-h .dname { color: var(--ink); font-weight: 600; }
+.issue p { margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.issue .act { font-size: 13px; color: var(--muted); }
+.issue .chips { margin-top: 6px; }
+.issue.done { opacity: .7; }
+.issue-side { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+
+/* schedule */
+.ms-list { display: flex; flex-direction: column; gap: 8px; }
+.ms { display: grid; grid-template-columns: 112px 74px minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
+.ms.next { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.ms.done { opacity: .62; }
+.ms.done .ms-title { text-decoration: line-through; }
+.ms-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.ms-d { font-family: var(--font-display); font-weight: 600; font-size: 20px; line-height: 1; }
+.ms-d.soon { color: var(--bad); }
+.ms-d.past { color: var(--muted); font-size: 15px; }
+.ms-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ms-title { font-weight: 600; overflow-wrap: anywhere; }
+.ms-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--muted); }
+.ms-note { font-size: 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ms-side { display: flex; gap: 8px; align-items: center; }
+.sub-h { font-size: 12px; color: var(--muted); letter-spacing: .06em; margin-top: 8px; }
+.sugg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+
+/* history */
+.hist { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.hday { font-size: 12px; color: var(--muted); background: var(--surface-2); padding: 6px 14px; border-bottom: 1px solid var(--line); letter-spacing: .04em; }
+.hrow { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.hrow:last-child { border-bottom: 0; }
+.htime { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 1px; }
+.hwho { font-weight: 600; display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; }
+.hdet { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.mini-hist { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.mini-hist div { display: flex; gap: 8px; }
+.mini-hist .mono { color: var(--muted); flex: none; }
+
+/* dialogs */
+dialog { border: 1px solid var(--line); border-radius: 10px; padding: 0; background: var(--surface); color: var(--ink); width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+dialog::backdrop { background: rgba(8, 12, 18, .45); }
+.dlg { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
+.dlg h3 { font-family: var(--font-display); font-weight: 600; font-size: 24px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.full { grid-column: 1 / -1; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+label.f input, label.f select, label.f textarea { border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--r); padding: 8px 10px; font-size: 14px; color: var(--ink); width: 100%; min-width: 0; }
+label.f textarea { min-height: 64px; resize: vertical; }
+.unit { display: flex; align-items: center; gap: 6px; }
+.unit span { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+fieldset { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 12px; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 13px; }
+.seg input { margin: 0; }
+.seg label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.filebtn { position: relative; overflow: hidden; }
+.filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dlg-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.dlg-foot .right { display: flex; gap: 8px; margin-left: auto; }
+.hint { font-size: 12px; color: var(--muted); }
+.linked { display: flex; flex-direction: column; gap: 6px; }
+.linked > div { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; }
+
+/* expense */
+.stt.info { background: var(--accent-soft); color: var(--accent); }
+.role { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.role b { color: var(--ink); font-weight: 600; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; background: var(--surface); }
+.role b.mgr { border-color: var(--accent); color: var(--accent); }
+.pay { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 10px 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+.pay i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pay.pending { background: var(--surface-2); color: var(--muted); border-color: var(--line); }
+.pay.fix { background: var(--warn-soft); color: var(--warn); }
+.pay.approved { background: var(--accent-soft); color: var(--accent); }
+.pay.paid { background: var(--ok-soft); color: var(--ok); }
+.pay.rejected { background: var(--bad-soft); color: var(--bad); }
+.pay.lg { font-size: 14px; padding: 4px 14px 4px 10px; }
+.pay.lg i { width: 10px; height: 10px; }
+.changed { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 6px; white-space: nowrap; }
+.checks { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.checks div { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; }
+.checks .e { color: var(--bad); font-weight: 700; }
+.checks .w { color: var(--warn); font-weight: 700; }
+.checks .i { color: var(--muted); }
+.checks .o { color: var(--ok); font-weight: 700; }
+.checks p { overflow-wrap: anywhere; }
+.xsum { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 12px; background: var(--surface-2); border-radius: var(--r); }
+.xsum .fact b { font-size: 15px; }
+.rcpts { display: flex; flex-wrap: wrap; gap: 8px; }
+.rcpt { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); text-decoration: none; }
+.rcpt img { width: 120px; height: 120px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); background: var(--surface-2); display: block; }
+.acct { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; font-family: var(--font-mono); }
+.xlog { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.people { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.people label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+.people label:last-child { border-bottom: 0; }
+.people small { color: var(--muted); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: var(--r); font-size: 13px; max-width: calc(100vw - 32px); z-index: 10; }
+
+@media (max-width: 900px) { .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } .slist { max-height: 360px; overflow-y: auto; } .top-side { align-items: flex-start; } }
+@media (max-width: 600px) {
+  .ms { grid-template-columns: auto minmax(0, 1fr); }
+  .ms-side { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@media (max-width: 520px) {
+  .gauges, .grid2, .grid3, .depts { grid-template-columns: minmax(0, 1fr); }
+  .issue { grid-template-columns: minmax(0, 1fr); }
+  .issue-side { align-items: flex-start; flex-direction: row; }
+  .ident h1 { font-size: 28px; }
+  .pit-num { font-size: 32px; }
+}
+@media (prefers-reduced-motion: no-preference) { .track > span { transition: width .4s ease; } }
+</style>
+
+<header class="top">
+  <div class="wrap top-in">
+    <div class="ident">
+      <span class="eyebrow">FSK 차량 제작 현황</span>
+      <h1 id="carName">우리 팀 차량</h1>
+    </div>
+    <div class="pit unset" id="pit">
+      <span class="pit-label">대회까지</span>
+      <span class="pit-num" id="ddayNum">날짜 미정</span>
+      <span class="pit-date" id="ddayDate"></span>
+      <button class="pit-next" id="pitNext" type="button" hidden></button>
+    </div>
+    <div class="top-side">
+      <div class="me" aria-label="내 정보">
+        <span>나</span>
+        <select class="field" id="meDept" aria-label="내 부서"></select>
+        <input class="field" id="meName" maxlength="20" placeholder="이름" aria-label="내 이름">
+      </div>
+      <button class="btn sm" id="btnSettings" type="button">차량 설정</button>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-parts" data-tab="parts" aria-selected="true">부품 현황</button>
+      <button class="tab" role="tab" id="tab-sessions" data-tab="sessions" aria-selected="false">테스트 세션</button>
+      <button class="tab" role="tab" id="tab-trend" data-tab="trend" aria-selected="false">추이 분석</button>
+      <button class="tab" role="tab" id="tab-issues" data-tab="issues" aria-selected="false">이슈<span class="badge" id="issueBadge" hidden></span></button>
+      <button class="tab" role="tab" id="tab-schedule" data-tab="schedule" aria-selected="false">일정</button>
+      <button class="tab" role="tab" id="tab-expense" data-tab="expense" aria-selected="false">사비 정산<span class="badge" id="expBadge" hidden></span></button>
+      <button class="tab" role="tab" id="tab-history" data-tab="history" aria-selected="false">변경 이력</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="banner" class="banner" hidden></div>
+
+  <!-- parts -->
+  <section id="view-parts" class="view">
+    <section class="gauges" aria-label="요약">
+      <div class="gauge">
+        <span class="g-label">제작 진행률</span>
+        <span class="g-value num" id="gProg">–</span>
+        <div class="track" id="gProgBar"></div>
+        <span class="g-sub" id="gProgSub">부품을 등록하면 계산돼요</span>
+      </div>
+      <div class="gauge">
+        <span class="g-label">차량 질량 (부품 합계)</span>
+        <span class="g-value num" id="gMass">–</span>
+        <div class="track"><span class="fill" id="gMassBar" style="width:0"></span></div>
+        <span class="g-sub" id="gMassSub">목표 질량은 차량 설정에서 정해요</span>
+      </div>
+      <div class="gauge">
+        <span class="g-label">부품 비용 합계</span>
+        <span class="g-value num" id="gCost">–</span>
+        <div class="track"><span class="fill" id="gCostBar" style="width:0"></span></div>
+        <span class="g-sub" id="gCostSub">예산은 차량 설정에서 정해요</span>
+      </div>
+      <div class="gauge">
+        <span class="g-label">마감 지난 부품</span>
+        <span class="g-value num" id="gLate">–</span>
+        <span class="g-sub" id="gLateSub">마감일이 지났는데 완료되지 않은 부품</span>
+      </div>
+    </section>
+
+    <section class="sec" id="secDepts" hidden>
+      <div class="sec-head">
+        <h2>부서별 현황</h2>
+        <div class="legend" id="stageLegend"></div>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>부서</th><th>제작 단계 분포</th><th class="r">부품</th><th class="r">완료</th><th class="r">질량</th><th class="r">비용</th><th class="r">테스트 이슈</th></tr></thead>
+          <tbody id="deptBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="sec">
+      <div class="sec-head">
+        <h2>부품 목록</h2>
+        <div class="toolbar">
+          <span class="count num" id="count"></span>
+          <button class="btn" id="btnExport" type="button" hidden>BOM 내보내기 (CSV)</button>
+          <button class="btn primary" id="btnAdd" type="button" hidden>+ 부품 추가</button>
+        </div>
+      </div>
+      <div id="partsEmpty" class="empty">
+        <h3 id="partsEmptyTitle">불러오는 중…</h3>
+        <p id="partsEmptyText">팀 저장소에 연결하고 있어요.</p>
+        <div class="toolbar" id="partsEmptyActions" hidden>
+          <button class="btn primary" type="button" id="btnTemplate">기본 부품 목록 넣기 (EV)</button>
+          <button class="btn" type="button" id="btnAddEmpty">직접 추가</button>
+        </div>
+        <p class="hint" id="partsEmptyHint" hidden>기본 목록은 프레임, 업라이트, 어큐뮬레이터, TSAL처럼 대부분의 EV 팀이 만드는 부품 이름만 다섯 부서에 나눠 넣어요. 질량, 비용, 담당자는 비워 두니 팀에 맞게 고치거나 지우면 돼요.</p>
+      </div>
+      <div id="partsList" class="sec" hidden>
+        <div class="toolbar">
+          <input class="field" type="search" id="fq" placeholder="부품명, 번호, 담당자, 공급처 검색" aria-label="검색">
+          <select class="field" id="fdept" aria-label="부서"></select>
+          <select class="field" id="fst" aria-label="제작 단계"></select>
+          <select class="field" id="fsort" aria-label="정렬">
+            <option value="dept">부서순</option>
+            <option value="due">마감 임박순</option>
+            <option value="recent">최근 수정순</option>
+            <option value="mass">무거운 순</option>
+          </select>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>단계</th><th>부품</th><th>부서</th><th>구분</th><th class="r">수량</th><th class="r">질량</th><th class="r">금액</th><th>담당</th><th>마감</th></tr></thead>
+            <tbody id="partBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- sessions -->
+  <section id="view-sessions" hidden>
+    <div id="sessEmpty" class="empty">
+      <h3 id="sessEmptyTitle">불러오는 중…</h3>
+      <p id="sessEmptyText">팀 저장소에 연결하고 있어요.</p>
+      <button class="btn primary" type="button" id="btnFirstSession" hidden>+ 첫 테스트 세션 만들기</button>
+    </div>
+    <div class="split" id="sessSplit" hidden>
+      <div class="slist">
+        <div class="slist-head">
+          <h2>세션</h2>
+          <button class="btn primary sm" type="button" id="btnNewSession">+ 새 세션</button>
+        </div>
+        <div id="sessList" class="sitems"></div>
+      </div>
+      <div class="detail" id="sessDetail"></div>
+    </div>
+  </section>
+
+  <!-- trend -->
+  <section id="view-trend" class="view" hidden>
+    <div class="toolbar">
+      <select class="field" id="tMetric" aria-label="지표"></select>
+      <select class="field" id="tEvent" aria-label="종목"></select>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3 id="tTitle"></h3><span class="note" id="tNote"></span></div>
+      <div class="legend" id="tLegend"></div>
+      <div class="chart" id="tChart"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>세션 × 부서 판정</h3><span class="note">행을 누르면 해당 세션으로 이동해요</span></div>
+      <div class="scroll"><table><thead id="mxHead"></thead><tbody id="mxBody"></tbody></table></div>
+    </div>
+    <details class="tbl panel">
+      <summary>지표 값 표로 보기</summary>
+      <div class="scroll"><table><thead id="tvHead"></thead><tbody id="tvBody"></tbody></table></div>
+    </details>
+  </section>
+
+  <!-- issues -->
+  <section id="view-issues" class="view" hidden>
+    <div class="toolbar">
+      <select class="field" id="iState" aria-label="해결 여부">
+        <option value="open">미해결</option><option value="done">해결됨</option><option value="all">전체</option>
+      </select>
+      <select class="field" id="iDept" aria-label="부서"></select>
+    </div>
+    <div class="issues" id="issueList"></div>
+  </section>
+
+  <!-- schedule -->
+  <section id="view-schedule" class="view" hidden>
+    <div class="sec-head">
+      <h2 class="sec-title" style="font-family:var(--font-display);font-weight:600;font-size:22px">대회 준비 일정</h2>
+      <div class="toolbar">
+        <select class="field" id="msDept" aria-label="부서"></select>
+        <button class="btn primary" type="button" id="btnAddMs" hidden>+ 일정 추가</button>
+      </div>
+    </div>
+    <div class="sugg" id="msSugg" hidden></div>
+    <div id="msBody"></div>
+  </section>
+
+  <!-- expense -->
+  <section id="view-expense" class="view" hidden>
+    <div class="sec-head">
+      <h2 style="font-family:var(--font-display);font-weight:600;font-size:22px">사비 정산</h2>
+      <div class="toolbar">
+        <span class="role" id="expRole"></span>
+        <button class="btn" type="button" id="btnRoles" hidden>권한 관리</button>
+        <button class="btn" type="button" id="btnExpCsv" hidden>정산 내역 CSV</button>
+        <button class="btn primary" type="button" id="btnExpNew" hidden>+ 사비 내역서 제출</button>
+      </div>
+    </div>
+    <p class="hint" id="expNote"></p>
+    <section class="gauges" id="expTiles" aria-label="정산 요약"></section>
+    <div class="toolbar">
+      <input class="field" type="search" id="xq" placeholder="신청자, 제품명, 파일명 검색" aria-label="검색">
+      <select class="field" id="xStatus" aria-label="지급 상태">
+        <option value="">모든 상태</option><option value="open">처리 전 (검토 대기·보완 요청·지급 대기)</option>
+        <option value="pending">검토 대기</option><option value="fix">보완 요청</option><option value="approved">승인 · 지급 대기</option><option value="paid">지급 완료</option><option value="rejected">반려</option>
+      </select>
+      <select class="field" id="xTeam" aria-label="팀"></select>
+      <label class="check"><input type="checkbox" id="xMine"> 내 제출만</label>
+    </div>
+    <div id="expBody"></div>
+  </section>
+
+  <!-- history -->
+  <section id="view-history" class="view" hidden>
+    <div class="sec-head">
+      <h2 style="font-family:var(--font-display);font-weight:600;font-size:22px">변경 이력</h2>
+      <div class="toolbar">
+        <select class="field" id="hType" aria-label="종류">
+          <option value="">모든 변경</option><option value="part">부품</option><option value="session">테스트 세션</option><option value="log">부서 기록</option>
+          <option value="comment">의견</option><option value="check">출주 전 점검</option><option value="milestone">일정</option><option value="expense">사비 정산</option><option value="config">설정</option>
+        </select>
+        <select class="field" id="hDept" aria-label="부서"></select>
+      </div>
+    </div>
+    <p class="hint">최근 90일 동안의 변경 중 최신 300건을 보여줘요. 이름은 각자 오른쪽 위에 입력한 이름으로 남아요.</p>
+    <div id="histBody"></div>
+  </section>
+</main>
+
+<dialog id="dlgPart">
+  <form class="dlg" id="formPart">
+    <h3 id="dlgPartTitle">부품 추가</h3>
+    <div class="grid2">
+      <label class="f full">부품명 *<input id="pName" required maxlength="80" placeholder="예: 프론트 업라이트"></label>
+      <label class="f">부품 번호<input id="pNo" maxlength="40" placeholder="예: CH-F-001"></label>
+      <label class="f">부서<select id="pDept"></select></label>
+      <label class="f">구분<select id="pMake"><option value="make">제작</option><option value="buy">구매</option></select></label>
+      <label class="f">제작 단계<select id="pStage"></select></label>
+      <label class="f">수량<div class="unit"><input id="pQty" type="number" min="1" step="1" value="1" inputmode="numeric"><span>개</span></div></label>
+      <label class="f">개당 질량<div class="unit"><input id="pMass" type="number" min="0" step="any" inputmode="decimal" placeholder="미입력"><span>g</span></div></label>
+      <label class="f">개당 비용<div class="unit"><input id="pCost" type="number" min="0" step="1" inputmode="numeric" placeholder="미입력"><span>원</span></div></label>
+      <label class="f">담당자<input id="pOwner" maxlength="40" placeholder="이름"></label>
+      <label class="f">공급처 / 가공처<input id="pSupplier" maxlength="60"></label>
+      <label class="f">마감일<input id="pDue" type="date"></label>
+      <label class="f full">메모<textarea id="pNote" maxlength="1000" placeholder="재질, 도면 링크, 특이사항"></textarea></label>
+    </div>
+    <fieldset>
+      <legend class="fl">첨부 파일 · 도면, 견적서, 사진</legend>
+      <div class="chips" id="pAtt"></div>
+      <div class="toolbar"><span class="btn sm filebtn" id="pFileBtn">파일 추가<input type="file" id="pFile" multiple accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.csv,.txt,.log,.json,.md,.mp4,.webm"></span><span class="hint">PNG·JPG·PDF·CSV·TXT·MP4 등, 파일당 20MB까지</span></div>
+    </fieldset>
+    <div class="txt" id="pLinked" hidden><span>관련 테스트 기록</span><div class="linked" id="pLinkedList"></div></div>
+    <div class="txt" id="pHist" hidden><span>최근 변경</span><div class="mini-hist" id="pHistList"></div></div>
+    <div class="dlg-foot">
+      <button class="btn danger" type="button" id="btnDelPart" hidden>삭제</button>
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit" id="btnSavePart">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgCfg">
+  <form class="dlg" id="formCfg">
+    <h3>차량 설정</h3>
+    <div class="grid2">
+      <label class="f full">차량 이름<input id="cName" maxlength="60" placeholder="예: KR-27"></label>
+      <label class="f">대회 날짜<input id="cDate" type="date"></label>
+      <label class="f">목표 질량<div class="unit"><input id="cMass" type="number" min="0" step="any" inputmode="decimal" placeholder="예: 220"><span>kg</span></div></label>
+      <label class="f full">부품 예산<div class="unit"><input id="cBudget" type="number" min="0" step="10000" inputmode="numeric" placeholder="예: 30000000"><span>원</span></div></label>
+    </div>
+    <p class="hint">질량은 등록된 부품의 개당 질량 × 수량 합계예요. 드라이버와 유체(오일, 냉각수)는 포함되지 않아요.</p>
+    <div class="dlg-foot">
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgSession">
+  <form class="dlg" id="formSession">
+    <h3 id="dlgSessionTitle">새 테스트 세션</h3>
+    <div class="grid2">
+      <label class="f">날짜 *<input id="sDate" type="date" required></label>
+      <label class="f">종목<select id="sEvent"></select></label>
+      <label class="f">장소<input id="sLoc" maxlength="40" placeholder="예: 학교 주차장, 인제 스피디움"></label>
+      <label class="f">날씨<select id="sWeather"><option value="">선택 안 함</option><option>맑음</option><option>흐림</option><option>비</option><option>젖은 노면</option><option>강풍</option></select></label>
+      <label class="f">기온<div class="unit"><input id="sAir" type="number" step="any" inputmode="decimal"><span>℃</span></div></label>
+      <label class="f">노면 온도<div class="unit"><input id="sTrack" type="number" step="any" inputmode="decimal"><span>℃</span></div></label>
+      <label class="f">주행 랩 수<div class="unit"><input id="sLaps" type="number" min="0" step="1" inputmode="numeric"><span>랩</span></div></label>
+      <label class="f full">테스트 목적<textarea id="sGoal" maxlength="600" placeholder="이번 세션에서 확인할 것 (예: 리어 캠버 -1.5° → -2.0° 변경 효과, 배터리 열 관리)"></textarea></label>
+    </div>
+    <p class="hint" id="sCkHint">새 세션에는 현재 출주 전 점검 항목이 복사돼요.</p>
+    <div class="dlg-foot">
+      <button class="btn danger" type="button" id="btnDelSession" hidden>세션 삭제</button>
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgLog">
+  <form class="dlg" id="formLog">
+    <h3 id="dlgLogTitle">부서 기록</h3>
+    <p class="hint" id="dlgLogSession"></p>
+    <div class="grid2">
+      <label class="f">부서<select id="lDept"></select></label>
+      <label class="f">작성자<input id="lAuthor" maxlength="20" placeholder="이름"></label>
+    </div>
+    <fieldset>
+      <legend class="fl">판정</legend>
+      <div class="seg">
+        <label><input type="radio" name="lst" value="ok" checked> ✓ 정상</label>
+        <label><input type="radio" name="lst" value="warn"> ! 주의</label>
+        <label><input type="radio" name="lst" value="bad"> ✕ 문제</label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend class="fl">측정값 · 비워 두면 기록하지 않아요</legend>
+      <div class="grid3" id="lMetrics"></div>
+    </fieldset>
+    <div class="grid2">
+      <label class="f full">셋업 변경<textarea id="lSetup" maxlength="1000" placeholder="이번 세션에서 바꾼 설정 (예: 리어 댐퍼 리바운드 +2클릭)"></textarea></label>
+      <label class="f full">관찰<textarea id="lObs" maxlength="2000" placeholder="데이터와 드라이버 피드백에서 본 것"></textarea></label>
+      <label class="f full">분석 · 결론<textarea id="lAna" maxlength="2000" placeholder="원인과 판단. 다른 부서가 알아야 할 점도 적어 주세요."></textarea></label>
+      <label class="f full">다음 액션<textarea id="lAct" maxlength="600" placeholder="다음 테스트 전까지 할 일"></textarea></label>
+    </div>
+    <label class="check"><input type="checkbox" id="lDone"> 다음 액션 해결됨</label>
+    <fieldset>
+      <legend class="fl">관련 부품 · 주의·문제 판정이면 부품 목록에 ⚠ 표시가 붙어요</legend>
+      <div class="chips" id="lParts"></div>
+      <select class="field" id="lPartPick" aria-label="관련 부품 추가"></select>
+    </fieldset>
+    <fieldset>
+      <legend class="fl">첨부 파일 · 데이터로거 CSV, 사진, 영상</legend>
+      <div class="chips" id="lAtt"></div>
+      <div class="toolbar"><span class="btn sm filebtn" id="lFileBtn">파일 추가<input type="file" id="lFile" multiple accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.csv,.txt,.log,.json,.md,.mp4,.webm"></span><span class="hint">파일당 20MB까지</span></div>
+    </fieldset>
+    <div class="dlg-foot">
+      <button class="btn danger" type="button" id="btnDelLog" hidden>기록 삭제</button>
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit" id="btnSaveLog">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgCk">
+  <form class="dlg" id="formCk">
+    <h3>출주 전 점검 항목 편집</h3>
+    <p class="hint">한 줄에 한 항목씩 적어요. 여기서 바꾼 항목은 앞으로 만드는 세션부터 적용돼요.</p>
+    <div class="grid2" id="ckEdit"></div>
+    <label class="check" id="ckApplyWrap"><input type="checkbox" id="ckApply" checked> 지금 보고 있는 세션에도 적용 (이미 체크한 항목은 유지)</label>
+    <div class="dlg-foot">
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgMs">
+  <form class="dlg" id="formMs">
+    <h3 id="dlgMsTitle">일정 추가</h3>
+    <div class="grid2">
+      <label class="f full">제목 *<input id="mTitle" required maxlength="80" placeholder="예: 설계 보고서 제출"></label>
+      <label class="f">날짜 *<input id="mDate" type="date" required></label>
+      <label class="f">종류<select id="mKind"></select></label>
+      <label class="f">담당 부서<select id="mDept"></select></label>
+      <label class="f full">메모<textarea id="mNote" maxlength="600" placeholder="제출처, 준비물, 공지 링크"></textarea></label>
+    </div>
+    <label class="check"><input type="checkbox" id="mDone"> 완료</label>
+    <div class="dlg-foot">
+      <button class="btn danger" type="button" id="btnDelMs" hidden>삭제</button>
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgExpNew">
+  <form class="dlg" id="formExpNew">
+    <h3 id="xNewTitle">사비 내역서 제출</h3>
+    <p class="hint">동아리 양식(개인사비사용내역서_이름_날짜.xlsx)을 올리면 양식에 맞는지 바로 확인해요. 제출한 뒤에는 총무와 개발자만 수정할 수 있어요.</p>
+    <div class="toolbar"><span class="btn filebtn">xlsx 파일 선택<input type="file" id="xFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></span><span class="hint" id="xFileName">선택한 파일 없음</span></div>
+    <label class="f" id="xApplicantWrap" hidden>신청자 이름 (돈을 받을 사람)<input id="xApplicant" maxlength="20"></label>
+    <div id="xResult"></div>
+    <div class="dlg-foot">
+      <span class="hint" id="xSubmitHint"></span>
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit" id="btnXSubmit" disabled>제출</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgExp"><div class="dlg" id="expDetail"></div></dialog>
+
+<dialog id="dlgRoles">
+  <form class="dlg" id="formRoles">
+    <h3>권한 관리</h3>
+    <p class="hint">총무로 지정한 사람만 지급 상태 변경, 수정본 파일 교체, 대리 등록을 할 수 있어요. 이 목록은 개발자(이 페이지 소유자)만 바꿀 수 있고, 서버 규칙으로 보호돼요. 목록에는 이 페이지를 한 번 이상 연 사람이 나타나요.</p>
+    <div class="people" id="rolePeople"></div>
+    <label class="check"><input type="checkbox" id="roleAllow"> 팀원이 직접 사비 내역서를 제출할 수 있게 하기</label>
+    <div class="dlg-foot">
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(() => {
+  // ---------- domain ----------
+  const DEPTS = [
+    { k: "battery", l: "배터리", c: 1, f: [
+      { k: "socStart", l: "시작 SOC", u: "%" }, { k: "socEnd", l: "종료 SOC", u: "%" },
+      { k: "cellTempMax", l: "최고 셀 온도", u: "℃" }, { k: "cellVMin", l: "최저 셀 전압", u: "V" },
+      { k: "currentMax", l: "최대 방전 전류", u: "A" }, { k: "energy", l: "소모 에너지", u: "kWh" }] },
+    { k: "circuit", l: "회로", c: 2, f: [
+      { k: "lvVolt", l: "LV 최저 전압", u: "V" }, { k: "sdcTrips", l: "셧다운 회로 트립", u: "회" },
+      { k: "canErrors", l: "CAN 오류", u: "회" }, { k: "faults", l: "BMS·IMD 폴트", u: "회" },
+      { k: "harnessTemp", l: "하네스 최고 온도", u: "℃" }] },
+    { k: "chassis", l: "프레임·현가", c: 3, f: [
+      { k: "pFL", l: "공기압 FL", u: "psi", g: "공기압", s: "FL" }, { k: "pFR", l: "공기압 FR", u: "psi", g: "공기압", s: "FR" },
+      { k: "pRL", l: "공기압 RL", u: "psi", g: "공기압", s: "RL" }, { k: "pRR", l: "공기압 RR", u: "psi", g: "공기압", s: "RR" },
+      { k: "camberF", l: "캠버 F", u: "°", g: "캠버", s: "프론트" }, { k: "camberR", l: "캠버 R", u: "°", g: "캠버", s: "리어" },
+      { k: "rideF", l: "차고 F", u: "mm", g: "차고", s: "프론트" }, { k: "rideR", l: "차고 R", u: "mm", g: "차고", s: "리어" },
+      { k: "tireTempMax", l: "타이어 최고 온도", u: "℃" }] },
+    { k: "aero", l: "에어로", c: 4, f: [
+      { k: "aoaF", l: "프론트 윙 받음각", u: "°", g: "윙 받음각", s: "프론트" }, { k: "aoaR", l: "리어 윙 받음각", u: "°", g: "윙 받음각", s: "리어" },
+      { k: "downforce", l: "다운포스 추정", u: "N" }, { k: "coastDecel", l: "코스트다운 감속", u: "m/s²" },
+      { k: "aeroTopSpeed", l: "최고 속도", u: "km/h" }] },
+    { k: "powertrain", l: "파워트레인", c: 5, f: [
+      { k: "motorTemp", l: "모터 최고 온도", u: "℃" }, { k: "invTemp", l: "인버터 최고 온도", u: "℃" },
+      { k: "coolantTemp", l: "냉각수 최고 온도", u: "℃" }, { k: "powerMax", l: "최고 출력", u: "kW" },
+      { k: "ptTopSpeed", l: "최고 속도", u: "km/h" }, { k: "gearRatio", l: "최종 감속비", u: ":1" }] }
+  ];
+  const DEPT = Object.fromEntries(DEPTS.map((d) => [d.k, d]));
+  const DEPT_INDEX = Object.fromEntries(DEPTS.map((d, i) => [d.k, i]));
+  const STAGES = [["design", "설계"], ["order", "발주"], ["machining", "가공"], ["inspect", "검수"], ["assembly", "조립"], ["done", "완료"]];
+  const STAGE_LABEL = Object.fromEntries(STAGES);
+  const STAGE_INDEX = Object.fromEntries(STAGES.map(([k], i) => [k, i]));
+  const EVENTS = ["셰이크다운", "가속", "스키드패드", "오토크로스", "엔듀런스", "브레이크 테스트", "자유 주행"];
+  const VERDICT = { ok: ["✓", "정상"], warn: ["!", "주의"], bad: ["✕", "문제"] };
+  const SERIES_C = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
+  const MS_KINDS = ["서류 제출", "차량 검사", "제작 마감", "테스트", "대회", "기타"];
+  const MS_SUGGEST = [["설계 보고서 제출", "서류 제출"], ["비용 보고서 (BOM) 제출", "서류 제출"], ["ESF (전기 안전 양식) 제출", "서류 제출"], ["차량 검사", "차량 검사"], ["대회 본선", "대회"]];
+  const HIST_TYPES = { part: "부품", session: "세션", log: "부서 기록", comment: "의견", check: "점검", milestone: "일정", expense: "사비 정산", config: "설정" };
+
+  // Default pre-run checklist; teams edit it in the page (stored in config/checklist).
+  const DEFAULT_CHECKLIST = {
+    battery: ["셀 전압 편차 확인", "SOC 확인 (주행 가능 수준)", "어큐뮬레이터 컨테이너 고정 볼트", "셀 온도 센서 정상 표시"],
+    circuit: ["IMD 동작 테스트", "셧다운 버튼 3개 동작", "TSAL 점등 확인", "BOTS 동작", "브레이크등 점등", "LV 배터리 전압"],
+    chassis: ["휠 너트 토크 · 토크 마킹", "타이어 공기압 세팅", "서스펜션 볼트 토크 마킹", "브레이크 페달 감 · 누유", "스티어링 유격", "안전벨트 · 헤드레스트 체결"],
+    aero: ["윙 마운트 볼트 체결", "바디워크 고정 상태", "받음각 세팅 확인"],
+    powertrain: ["냉각수량 · 누수", "체인 장력 · 체인 가드", "모터 · 인버터 마운트 볼트", "드라이브샤프트 체결"]
+  };
+  const DEFAULT_CK_ITEMS = Object.fromEntries(Object.entries(DEFAULT_CHECKLIST).map(([dk, list]) => [dk, list.map((text, i) => ({ id: `${dk}${i + 1}`, text }))]));
+
+  // Starter checklist for an EV car: part names only, no numbers or people.
+  const TEMPLATE = [
+    ["chassis", "스페이스 프레임", 1, "make"], ["chassis", "충격 흡수체 (IA)", 1, "buy"], ["chassis", "방화벽", 1, "make"], ["chassis", "플로어 패널", 1, "make"],
+    ["chassis", "프론트 업라이트", 2, "make"], ["chassis", "리어 업라이트", 2, "make"], ["chassis", "프론트 A암 (상·하)", 4, "make"], ["chassis", "리어 A암 (상·하)", 4, "make"],
+    ["chassis", "푸시로드", 4, "make"], ["chassis", "벨크랭크", 4, "make"], ["chassis", "댐퍼", 4, "buy"], ["chassis", "휠 허브", 4, "make"], ["chassis", "휠·타이어", 4, "buy"],
+    ["chassis", "스티어링 랙", 1, "make"], ["chassis", "스티어링 컬럼", 1, "make"], ["chassis", "퀵릴리즈·스티어링 휠", 1, "buy"], ["chassis", "타이로드", 2, "make"],
+    ["chassis", "마스터 실린더", 2, "buy"], ["chassis", "캘리퍼", 4, "buy"], ["chassis", "브레이크 디스크", 4, "make"], ["chassis", "밸런스 바", 1, "make"],
+    ["chassis", "시트", 1, "make"], ["chassis", "6점식 안전벨트", 1, "buy"], ["chassis", "헤드레스트", 1, "make"],
+    ["aero", "노즈콘·바디워크", 1, "make"], ["aero", "프론트 윙", 1, "make"], ["aero", "리어 윙", 1, "make"], ["aero", "사이드포드·냉각 덕트", 2, "make"],
+    ["powertrain", "구동 모터", 1, "buy"], ["powertrain", "인버터", 1, "buy"], ["powertrain", "체인·스프로킷", 1, "buy"], ["powertrain", "디퍼렌셜", 1, "buy"],
+    ["powertrain", "드라이브샤프트", 2, "buy"], ["powertrain", "냉각 펌프·라디에이터", 1, "buy"],
+    ["battery", "어큐뮬레이터 셀·모듈", 1, "make"], ["battery", "어큐뮬레이터 컨테이너", 1, "make"], ["battery", "BMS", 1, "buy"], ["battery", "충전기", 1, "buy"],
+    ["circuit", "AIR·프리차지 회로", 1, "make"], ["circuit", "TSAL", 1, "make"], ["circuit", "IMD", 1, "buy"], ["circuit", "LV 배터리", 1, "buy"],
+    ["circuit", "와이어링 하네스", 1, "make"], ["circuit", "셧다운 버튼", 3, "buy"], ["circuit", "브레이크 오버트래블 스위치 (BOTS)", 1, "buy"], ["circuit", "브레이크등", 1, "buy"], ["circuit", "VCU", 1, "make"]
+  ];
+
+  const EXT_TYPE = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", pdf: "application/pdf", csv: "text/csv", txt: "text/plain", log: "text/plain", json: "application/json", md: "text/markdown", mp4: "video/mp4", webm: "video/webm" };
+  const MAX_BYTES = 20 * 1024 * 1024;
+
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = (v) => (v === null || v === undefined || v === "" || !isFinite(Number(v))) ? null : Number(v);
+  const fmtN = (v) => v === null ? "–" : Number(v).toLocaleString("ko-KR", { maximumFractionDigits: 3 });
+  const qtyOf = (p) => Math.max(1, Math.round(num(p.qty) || 1));
+  const won = (n) => Math.round(n).toLocaleString("ko-KR") + "원";
+  const wonShort = (n) => {
+    if (n >= 1e8) return { v: (n / 1e8).toLocaleString("ko-KR", { maximumFractionDigits: 2 }), u: "억 원" };
+    if (n >= 1e4) return { v: Math.round(n / 1e4).toLocaleString("ko-KR"), u: "만 원" };
+    return { v: Math.round(n).toLocaleString("ko-KR"), u: "원" };
+  };
+  const kg = (g) => (g / 1000).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const fmtBytes = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(b / 1024)) + "KB";
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayStr = () => ymd(new Date());
+  const fmtDate = (s) => { if (!s) return ""; const [y, m, d] = s.split("-"); return `${y}. ${Number(m)}. ${Number(d)}`; };
+  const fmtShort = (s) => { if (!s) return ""; const [, m, d] = s.split("-"); return `${Number(m)}/${Number(d)}`; };
+  const fmtWhen = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  const daysUntil = (s) => { const [y, m, d] = s.split("-").map(Number); const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(y, m - 1, d) - t) / 86400000); };
+  const dLabel = (n) => n > 0 ? `D-${n}` : n === 0 ? "D-DAY" : `D+${-n}`;
+  const isLate = (p) => p.due && p.stage !== "done" && p.due < todayStr();
+  const deptOf = (x) => DEPT[x.dept] ? x.dept : "chassis";
+  const dmark = (k) => DEPT[k] ? `<i class="dmark d${DEPT[k].c}" aria-hidden="true"></i>` : "";
+  const verdictChip = (s) => s && VERDICT[s] ? `<span class="stt ${s}">${VERDICT[s][0]} ${VERDICT[s][1]}</span>` : `<span class="stt none">기록 없음</span>`;
+  const deptOptions = DEPTS.map((d) => `<option value="${d.k}">${d.l}</option>`).join("");
+  const rid = () => Math.random().toString(36).slice(2, 10);
+  const store = {
+    get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+  };
+
+  // ---------- state ----------
+  let db = null, assets = null, userNs = null;
+  let colP, cfgRef, ckRef, colS, colL, colC, colK, colM, colH, colPeople, colExp, colRev, rolesRef;
+  const state = {
+    phase: "loading", canWrite: true, tab: "parts", uid: "", isOwner: false,
+    roles: null, rolesLoaded: false, people: [], expenseDocs: [], reviewDocs: [], xDraft: null, acctCache: {},
+    parts: [], cfg: {}, ckCfg: null, sessions: [], logs: [], comments: [], checks: [], milestones: [], history: [],
+    sel: null, editPart: null, editSession: null, editLog: null, editMs: null, ckOpen: true,
+    att: { keep: [], add: [], remove: [] }, linkDraft: [],
+    me: { dept: store.get("fsk.me.dept"), name: store.get("fsk.me.name") }
+  };
+  const live = () => state.phase === "live";
+  const sessionIds = () => new Set(state.sessions.map((s) => s.id));
+  const isIssue = (l) => l.status === "warn" || l.status === "bad";
+  const openIssue = (l, ids) => isIssue(l) && !l.actionDone && (ids || sessionIds()).has(l.sessionId);
+  const stamp = () => new Date().toISOString();
+
+  async function attempt(fn) {
+    try { return await fn(); }
+    catch (e) { if (e && e.code === "unavailable") { await new Promise((r) => setTimeout(r, 600 + Math.random() * 800)); return fn(); } throw e; }
+  }
+  function explain(e) {
+    const code = e && e.code;
+    if (code === "invalid_argument") { state.canWrite = false; render(); return "수정 권한이 없어요. 소유자에게 편집자로 초대해 달라고 요청하세요."; }
+    if (code === "quota_exceeded") return "저장 공간이 가득 찼어요. 쓰지 않는 항목을 지운 뒤 다시 시도하세요.";
+    if (code === "resource_exhausted") return "요청이 너무 많아요. 잠시 후 다시 시도하세요.";
+    if (code === "too_large") return "파일이 너무 커요. 20MB 이하로 줄여 주세요.";
+    if (code === "unsupported_type") return "지원하지 않는 파일 형식이에요. PNG, JPG, PDF, CSV, TXT, MP4 등을 올려 주세요.";
+    if (code === "quota_or_state") return "첨부 파일 저장 공간이 가득 찼어요. 쓰지 않는 첨부를 지운 뒤 다시 시도하세요.";
+    if (code === "rate_limited") return "요청이 너무 많아요. 잠시 후 다시 시도하세요.";
+    return "저장하지 못했어요. 연결을 확인하고 다시 시도하세요.";
+  }
+
+  // History: one document per change, pruned to 90 days.
+  function hist(type, action, target, targetId, detail) {
+    if (!colH || !state.canWrite) return;
+    colH.doc().set({ at: stamp(), by: state.me.name || "", uid: state.uid || "", dept: state.me.dept || "", type, action, target: target || "", targetId: targetId || "", detail: detail || "" }).catch(() => {});
+  }
+  async function pruneHistory() {
+    if (!colH || !state.canWrite) return;
+    const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
+    try {
+      const snap = await colH.where("at", "<", cutoff).limit(100).get();
+      for (const d of snap.docs) await colH.doc(d.id).delete();
+    } catch {}
+  }
+
+  async function boot() {
+    render();
+    if (!window.claude || typeof window.claude.use !== "function") { state.phase = "offline"; render(); return; }
+    try { db = await window.claude.use("db"); } catch { db = null; }
+    if (!db) { state.phase = "offline"; render(); return; }
+    try {
+      userNs = await window.claude.use("user");
+      if (userNs) { const c = await userNs.can("data.write"); if (c === false) state.canWrite = false; state.uid = (await userNs.id()) || ""; state.isOwner = await userNs.isOwner(); }
+    } catch {}
+    window.claude.use("assets").then((a) => { assets = a; render(); }).catch(() => {});
+    colP = db.collection("parts"); cfgRef = db.doc("config/car"); ckRef = db.doc("config/checklist");
+    colS = db.collection("sessions"); colL = db.collection("logs"); colC = db.collection("comments");
+    colK = db.collection("checks"); colM = db.collection("milestones"); colH = db.collection("history");
+    const pending = new Set(["parts", "sessions", "logs", "comments", "checks", "milestones"]);
+    const arrived = (k) => { pending.delete(k); if (!pending.size && state.phase === "loading") state.phase = "live"; render(); };
+    const fail = () => { state.phase = "error"; render(); };
+    const rows = (s) => s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    colP.onSnapshot((s) => { state.parts = rows(s); arrived("parts"); }, fail);
+    colS.onSnapshot((s) => { state.sessions = rows(s); arrived("sessions"); }, fail);
+    colL.onSnapshot((s) => { state.logs = rows(s); arrived("logs"); }, fail);
+    colC.onSnapshot((s) => { state.comments = rows(s); arrived("comments"); }, fail);
+    colK.onSnapshot((s) => { state.checks = rows(s); arrived("checks"); }, fail);
+    colM.onSnapshot((s) => { state.milestones = rows(s); arrived("milestones"); }, fail);
+    colH.orderBy("at", "desc").limit(300).onSnapshot((s) => { state.history = rows(s); if (state.tab === "history") renderHistory(); }, () => {});
+    cfgRef.onSnapshot((s) => { state.cfg = s.exists ? { ...s.data() } : {}; render(); }, () => {});
+    ckRef.onSnapshot((s) => { state.ckCfg = s.exists ? s.data() : null; if (state.tab === "sessions") renderSessions(); }, () => {});
+    // Expense settlement: each person writes only their own expenses/<id> and reviews/<id>; config/roles is owner-only (see db rules).
+    colPeople = db.collection("people"); colExp = db.collection("expenses"); colRev = db.collection("reviews"); rolesRef = db.doc("config/roles");
+    colPeople.onSnapshot((s) => { state.people = rows(s); if (!state.registered) registerMe(); }, () => {});
+    colExp.onSnapshot((s) => { state.expenseDocs = rows(s); renderExpenseIfOpen(); }, () => {});
+    colRev.onSnapshot((s) => { state.reviewDocs = rows(s); renderExpenseIfOpen(); }, () => {});
+    rolesRef.onSnapshot((s) => {
+      state.roles = s.exists ? s.data() : null; state.rolesLoaded = true;
+      if (state.isOwner && state.uid && (!state.roles || state.roles.ownerUid !== state.uid)) {
+        rolesRef.set({ treasurers: [], allowMemberSubmit: true, ...(state.roles || {}), ownerUid: state.uid, updatedAt: stamp() }).catch(() => {});
+      }
+      render();
+    }, () => {});
+    setTimeout(pruneHistory, 8000);
+  }
+
+  // ---------- static options ----------
+  $("meDept").innerHTML = `<option value="">부서 선택</option>` + deptOptions;
+  $("meDept").value = state.me.dept; $("meName").value = state.me.name;
+  $("pDept").innerHTML = deptOptions; $("lDept").innerHTML = deptOptions;
+  $("fdept").innerHTML = `<option value="all">모든 부서</option>` + deptOptions;
+  $("iDept").innerHTML = `<option value="">모든 부서</option>` + deptOptions;
+  $("msDept").innerHTML = `<option value="">모든 부서</option>` + deptOptions;
+  $("hDept").innerHTML = `<option value="">모든 부서</option>` + deptOptions;
+  $("mDept").innerHTML = `<option value="">팀 전체</option>` + deptOptions;
+  $("mKind").innerHTML = MS_KINDS.map((k) => `<option>${k}</option>`).join("");
+  $("fst").innerHTML = `<option value="all">모든 단계</option><option value="open">미완료만</option><option value="late">마감 지남</option><option value="issue">테스트 이슈 있음</option>` + STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+  $("pStage").innerHTML = STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+  $("sEvent").innerHTML = EVENTS.map((e) => `<option>${e}</option>`).join("");
+  $("tEvent").innerHTML = `<option value="">모든 종목</option>` + EVENTS.map((e) => `<option>${e}</option>`).join("");
+  $("stageLegend").innerHTML = STAGES.map(([, l], i) => `<span><i style="background:var(--s${i})"></i>${l}</span>`).join("");
+  $("tMetric").innerHTML = DEPTS.map((d) => {
+    const seen = new Set();
+    return `<optgroup label="${d.l}">` + d.f.map((f) => {
+      if (!f.g) return `<option value="${d.k}|f|${f.k}">${f.l}</option>`;
+      if (seen.has(f.g)) return "";
+      seen.add(f.g);
+      return `<option value="${d.k}|g|${f.g}">${f.g} (${d.f.filter((x) => x.g === f.g).map((x) => x.s).join("·")})</option>`;
+    }).join("") + `</optgroup>`;
+  }).join("");
+
+  // ---------- render ----------
+  function nextMilestone() {
+    const t = todayStr();
+    return state.milestones.filter((m) => !m.done && m.date && m.date >= t).sort((a, b) => a.date.localeCompare(b.date))[0];
+  }
+
+  function render() {
+    const { phase, canWrite, cfg } = state;
+    $("carName").textContent = cfg.carName || "우리 팀 차량";
+    const pit = $("pit");
+    if (cfg.compDate) {
+      const diff = daysUntil(cfg.compDate);
+      $("ddayNum").textContent = diff > 0 ? `D-${diff}` : diff === 0 ? "D-DAY" : "대회 종료";
+      $("ddayDate").textContent = fmtDate(cfg.compDate);
+      pit.classList.remove("unset");
+    } else { $("ddayNum").textContent = "날짜 미정"; $("ddayDate").textContent = ""; pit.classList.add("unset"); }
+    const nm = nextMilestone(), pn = $("pitNext");
+    pn.hidden = !nm;
+    if (nm) { const n = daysUntil(nm.date); pn.innerHTML = `다음 일정 · <b>${esc(nm.title)}</b> <span class="${n <= 7 ? "soon" : ""}">${dLabel(n)}</span>`; }
+    $("btnSettings").hidden = !(live() && canWrite);
+
+    const banner = $("banner");
+    banner.className = "banner";
+    if (phase === "offline") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "팀 저장소에 연결할 수 없어요. claude.ai에 로그인한 상태로 이 페이지를 열어 주세요."; }
+    else if (phase === "error") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "데이터를 불러오지 못했어요. 페이지를 새로고침해 주세요."; }
+    else if (live() && !canWrite) { banner.hidden = false; banner.textContent = "보기 전용으로 열려 있어요. 수정하려면 소유자에게 편집자로 초대해 달라고 요청하세요."; }
+    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = "오른쪽 위에서 내 부서와 이름을 입력해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
+    else banner.hidden = true;
+
+    const ids = sessionIds();
+    const issues = state.logs.filter((l) => openIssue(l, ids)).length;
+    $("issueBadge").hidden = !issues; $("issueBadge").textContent = issues;
+    const waiting = isManager() ? liveSubs().filter((s) => ["pending", "fix"].includes(statusOf(s)) || isChanged(s)).length : 0;
+    $("expBadge").hidden = !waiting; $("expBadge").textContent = waiting;
+
+    ["parts", "sessions", "trend", "issues", "schedule", "expense", "history"].forEach((t) => {
+      $("view-" + t).hidden = state.tab !== t;
+      $("tab-" + t).setAttribute("aria-selected", String(state.tab === t));
+    });
+    ({ parts: renderParts, sessions: renderSessions, trend: renderTrend, issues: renderIssues, schedule: renderSchedule, expense: renderExpense, history: renderHistory })[state.tab]();
+  }
+
+  // ---------- attachments view ----------
+  function attView(list) {
+    if (!list || !list.length) return "";
+    return `<div class="atts">${list.map((a) => {
+      const href = "/_blob/" + encodeURIComponent(a.id);
+      if (String(a.type || "").startsWith("image/")) return `<a class="att-img" href="${href}" target="_blank" rel="noopener" title="${esc(a.name)}"><img src="${href}" alt="${esc(a.name)}" loading="lazy"></a>`;
+      const ext = (String(a.name).split(".").pop() || "파일").toUpperCase().slice(0, 4);
+      return `<a class="att-file" href="${href}" target="_blank" rel="noopener" title="${esc(a.name)}"><b>${esc(ext)}</b><span>${esc(a.name)}</span></a>`;
+    }).join("")}</div>`;
+  }
+
+  // ---------- parts ----------
+  function stageCounts(list) { const c = STAGES.map(() => 0); list.forEach((p) => { c[STAGE_INDEX[p.stage] ?? 0]++; }); return c; }
+  function stackBar(counts, total) {
+    return total ? counts.map((c, i) => c ? `<span style="width:${(c / total) * 100}%;background:var(--s${i})" title="${STAGES[i][1]} ${c}개"></span>` : "").join("") : "";
+  }
+  function partIssueMap() {
+    const ids = sessionIds(), map = {};
+    state.logs.forEach((l) => { if (openIssue(l, ids)) (l.partIds || []).forEach((pid) => { map[pid] = (map[pid] || 0) + 1; }); });
+    return map;
+  }
+
+  function renderParts() {
+    const { parts, cfg, canWrite } = state;
+    const total = parts.length;
+    $("btnAdd").hidden = !(live() && canWrite && total);
+    $("btnExport").hidden = !(live() && total);
+
+    const counts = stageCounts(parts), done = counts[STAGE_INDEX.done];
+    if (total) {
+      $("gProg").innerHTML = `${Math.round((done / total) * 100)}<small>%</small>`;
+      $("gProgBar").innerHTML = stackBar(counts, total);
+      $("gProgSub").innerHTML = `${total}개 중 <b>${done}개</b> 완료`;
+    } else { $("gProg").textContent = "–"; $("gProgBar").innerHTML = ""; $("gProgSub").textContent = "부품을 등록하면 계산돼요"; }
+
+    let massG = 0, noMass = 0, cost = 0, noCost = 0;
+    parts.forEach((p) => { const m = num(p.unitMass), c = num(p.unitCost), q = qtyOf(p); if (m === null) noMass++; else massG += m * q; if (c === null) noCost++; else cost += c * q; });
+    const target = num(cfg.targetMass), mBar = $("gMassBar");
+    $("gMass").innerHTML = total ? `${kg(massG)}<small>kg</small>` : "–";
+    if (target) {
+      const r = massG / 1000 / target, gap = target - massG / 1000;
+      mBar.style.width = Math.min(100, r * 100) + "%"; mBar.classList.toggle("over", r > 1);
+      $("gMassSub").innerHTML = `목표 ${target.toLocaleString("ko-KR")}kg · ${gap >= 0 ? `<b>${gap.toFixed(1)}kg</b> 여유` : `<b class="late">${(-gap).toFixed(1)}kg</b> 초과`}${noMass ? ` · 미입력 ${noMass}개` : ""}`;
+    } else { mBar.style.width = "0"; mBar.classList.remove("over"); $("gMassSub").textContent = total ? `목표 질량 미설정${noMass ? ` · 미입력 ${noMass}개` : ""}` : "목표 질량은 차량 설정에서 정해요"; }
+
+    const budget = num(cfg.budget), cBar = $("gCostBar");
+    if (total) { const s = wonShort(cost); $("gCost").innerHTML = `${s.v}<small>${s.u}</small>`; } else $("gCost").textContent = "–";
+    if (budget) {
+      const r = cost / budget, b = wonShort(budget);
+      cBar.style.width = Math.min(100, r * 100) + "%"; cBar.classList.toggle("over", r > 1);
+      $("gCostSub").innerHTML = `예산 ${b.v}${b.u}의 <b>${Math.round(r * 100)}%</b>${noCost ? ` · 미입력 ${noCost}개` : ""}`;
+    } else { cBar.style.width = "0"; cBar.classList.remove("over"); $("gCostSub").textContent = total ? `예산 미설정${noCost ? ` · 미입력 ${noCost}개` : ""}` : "예산은 차량 설정에서 정해요"; }
+
+    const late = parts.filter(isLate), gLate = $("gLate");
+    gLate.textContent = total ? String(late.length) : "–";
+    gLate.className = "g-value num" + (total ? (late.length ? " alert" : " calm") : "");
+    $("gLateSub").textContent = late.length
+      ? late.slice().sort((a, b) => a.due.localeCompare(b.due)).slice(0, 3).map((p) => p.name).join(", ") + (late.length > 3 ? ` 외 ${late.length - 3}개` : "")
+      : "마감일이 지났는데 완료되지 않은 부품";
+
+    const anyData = total || state.logs.length, ids = sessionIds();
+    $("secDepts").hidden = !(live() && anyData);
+    if (live() && anyData) {
+      $("deptBody").innerHTML = DEPTS.map((d) => {
+        const list = parts.filter((p) => deptOf(p) === d.k);
+        let m = 0, c = 0;
+        list.forEach((p) => { const q = qtyOf(p); m += (num(p.unitMass) || 0) * q; c += (num(p.unitCost) || 0) * q; });
+        const iss = state.logs.filter((l) => l.dept === d.k && openIssue(l, ids)).length;
+        const sc = stageCounts(list);
+        return `<tr><td><span class="dname">${dmark(d.k)}<b>${d.l}</b></span></td>
+          <td>${list.length ? `<div class="track sys-bar">${stackBar(sc, list.length)}</div>` : '<span class="dim">–</span>'}</td>
+          <td class="r num">${list.length}</td><td class="r num">${list.length ? Math.round((sc[STAGE_INDEX.done] / list.length) * 100) + "%" : "–"}</td>
+          <td class="r num">${m ? kg(m) + " kg" : '<span class="dim">–</span>'}</td><td class="r num">${c ? won(c) : '<span class="dim">–</span>'}</td>
+          <td class="r num">${iss ? `<button class="issue-link" type="button" data-issues="${d.k}">${iss}건</button>` : '<span class="dim">0</span>'}</td></tr>`;
+      }).join("");
+    }
+
+    if (!live() || !total) {
+      $("partsEmpty").hidden = false; $("partsList").hidden = true; $("count").textContent = "";
+      const can = live() && canWrite;
+      $("partsEmptyActions").hidden = !can; $("partsEmptyHint").hidden = !can;
+      if (state.phase === "loading") { $("partsEmptyTitle").textContent = "불러오는 중…"; $("partsEmptyText").textContent = "팀 저장소에 연결하고 있어요."; }
+      else if (!live()) { $("partsEmptyTitle").textContent = "부품 목록을 표시할 수 없어요"; $("partsEmptyText").textContent = "저장소에 연결되면 팀원들이 등록한 부품이 여기에 나타나요."; }
+      else { $("partsEmptyTitle").textContent = "아직 등록된 부품이 없어요"; $("partsEmptyText").textContent = can ? "차량에 들어가는 부품을 등록하면 부서별 진행률, 차량 질량, 비용 합계가 자동으로 계산돼요. 기본 부품 목록으로 시작하거나 하나씩 직접 추가하세요." : "팀원이 부품을 등록하면 여기에 실시간으로 나타나요."; }
+      return;
+    }
+    $("partsEmpty").hidden = true; $("partsList").hidden = false;
+    renderPartList();
+  }
+
+  function renderPartList() {
+    const q = $("fq").value.trim().toLowerCase(), fd = $("fdept").value, ft = $("fst").value, sort = $("fsort").value;
+    const issueMap = partIssueMap();
+    const list = state.parts.filter((p) => {
+      if (fd !== "all" && deptOf(p) !== fd) return false;
+      if (ft === "open" && p.stage === "done") return false;
+      if (ft === "late" && !isLate(p)) return false;
+      if (ft === "issue" && !issueMap[p.id]) return false;
+      if (!["all", "open", "late", "issue"].includes(ft) && (p.stage || "design") !== ft) return false;
+      if (q && ![p.name, p.partNo, p.owner, p.supplier, p.note].some((v) => String(v || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const by = {
+      dept: (a, b) => DEPT_INDEX[deptOf(a)] - DEPT_INDEX[deptOf(b)] || (STAGE_INDEX[a.stage] ?? 0) - (STAGE_INDEX[b.stage] ?? 0) || String(a.name).localeCompare(String(b.name), "ko"),
+      due: (a, b) => (a.stage === "done") - (b.stage === "done") || (a.due || "9999").localeCompare(b.due || "9999"),
+      recent: (a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
+      mass: (a, b) => (num(b.unitMass) || 0) * qtyOf(b) - (num(a.unitMass) || 0) * qtyOf(a)
+    };
+    list.sort(by[sort] || by.dept);
+    $("count").textContent = list.length === state.parts.length ? `${list.length}개` : `${state.parts.length}개 중 ${list.length}개`;
+    const dis = state.canWrite ? "" : " disabled";
+    $("partBody").innerHTML = list.length ? list.map((p) => {
+      const si = STAGE_INDEX[p.stage] ?? 0, q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost), dk = deptOf(p);
+      const opts = STAGES.map(([k, l]) => `<option value="${k}"${k === (p.stage || "design") ? " selected" : ""}>${l}</option>`).join("");
+      const iss = issueMap[p.id], natt = (p.attachments || []).length;
+      return `<tr>
+        <td><span class="dot" style="background:var(--s${si})"></span><select class="st" data-stage="${esc(p.id)}" aria-label="제작 단계"${dis}>${opts}</select></td>
+        <td class="pcell"><button class="pname" type="button" data-part="${esc(p.id)}">${esc(p.name || "(이름 없음)")}</button>${iss ? `<button class="flag" type="button" data-part="${esc(p.id)}" title="미해결 테스트 이슈">⚠ 이슈 ${iss}</button>` : ""}${natt ? `<span class="clip">첨부 ${natt}</span>` : ""}${p.partNo ? `<span class="pno">${esc(p.partNo)}</span>` : ""}</td>
+        <td><span class="dname">${dmark(dk)}${DEPT[dk].l}</span></td>
+        <td><span class="tag ${p.make === "buy" ? "" : "make"}">${p.make === "buy" ? "구매" : "제작"}</span></td>
+        <td class="r num">${q}</td>
+        <td class="r num">${m === null ? '<span class="dim">–</span>' : kg(m * q) + " kg"}</td>
+        <td class="r num">${c === null ? '<span class="dim">–</span>' : won(c * q)}</td>
+        <td>${p.owner ? esc(p.owner) : '<span class="dim">–</span>'}</td>
+        <td class="num ${isLate(p) ? "late" : ""}">${p.due ? esc(fmtDate(p.due)) : '<span class="dim">–</span>'}</td>
+      </tr>`;
+    }).join("") : `<tr><td colspan="9" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
+  }
+
+  // ---------- sessions ----------
+  const sortedSessions = (dir) => state.sessions.slice().sort((a, b) => dir * (String(a.date).localeCompare(String(b.date)) || String(a.createdAt || "").localeCompare(String(b.createdAt || ""))));
+  const logsOf = (sid, dk) => state.logs.filter((l) => l.sessionId === sid && (!dk || l.dept === dk)).sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+  const worst = (logs) => logs.some((l) => l.status === "bad") ? "bad" : logs.some((l) => l.status === "warn") ? "warn" : logs.length ? "ok" : null;
+  function currentChecklist() {
+    const items = state.ckCfg && state.ckCfg.items;
+    const out = {};
+    DEPTS.forEach((d) => { out[d.k] = (items && Array.isArray(items[d.k])) ? items[d.k] : DEFAULT_CK_ITEMS[d.k]; });
+    return out;
+  }
+  const sessionChecklist = (s) => (s && s.checklist) ? s.checklist : currentChecklist();
+  const checkKey = (sid, itemId) => `${sid}--${itemId}`;
+  function checkProgress(s) {
+    const ck = sessionChecklist(s), done = new Set(state.checks.filter((c) => c.sessionId === s.id).map((c) => c.itemId));
+    let total = 0, n = 0;
+    DEPTS.forEach((d) => (ck[d.k] || []).forEach((it) => { total++; if (done.has(it.id)) n++; }));
+    return { total, n };
+  }
+
+  function renderSessions() {
+    const list = sortedSessions(-1);
+    if (!live() || !list.length) {
+      $("sessSplit").hidden = true; $("sessEmpty").hidden = false;
+      $("btnFirstSession").hidden = !(live() && state.canWrite);
+      if (state.phase === "loading") { $("sessEmptyTitle").textContent = "불러오는 중…"; $("sessEmptyText").textContent = "팀 저장소에 연결하고 있어요."; }
+      else if (!live()) { $("sessEmptyTitle").textContent = "기록을 표시할 수 없어요"; $("sessEmptyText").textContent = "저장소에 연결되면 테스트 세션과 부서별 기록이 여기에 나타나요."; }
+      else { $("sessEmptyTitle").textContent = "아직 테스트 세션이 없어요"; $("sessEmptyText").textContent = "주행 테스트를 하는 날 세션을 하나 만드세요. 출주 전 점검을 부서별로 체크하고, 주행 뒤에는 배터리 · 회로 · 프레임·현가 · 에어로 · 파워트레인이 각자 결과를 남겨 서로의 분석을 한 화면에서 볼 수 있어요."; }
+      return;
+    }
+    $("sessEmpty").hidden = true; $("sessSplit").hidden = false;
+    $("btnNewSession").hidden = !state.canWrite;
+    if (!state.sel || !state.sessions.some((s) => s.id === state.sel)) state.sel = list[0].id;
+    $("sessList").innerHTML = list.map((s) => {
+      const cover = DEPTS.map((d) => { const w = worst(logsOf(s.id, d.k)); return `<i class="${w || ""}" title="${d.l}: ${w ? VERDICT[w][1] : "기록 없음"}"></i>`; }).join("");
+      const cp = checkProgress(s);
+      return `<button type="button" class="sitem" data-sid="${esc(s.id)}" aria-current="${s.id === state.sel}">
+        <span class="sitem-top"><span class="sitem-ev">${esc(s.event || "주행")}</span><span class="sitem-date">${esc(fmtDate(s.date))}</span></span>
+        ${s.location ? `<span class="sitem-meta">${esc(s.location)}</span>` : ""}
+        <span class="sitem-top"><span class="cover" aria-label="부서별 판정">${cover}</span><span class="sitem-date">점검 ${cp.n}/${cp.total}</span></span>
+      </button>`;
+    }).join("");
+    renderDetail(state.sessions.find((s) => s.id === state.sel));
+  }
+
+  function renderChecklist(s) {
+    const ck = sessionChecklist(s), cw = state.canWrite;
+    const byItem = Object.fromEntries(state.checks.filter((c) => c.sessionId === s.id).map((c) => [c.itemId, c]));
+    const { total, n } = checkProgress(s);
+    const ready = total && n === total;
+    const blocks = DEPTS.map((d) => {
+      const items = ck[d.k] || [];
+      if (!items.length) return "";
+      const dn = items.filter((it) => byItem[it.id]).length;
+      return `<div class="ckdept"><h4>${dmark(d.k)}${d.l}<span class="${dn === items.length ? "full" : ""}">${dn}/${items.length}</span></h4>
+        ${items.map((it) => { const c = byItem[it.id]; return `<label class="ckitem${c ? " done" : ""}"><input type="checkbox" data-ck="${esc(it.id)}" data-ckdept="${d.k}" ${c ? "checked" : ""} ${cw ? "" : "disabled"}><span class="ckt">${esc(it.text)}</span>${c ? `<span class="ckby">✓ ${esc(c.by || "이름 없음")} · ${esc(fmtWhen(c.at))}</span>` : ""}</label>`; }).join("")}
+      </div>`;
+    }).join("");
+    return `<details class="ck" id="ckPanel"${state.ckOpen ? " open" : ""}>
+      <summary><h3>출주 전 점검</h3>${ready ? '<span class="stt ok">✓ 출주 준비 완료</span>' : `<span class="stt ${n ? "warn" : "none"}">${n ? "점검 중" : "점검 전"}</span>`}
+        <div class="track"><span class="fill ${ready ? "ok" : ""}" style="width:${total ? (n / total) * 100 : 0}%"></span></div><span class="num dim" style="font-size:12px">${n}/${total}</span><span class="caret"></span></summary>
+      <div class="ckgrid">${blocks}</div>
+      ${cw ? `<div class="ck-foot"><button class="btn ghost sm" type="button" id="btnEditCk">점검 항목 편집</button></div>` : ""}
+    </details>`;
+  }
+
+  function renderDetail(s) {
+    const cw = state.canWrite;
+    const facts = [
+      ["날씨", esc(s.weather) || "–"],
+      ["기온", num(s.airTemp) !== null ? fmtN(num(s.airTemp)) + "℃" : "–"],
+      ["노면 온도", num(s.trackTemp) !== null ? fmtN(num(s.trackTemp)) + "℃" : "–"],
+      ["주행 랩 수", num(s.laps) !== null ? fmtN(num(s.laps)) + "랩" : "–"]
+    ].map(([k, v]) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`).join("");
+    const cards = DEPTS.map((d) => {
+      const logs = logsOf(s.id, d.k), mine = state.me.dept === d.k;
+      const body = logs.length ? logs.map(renderLog).join("")
+        : `<div class="dcard-empty"><span>아직 기록이 없어요</span>${cw ? `<button class="btn sm" type="button" data-addlog="${d.k}">+ 기록 남기기</button>` : ""}</div>`;
+      return `<article class="dcard${mine ? " mine" : ""}">
+        <div class="dcard-h">${dmark(d.k)}<h3>${d.l}</h3>${mine ? '<span class="you">내 부서</span>' : ""}${verdictChip(worst(logs))}
+          ${logs.length && cw ? `<button class="btn ghost sm" type="button" data-addlog="${d.k}" title="${d.l} 기록 추가">+</button>` : ""}</div>
+        ${body}
+      </article>`;
+    }).join("");
+
+    const drafts = {}; let focusLog = null;
+    $("sessDetail").querySelectorAll("form[data-cform]").forEach((f) => {
+      const i = f.querySelector("input"); if (i.value) drafts[f.dataset.cform] = i.value;
+      if (document.activeElement === i) focusLog = f.dataset.cform;
+    });
+    $("sessDetail").innerHTML = `
+      <div class="dhead">
+        <div class="dhead-top">
+          <div><h2>${esc(s.event || "주행")}</h2><span class="sub">${esc(fmtDate(s.date))}${s.location ? " · " + esc(s.location) : ""}</span></div>
+          ${cw ? `<div class="toolbar"><button class="btn sm" type="button" id="btnEditSession">세션 수정</button><button class="btn primary sm" type="button" data-addlog="${esc(state.me.dept || "")}">+ 부서 기록</button></div>` : ""}
+        </div>
+        <div class="facts">${facts}</div>
+        ${s.goal ? `<p class="goal"><b>테스트 목적</b> · ${esc(s.goal)}</p>` : ""}
+      </div>
+      ${renderChecklist(s)}
+      <div class="depts">${cards}</div>`;
+    $("ckPanel").addEventListener("toggle", (e) => { state.ckOpen = e.target.open; });
+    $("sessDetail").querySelectorAll("form[data-cform]").forEach((f) => {
+      const i = f.querySelector("input"), id = f.dataset.cform;
+      if (drafts[id]) i.value = drafts[id];
+      if (focusLog === id) i.focus({ preventScroll: true });
+    });
+  }
+
+  function partChips(ids) {
+    const parts = (ids || []).map((id) => state.parts.find((p) => p.id === id)).filter(Boolean);
+    return parts.length ? `<div class="chips">${parts.map((p) => `<span class="chip static" data-part="${esc(p.id)}" role="button" tabindex="0">${dmark(deptOf(p))}<span>${esc(p.name)}</span></span>`).join("")}</div>` : "";
+  }
+
+  function renderLog(l) {
+    const d = DEPT[l.dept], m = l.metrics || {}, cw = state.canWrite;
+    const kv = (d ? d.f : []).filter((f) => num(m[f.k]) !== null).map((f) => `<div><span>${f.l}</span><b>${fmtN(num(m[f.k]))}${f.u === ":1" ? ":1" : " " + f.u}</b></div>`).join("");
+    const txt = (label, v) => v ? `<div class="txt"><span>${label}</span><p>${esc(v)}</p></div>` : "";
+    const cmts = state.comments.filter((c) => c.logId === l.id).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    const pc = partChips(l.partIds);
+    return `<div class="log">
+      <div class="log-h">${verdictChip(l.status)}<span class="who">${esc(l.author || "이름 없음")}${l.updatedAt ? " · " + esc(fmtShort(l.updatedAt.slice(0, 10))) : ""}</span>
+        <button class="btn ghost sm" type="button" data-editlog="${esc(l.id)}">${cw ? "수정" : "보기"}</button></div>
+      ${kv ? `<div class="kv">${kv}</div>` : ""}
+      ${txt("셋업 변경", l.setup)}${txt("관찰", l.observation)}${txt("분석 · 결론", l.analysis)}
+      ${l.action ? `<div class="action${l.actionDone ? " done" : ""}"><input type="checkbox" data-done="${esc(l.id)}" ${l.actionDone ? "checked" : ""} ${cw ? "" : "disabled"} aria-label="다음 액션 해결 여부"><div class="txt"><span>다음 액션</span><p>${esc(l.action)}</p></div></div>` : ""}
+      ${pc ? `<div class="txt"><span>관련 부품</span>${pc}</div>` : ""}
+      ${attView(l.attachments)}
+      <div class="cmts">
+        ${cmts.map((c) => `<div class="cmt"><span class="cmt-who">${dmark(c.dept)}${esc(c.author || "이름 없음")}${DEPT[c.dept] ? " · " + DEPT[c.dept].l : ""}</span><p>${esc(c.text)}</p></div>`).join("")}
+        ${cw ? `<form class="cform" data-cform="${esc(l.id)}"><input class="field" name="t" maxlength="500" placeholder="다른 부서 의견 남기기" aria-label="의견"><button class="btn sm" type="submit">등록</button></form>` : ""}
+      </div>
+    </div>`;
+  }
+
+  // ---------- trend ----------
+  function renderTrend() {
+    const ev = $("tEvent").value;
+    const sess = sortedSessions(1).filter((s) => !ev || s.event === ev);
+    const [dk, kind, key] = $("tMetric").value.split("|");
+    const d = DEPT[dk];
+    const fields = kind === "g" ? d.f.filter((f) => f.g === key) : d.f.filter((f) => f.k === key);
+    const unit = fields[0].u;
+    $("tTitle").innerHTML = `${dmark(dk)}${esc(d.l)} · ${esc(kind === "g" ? key : fields[0].l)} <span class="dim mono" style="font-weight:400">(${esc(unit)})</span>`;
+    const series = fields.map((f, i) => ({
+      name: f.s || f.l, color: SERIES_C[i % 4],
+      values: sess.map((s) => { const ls = logsOf(s.id, dk).filter((l) => num((l.metrics || {})[f.k]) !== null); return ls.length ? num(ls[ls.length - 1].metrics[f.k]) : null; })
+    }));
+    const xs = sess.map((s) => ({ short: fmtShort(s.date), long: `${fmtDate(s.date)} · ${s.event || "주행"}` }));
+    const filled = sess.filter((_, i) => series.some((se) => se.values[i] !== null)).length;
+    $("tNote").textContent = sess.length ? `${sess.length}개 세션 중 ${filled}개에 기록됨` : "";
+    $("tLegend").innerHTML = series.length > 1 ? series.map((s) => `<span><i class="ln" style="background:${s.color}"></i>${esc(s.name)}</span>`).join("") : "";
+    drawChart($("tChart"), xs, series, fmtN, unit);
+
+    const desc = sess.slice().reverse();
+    $("mxHead").innerHTML = `<tr><th>세션</th>${DEPTS.map((x) => `<th><span class="dname">${dmark(x.k)}${x.l}</span></th>`).join("")}<th class="r">점검</th></tr>`;
+    $("mxBody").innerHTML = desc.length ? desc.map((s) => { const cp = checkProgress(s); return `<tr class="link" data-goto="${esc(s.id)}"><td><span class="mono dim">${esc(fmtShort(s.date))}</span> ${esc(s.event || "주행")}</td>${DEPTS.map((x) => `<td>${verdictChip(worst(logsOf(s.id, x.k)))}</td>`).join("")}<td class="r num">${cp.n}/${cp.total}</td></tr>`; }).join("")
+      : `<tr><td colspan="${DEPTS.length + 2}" class="dim">${live() ? "선택한 종목의 세션이 없어요." : "저장소에 연결되면 표시돼요."}</td></tr>`;
+    $("tvHead").innerHTML = `<tr><th>세션</th>${series.map((s) => `<th class="r">${esc(s.name)} (${esc(unit)})</th>`).join("")}</tr>`;
+    $("tvBody").innerHTML = desc.length ? desc.map((s) => { const i = sess.indexOf(s); return `<tr><td>${esc(xs[i].long)}</td>${series.map((se) => `<td class="r num">${fmtN(se.values[i])}</td>`).join("")}</tr>`; }).join("")
+      : `<tr><td colspan="${series.length + 1}" class="dim">값이 없어요.</td></tr>`;
+  }
+
+  function niceTicks(lo, hi, n) {
+    const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map((s) => s * mag).find((s) => s >= raw);
+    const out = [];
+    for (let v = Math.floor(lo / step) * step; v <= hi + step * 0.5 && out.length < 12; v += step) out.push(+v.toFixed(10));
+    if (out[out.length - 1] < hi) out.push(+(out[out.length - 1] + step).toFixed(10));
+    return out;
+  }
+
+  function drawChart(el, xs, series, fmt, unit) {
+    const all = series.flatMap((s) => s.values).filter((v) => v !== null);
+    if (!all.length) { el.innerHTML = `<p class="chart-empty">${xs.length ? "이 지표가 기록된 세션이 아직 없어요. 부서 기록에서 측정값을 입력하면 여기에 그려져요." : "세션이 없어요."}</p>`; return; }
+    const W = Math.max(300, Math.round(el.clientWidth || 640)), H = W < 500 ? 200 : 240, multi = series.length > 1;
+    const m = { l: 52, r: multi ? 64 : 20, t: 14, b: 30 };
+    let lo = Math.min(...all), hi = Math.max(...all);
+    if (lo === hi) { const pad = Math.abs(lo) * 0.1 || 1; lo -= pad; hi += pad; }
+    const ticks = niceTicks(lo, hi, 4); lo = ticks[0]; hi = ticks[ticks.length - 1];
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const X = (i) => m.l + (xs.length === 1 ? iw / 2 : (i * iw) / (xs.length - 1));
+    const Y = (v) => m.t + ih - ((v - lo) / (hi - lo)) * ih;
+    const every = Math.max(1, Math.ceil(xs.length / Math.max(1, Math.floor(iw / 56))));
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="측정값 추이">`;
+    ticks.forEach((t) => { svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--grid)" stroke-width="1"/><text x="${m.l - 8}" y="${Y(t) + 4}" text-anchor="end">${esc(fmt(t))}</text>`; });
+    xs.forEach((x, i) => { if (i % every === 0 || i === xs.length - 1) svg += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle">${esc(x.short)}</text>`; });
+    svg += `<line class="xh" x1="0" x2="0" y1="${m.t}" y2="${m.t + ih}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>`;
+    const ends = [];
+    series.forEach((s) => {
+      let d = "", pen = false, li = -1;
+      s.values.forEach((v, i) => { if (v === null) { pen = false; return; } d += `${pen ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; pen = true; li = i; });
+      svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      s.values.forEach((v, i) => { if (v !== null) svg += `<circle cx="${X(i)}" cy="${Y(v)}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`; });
+      if (multi && li >= 0) ends.push({ y: Y(s.values[li]), name: s.name });
+    });
+    ends.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
+    ends.forEach((e) => { svg += `<text class="dl" x="${W - m.r + 8}" y="${e.y + 4}">${esc(e.name)}</text>`; });
+    svg += `<rect class="hit" x="${m.l - 10}" y="${m.t}" width="${iw + 20}" height="${ih}" fill="transparent"/></svg><div class="tip" hidden></div>`;
+    el.innerHTML = svg;
+    const svgEl = el.querySelector("svg"), tip = el.querySelector(".tip"), xh = el.querySelector(".xh"), hit = el.querySelector(".hit");
+    const move = (ev) => {
+      const r = svgEl.getBoundingClientRect(), sx = ((ev.clientX - r.left) / r.width) * W;
+      const i = xs.length === 1 ? 0 : Math.max(0, Math.min(xs.length - 1, Math.round(((sx - m.l) / iw) * (xs.length - 1))));
+      xh.setAttribute("x1", X(i)); xh.setAttribute("x2", X(i)); xh.setAttribute("visibility", "visible");
+      tip.innerHTML = `<b>${esc(xs[i].long)}</b>` + series.map((s) => `<div><span><i style="background:${s.color}"></i>${esc(s.name)}</span>${esc(s.values[i] === null ? "–" : fmt(s.values[i]) + " " + unit)}</div>`).join("");
+      tip.hidden = false;
+      const px = (X(i) / W) * r.width, tw = tip.offsetWidth;
+      tip.style.left = Math.min(Math.max(0, px + 12 + tw > r.width ? px - tw - 12 : px + 12), Math.max(0, r.width - tw)) + "px";
+      tip.style.top = "8px";
+    };
+    hit.addEventListener("pointermove", move);
+    hit.addEventListener("pointerdown", move);
+    hit.addEventListener("pointerleave", () => { tip.hidden = true; xh.setAttribute("visibility", "hidden"); });
+  }
+
+  // ---------- issues ----------
+  function renderIssues() {
+    if (!live()) { $("issueList").innerHTML = `<div class="empty"><p>저장소에 연결되면 주의·문제 판정을 받은 기록이 여기에 모여요.</p></div>`; return; }
+    const st = $("iState").value, dk = $("iDept").value;
+    const sess = Object.fromEntries(state.sessions.map((s) => [s.id, s]));
+    const list = state.logs.filter((l) => isIssue(l) && sess[l.sessionId])
+      .filter((l) => st === "all" || (st === "done" ? l.actionDone : !l.actionDone))
+      .filter((l) => !dk || l.dept === dk)
+      .sort((a, b) => (b.status === "bad") - (a.status === "bad") || String(sess[b.sessionId].date).localeCompare(String(sess[a.sessionId].date)));
+    $("issueList").innerHTML = list.length ? list.map((l) => {
+      const s = sess[l.sessionId], body = l.analysis || l.observation || "";
+      return `<div class="issue${l.actionDone ? " done" : ""}">
+        <div>
+          <div class="issue-h"><span class="dname">${dmark(l.dept)}${esc(DEPT[l.dept] ? DEPT[l.dept].l : l.dept)}</span>${verdictChip(l.status)}<span class="mono">${esc(fmtDate(s.date))}</span><span>${esc(s.event || "")}</span><span>${esc(l.author || "")}</span></div>
+          ${body ? `<p>${esc(body)}</p>` : ""}
+          ${l.action ? `<p class="act">→ ${esc(l.action)}</p>` : ""}
+          ${partChips(l.partIds)}
+        </div>
+        <div class="issue-side">
+          <button class="btn sm" type="button" data-goto="${esc(s.id)}">세션 보기</button>
+          ${state.canWrite ? `<label class="check"><input type="checkbox" data-done="${esc(l.id)}" ${l.actionDone ? "checked" : ""}> 해결됨</label>` : ""}
+        </div>
+      </div>`;
+    }).join("") : `<div class="empty"><h3>${st === "done" ? "해결된 이슈가 없어요" : "열린 이슈가 없어요"}</h3><p>테스트 세션의 부서 기록에서 판정을 '주의' 또는 '문제'로 남기면 여기에 모여요. 관련 부품을 지정하면 부품 목록에도 표시되고, 다음 액션을 끝내면 해결됨으로 표시하세요.</p></div>`;
+  }
+
+  // ---------- schedule ----------
+  function msRow(m, isNext) {
+    const n = m.date ? daysUntil(m.date) : null, cw = state.canWrite;
+    const dcls = m.done ? "past" : n < 0 ? "past" : n <= 7 ? "soon" : "";
+    return `<div class="ms${m.done ? " done" : ""}${isNext ? " next" : ""}">
+      <span class="ms-date">${esc(fmtDate(m.date))}</span>
+      <span class="ms-d ${dcls}">${m.done ? "완료" : n === null ? "–" : dLabel(n)}</span>
+      <div class="ms-main"><span class="ms-title">${esc(m.title)}</span>
+        <span class="ms-meta"><span class="tag">${esc(m.kind || "기타")}</span>${DEPT[m.dept] ? `<span class="dname">${dmark(m.dept)}${DEPT[m.dept].l}</span>` : "<span>팀 전체</span>"}</span>
+        ${m.note ? `<span class="ms-note">${esc(m.note)}</span>` : ""}</div>
+      <div class="ms-side">${cw ? `<label class="check"><input type="checkbox" data-msdone="${esc(m.id)}" ${m.done ? "checked" : ""}> 완료</label><button class="btn ghost sm" type="button" data-ms="${esc(m.id)}">수정</button>` : ""}</div>
+    </div>`;
+  }
+  function renderSchedule() {
+    const cw = state.canWrite && live();
+    $("btnAddMs").hidden = !cw;
+    const have = new Set(state.milestones.map((m) => m.title));
+    const sugg = MS_SUGGEST.filter(([t]) => !have.has(t));
+    $("msSugg").hidden = !(cw && sugg.length);
+    $("msSugg").innerHTML = `<span>자주 쓰는 일정:</span>` + sugg.map(([t, k]) => `<button class="btn sm" type="button" data-msnew="${esc(t)}" data-mskind="${esc(k)}">+ ${esc(t)}</button>`).join("");
+    if (!live()) { $("msBody").innerHTML = `<div class="empty"><p>저장소에 연결되면 대회 준비 일정이 여기에 나타나요.</p></div>`; return; }
+    const fd = $("msDept").value, t = todayStr();
+    const list = state.milestones.filter((m) => !fd || !m.dept || m.dept === fd).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    if (!list.length) {
+      $("msBody").innerHTML = `<div class="empty"><h3>아직 일정이 없어요</h3><p>FSK 공지에 나온 설계 보고서, 비용 보고서, ESF 마감과 차량 검사, 대회 날짜를 입력하세요. 가장 가까운 일정이 맨 위 피트보드에 D-day로 표시돼요.</p></div>`;
+      return;
+    }
+    const upcoming = list.filter((m) => !m.done && m.date >= t), rest = list.filter((m) => m.done || m.date < t).reverse();
+    $("msBody").innerHTML = `<div class="ms-list">${upcoming.length ? upcoming.map((m, i) => msRow(m, i === 0)).join("") : '<p class="dim">남은 일정이 없어요.</p>'}</div>
+      ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4><div class="ms-list">${rest.map((m) => msRow(m, false)).join("")}</div>` : ""}`;
+  }
+
+  // ---------- history ----------
+  function renderHistory() {
+    if (!live()) { $("histBody").innerHTML = `<div class="empty"><p>저장소에 연결되면 변경 이력이 여기에 나타나요.</p></div>`; return; }
+    const ft = $("hType").value, fd = $("hDept").value;
+    const list = state.history.filter((h) => (!ft || h.type === ft) && (!fd || h.dept === fd));
+    if (!list.length) { $("histBody").innerHTML = `<div class="empty"><h3>아직 기록된 변경이 없어요</h3><p>부품, 세션, 부서 기록, 점검, 일정을 바꾸면 누가 언제 무엇을 바꿨는지 여기에 자동으로 남아요.</p></div>`; return; }
+    let html = "", day = "";
+    list.forEach((h) => {
+      const d = new Date(h.at), dk = isNaN(d) ? "" : ymd(d);
+      if (dk !== day) { if (day) html += `</div>`; day = dk; html += `<div class="hist"><div class="hday">${esc(fmtDate(dk))}</div>`; }
+      const time = isNaN(d) ? "" : `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      html += `<div class="hrow"><span class="htime">${time}</span><div><span class="hwho">${dmark(h.dept)}<span ${!h.by && h.uid ? `data-uid="${esc(h.uid)}"` : ""}>${esc(h.by || "이름 미입력")}</span></span>${esc(h.action)}${h.target ? ` · <b>${esc(h.target)}</b>` : ""}<span class="hdet"><span class="tag">${esc(HIST_TYPES[h.type] || h.type)}</span> ${esc(h.detail || "")}</span></div></div>`;
+    });
+    $("histBody").innerHTML = html + (day ? "</div>" : "");
+    $("histBody").style.display = "flex"; $("histBody").style.flexDirection = "column"; $("histBody").style.gap = "12px";
+    const uids = [...new Set(list.filter((h) => !h.by && h.uid).map((h) => h.uid))];
+    if (userNs && uids.length) userNs.profiles(uids).then((ps) => {
+      $("histBody").querySelectorAll("[data-uid]").forEach((el) => { const p = ps[el.dataset.uid]; if (p && p.name) el.textContent = p.name; });
+    }).catch(() => {});
+  }
+
+  // ---------- toast & delete arming ----------
+  let toastTimer;
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3400); }
+  function armDelete(b, label) { if (b.classList.contains("armed")) return true; b.classList.add("armed"); b.textContent = label || "한 번 더 눌러 삭제"; return false; }
+  function resetDelete(b, text, show) { b.hidden = !show; b.classList.remove("armed"); b.textContent = text; b.disabled = false; }
+
+  // ---------- attachment drafts ----------
+  function resetAtt(list) { state.att = { keep: (list || []).slice(), add: [], remove: [] }; }
+  function renderAtt(boxId, btnId) {
+    const a = state.att, cw = state.canWrite;
+    $(btnId).parentElement.hidden = !(cw && assets);
+    const keep = a.keep.map((x, i) => `<span class="chip"><span>${esc(x.name)}</span><a class="dim" href="/_blob/${encodeURIComponent(x.id)}" target="_blank" rel="noopener" style="font-size:11px">열기</a>${cw && assets ? `<button type="button" data-attdel="${i}" aria-label="${esc(x.name)} 삭제">×</button>` : ""}</span>`);
+    const add = a.add.map((f, i) => `<span class="chip pend"><span>${esc(f.name)} · ${fmtBytes(f.size)}</span><button type="button" data-attcancel="${i}" aria-label="취소">×</button></span>`);
+    $(boxId).innerHTML = keep.concat(add).join("") || `<span class="hint">${cw && !assets ? "이 화면에서는 파일을 올릴 수 없어요 (편집자만 가능)." : "첨부 없음"}</span>`;
+  }
+  function pickFiles(input, boxId, btnId) {
+    const bad = [];
+    [...input.files].forEach((f) => {
+      const ext = (f.name.split(".").pop() || "").toLowerCase();
+      if (!EXT_TYPE[ext]) bad.push(`${f.name}: 지원하지 않는 형식`);
+      else if (f.size > MAX_BYTES) bad.push(`${f.name}: 20MB 초과`);
+      else state.att.add.push(f);
+    });
+    input.value = "";
+    if (bad.length) toast(bad.join(" / "));
+    renderAtt(boxId, btnId);
+  }
+  async function commitAttachments() {
+    const out = state.att.keep.slice();
+    for (const f of state.att.add) {
+      const ext = (f.name.split(".").pop() || "").toLowerCase();
+      let r;
+      try { r = await assets.upload(f, { type: EXT_TYPE[ext] }); }
+      catch (e) { if (e && e.code === "store_unavailable") { await new Promise((res) => setTimeout(res, 800)); r = await assets.upload(f, { type: EXT_TYPE[ext] }); } else throw e; }
+      out.push({ id: r.id, name: f.name, type: r.contentType, size: r.sizeBytes });
+    }
+    return out;
+  }
+  async function dropRemoved() {
+    if (!assets) return;
+    for (const a of state.att.remove) { try { await assets.delete(a.id); } catch {} }
+  }
+  document.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-attdel]");
+    if (del) { const [x] = state.att.keep.splice(Number(del.dataset.attdel), 1); if (x) state.att.remove.push(x); rerenderAttBoxes(); return; }
+    const cancel = e.target.closest("[data-attcancel]");
+    if (cancel) { state.att.add.splice(Number(cancel.dataset.attcancel), 1); rerenderAttBoxes(); }
+  });
+  function rerenderAttBoxes() { if ($("dlgPart").open) renderAtt("pAtt", "pFileBtn"); if ($("dlgLog").open) renderAtt("lAtt", "lFileBtn"); }
+  $("pFile").addEventListener("change", (e) => pickFiles(e.target, "pAtt", "pFileBtn"));
+  $("lFile").addEventListener("change", (e) => pickFiles(e.target, "lAtt", "lFileBtn"));
+
+  // ---------- part dialog ----------
+  const dlgP = $("dlgPart");
+  function openPart(id) {
+    const p = id ? state.parts.find((x) => x.id === id) : null, cw = state.canWrite;
+    state.editPart = p ? p.id : null;
+    $("dlgPartTitle").textContent = p ? (cw ? "부품 수정" : "부품 정보") : "부품 추가";
+    $("pName").value = p?.name || ""; $("pNo").value = p?.partNo || "";
+    $("pDept").value = p ? deptOf(p) : ($("fdept").value !== "all" ? $("fdept").value : (DEPT[state.me.dept] ? state.me.dept : "chassis"));
+    $("pMake").value = p?.make || "make"; $("pStage").value = p?.stage || "design";
+    $("pQty").value = p ? qtyOf(p) : 1; $("pMass").value = num(p?.unitMass) ?? ""; $("pCost").value = num(p?.unitCost) ?? "";
+    $("pOwner").value = p ? (p.owner || "") : state.me.name; $("pSupplier").value = p?.supplier || "";
+    $("pDue").value = p?.due || ""; $("pNote").value = p?.note || "";
+    resetDelete($("btnDelPart"), "삭제", !!(p && cw));
+    $("btnSavePart").hidden = !cw;
+    $("formPart").querySelectorAll("input,select,textarea").forEach((el) => { el.disabled = !cw; });
+    resetAtt(p?.attachments); renderAtt("pAtt", "pFileBtn");
+    const linked = p ? state.logs.filter((l) => (l.partIds || []).includes(p.id)) : [];
+    const sess = Object.fromEntries(state.sessions.map((s) => [s.id, s]));
+    $("pLinked").hidden = !linked.length;
+    $("pLinkedList").innerHTML = linked.filter((l) => sess[l.sessionId]).sort((a, b) => String(sess[b.sessionId].date).localeCompare(String(sess[a.sessionId].date))).map((l) => {
+      const s = sess[l.sessionId];
+      return `<div>${verdictChip(l.status)}<span class="dname">${dmark(l.dept)}${esc(DEPT[l.dept]?.l || "")}</span><span class="mono dim">${esc(fmtShort(s.date))}</span><span>${esc(s.event || "")}</span>${isIssue(l) ? (l.actionDone ? '<span class="dim">해결됨</span>' : '<b class="late">미해결</b>') : ""}<button class="btn ghost sm" type="button" data-goto="${esc(s.id)}">세션 보기</button></div>`;
+    }).join("");
+    const ph = p ? state.history.filter((h) => h.targetId === p.id).slice(0, 5) : [];
+    $("pHist").hidden = !ph.length;
+    $("pHistList").innerHTML = ph.map((h) => `<div><span class="mono">${esc(fmtWhen(h.at))}</span><span>${esc(h.by || "이름 미입력")} · ${esc(h.action)}${h.detail ? " · " + esc(h.detail) : ""}</span></div>`).join("");
+    dlgP.showModal();
+  }
+  function partDiff(old, nw) {
+    const ch = [];
+    if ((old.stage || "design") !== nw.stage) ch.push(`단계 ${STAGE_LABEL[old.stage] || "설계"} → ${STAGE_LABEL[nw.stage]}`);
+    if (old.name !== nw.name) ch.push(`이름 변경`);
+    if (deptOf(old) !== nw.dept) ch.push(`부서 ${DEPT[deptOf(old)].l} → ${DEPT[nw.dept].l}`);
+    if (qtyOf(old) !== nw.qty) ch.push(`수량 ${qtyOf(old)} → ${nw.qty}`);
+    if (num(old.unitMass) !== nw.unitMass) ch.push(`질량 ${fmtN(num(old.unitMass))} → ${fmtN(nw.unitMass)}g`);
+    if (num(old.unitCost) !== nw.unitCost) ch.push(`비용 ${fmtN(num(old.unitCost))} → ${fmtN(nw.unitCost)}원`);
+    if ((old.owner || "") !== nw.owner) ch.push(`담당 ${old.owner || "–"} → ${nw.owner || "–"}`);
+    if ((old.due || "") !== nw.due) ch.push(`마감 ${old.due || "–"} → ${nw.due || "–"}`);
+    if ((old.supplier || "") !== nw.supplier) ch.push("공급처 변경");
+    if ((old.note || "") !== nw.note) ch.push("메모 변경");
+    if ((old.partNo || "") !== nw.partNo) ch.push("부품 번호 변경");
+    const oa = (old.attachments || []).length, na = nw.attachments.length;
+    if (oa !== na || state.att.remove.length) ch.push(`첨부 ${oa} → ${na}개`);
+    return ch.join(", ");
+  }
+  async function savePart(id, body) {
+    body.updatedAt = stamp();
+    const ref = id ? colP.doc(id) : colP.doc();
+    await attempt(() => ref.set(body));
+    return ref.id;
+  }
+  $("formPart").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!state.canWrite) { dlgP.close(); return; }
+    const name = $("pName").value.trim();
+    if (!name) { $("pName").focus(); return; }
+    const btn = $("btnSavePart"); btn.disabled = true;
+    try {
+      const old = state.editPart ? state.parts.find((p) => p.id === state.editPart) : null;
+      if (state.att.add.length) toast("첨부 파일을 올리는 중…");
+      const attachments = await commitAttachments();
+      const body = {
+        name, partNo: $("pNo").value.trim(), dept: $("pDept").value, make: $("pMake").value, stage: $("pStage").value,
+        qty: Math.max(1, Math.round(Number($("pQty").value) || 1)), unitMass: num($("pMass").value), unitCost: num($("pCost").value),
+        owner: $("pOwner").value.trim(), supplier: $("pSupplier").value.trim(), due: $("pDue").value, note: $("pNote").value.trim(), attachments
+      };
+      const id = await savePart(state.editPart, body);
+      await dropRemoved();
+      if (old) { const d = partDiff(old, body); if (d) hist("part", "부품 수정", name, id, d); }
+      else hist("part", "부품 추가", name, id, `${DEPT[body.dept].l}${attachments.length ? ` · 첨부 ${attachments.length}개` : ""}`);
+      dlgP.close(); toast(old ? "저장했어요" : `${name} 추가했어요`);
+    } catch (err) { toast(explain(err)); }
+    finally { btn.disabled = false; }
+  });
+  $("btnDelPart").addEventListener("click", async (e) => {
+    const b = e.currentTarget;
+    if (!armDelete(b)) return;
+    b.disabled = true;
+    const p = state.parts.find((x) => x.id === state.editPart);
+    try {
+      await attempt(() => colP.doc(state.editPart).delete());
+      if (assets && p) for (const a of p.attachments || []) { try { await assets.delete(a.id); } catch {} }
+      hist("part", "부품 삭제", p?.name, state.editPart, "");
+      dlgP.close(); toast("부품을 삭제했어요");
+    } catch (err) { toast(explain(err)); b.disabled = false; }
+  });
+
+  // ---------- settings ----------
+  const dlgC = $("dlgCfg");
+  $("btnSettings").addEventListener("click", () => {
+    const c = state.cfg;
+    $("cName").value = c.carName || ""; $("cDate").value = c.compDate || "";
+    $("cMass").value = num(c.targetMass) ?? ""; $("cBudget").value = num(c.budget) ?? "";
+    dlgC.showModal();
+  });
+  $("formCfg").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = { carName: $("cName").value.trim(), compDate: $("cDate").value, targetMass: num($("cMass").value), budget: num($("cBudget").value), updatedAt: stamp() };
+    try {
+      await attempt(() => cfgRef.set(body));
+      const c = state.cfg, ch = [];
+      if ((c.carName || "") !== body.carName) ch.push(`차량 이름 → ${body.carName || "–"}`);
+      if ((c.compDate || "") !== body.compDate) ch.push(`대회 날짜 → ${body.compDate || "–"}`);
+      if (num(c.targetMass) !== body.targetMass) ch.push(`목표 질량 → ${fmtN(body.targetMass)}kg`);
+      if (num(c.budget) !== body.budget) ch.push(`예산 → ${fmtN(body.budget)}원`);
+      if (ch.length) hist("config", "차량 설정 변경", "", "config", ch.join(", "));
+      dlgC.close(); toast("차량 설정을 저장했어요");
+    } catch (err) { toast(explain(err)); }
+  });
+
+  // ---------- session dialog ----------
+  const dlgS = $("dlgSession");
+  function openSession(s) {
+    state.editSession = s ? s.id : null;
+    $("dlgSessionTitle").textContent = s ? "세션 수정" : "새 테스트 세션";
+    $("sDate").value = s?.date || todayStr(); $("sEvent").value = s?.event || EVENTS[0];
+    $("sLoc").value = s?.location || ""; $("sWeather").value = s?.weather || "";
+    $("sAir").value = num(s?.airTemp) ?? ""; $("sTrack").value = num(s?.trackTemp) ?? "";
+    $("sLaps").value = num(s?.laps) ?? ""; $("sGoal").value = s?.goal || "";
+    $("sCkHint").hidden = !!s;
+    resetDelete($("btnDelSession"), "세션 삭제", !!s);
+    dlgS.showModal();
+  }
+  $("formSession").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!$("sDate").value) return;
+    const old = state.editSession ? state.sessions.find((s) => s.id === state.editSession) : null;
+    const body = {
+      date: $("sDate").value, event: $("sEvent").value, location: $("sLoc").value.trim(), weather: $("sWeather").value,
+      airTemp: num($("sAir").value), trackTemp: num($("sTrack").value), laps: num($("sLaps").value), goal: $("sGoal").value.trim(),
+      checklist: old ? sessionChecklist(old) : JSON.parse(JSON.stringify(currentChecklist())),
+      createdAt: old?.createdAt || stamp(), updatedAt: stamp()
+    };
+    const ref = state.editSession ? colS.doc(state.editSession) : colS.doc();
+    try {
+      await attempt(() => ref.set(body));
+      hist("session", old ? "세션 수정" : "세션 생성", `${fmtShort(body.date)} ${body.event}`, ref.id, body.location);
+      state.sel = ref.id; dlgS.close(); toast(old ? "세션을 저장했어요" : "세션을 만들었어요. 출주 전 점검부터 체크하세요"); render();
+    } catch (err) { toast(explain(err)); }
+  });
+  $("btnDelSession").addEventListener("click", async (e) => {
+    const b = e.currentTarget, sid = state.editSession, n = logsOf(sid).length;
+    if (!armDelete(b, n ? `부서 기록 ${n}개도 함께 삭제돼요. 한 번 더 누르세요` : "한 번 더 눌러 삭제")) return;
+    b.disabled = true;
+    const s = state.sessions.find((x) => x.id === sid);
+    try {
+      for (const c of state.comments.filter((c) => c.sessionId === sid)) await attempt(() => colC.doc(c.id).delete());
+      for (const c of state.checks.filter((c) => c.sessionId === sid)) await attempt(() => colK.doc(c.id).delete());
+      for (const l of logsOf(sid)) {
+        await attempt(() => colL.doc(l.id).delete());
+        if (assets) for (const a of l.attachments || []) { try { await assets.delete(a.id); } catch {} }
+      }
+      await attempt(() => colS.doc(sid).delete());
+      hist("session", "세션 삭제", s ? `${fmtShort(s.date)} ${s.event}` : "", sid, n ? `부서 기록 ${n}개 포함` : "");
+      state.sel = null; dlgS.close(); toast("세션을 삭제했어요");
+    } catch (err) { toast(explain(err)); b.disabled = false; }
+  });
+
+  // ---------- checklist ----------
+  async function toggleCheck(cb) {
+    const s = state.sessions.find((x) => x.id === state.sel);
+    if (!s) return;
+    const itemId = cb.dataset.ck, dk = cb.dataset.ckdept, key = checkKey(s.id, itemId);
+    const item = (sessionChecklist(s)[dk] || []).find((it) => it.id === itemId);
+    cb.disabled = true;
+    try {
+      if (cb.checked) await attempt(() => colK.doc(key).set({ sessionId: s.id, itemId, dept: dk, by: state.me.name || "", uid: state.uid || "", at: stamp() }));
+      else await attempt(() => colK.doc(key).delete());
+      hist("check", cb.checked ? "점검 완료" : "점검 해제", item ? item.text : itemId, s.id, `${DEPT[dk].l} · ${fmtShort(s.date)} ${s.event}`);
+    } catch (err) { cb.checked = !cb.checked; toast(explain(err)); }
+    finally { cb.disabled = !state.canWrite; }
+  }
+  const dlgK = $("dlgCk");
+  function openCkEditor() {
+    const cur = currentChecklist();
+    $("ckEdit").innerHTML = DEPTS.map((d) => `<label class="f">${d.l}<textarea id="ck_${d.k}" rows="6">${esc((cur[d.k] || []).map((it) => it.text).join("\n"))}</textarea></label>`).join("");
+    $("ckApplyWrap").hidden = !state.sel;
+    dlgK.showModal();
+  }
+  function mergeItems(oldList, lines) {
+    const byText = new Map((oldList || []).map((it) => [it.text, it.id]));
+    return lines.map((t) => t.trim()).filter(Boolean).slice(0, 40).map((text) => ({ id: byText.get(text) || rid(), text: text.slice(0, 120) }));
+  }
+  $("formCk").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const cur = currentChecklist(), items = {};
+    DEPTS.forEach((d) => { items[d.k] = mergeItems(cur[d.k], $("ck_" + d.k).value.split("\n")); });
+    try {
+      await attempt(() => ckRef.set({ items, updatedAt: stamp() }));
+      const s = state.sessions.find((x) => x.id === state.sel);
+      if (s && $("ckApply").checked && !$("ckApplyWrap").hidden) {
+        const sc = sessionChecklist(s), next = {};
+        DEPTS.forEach((d) => {
+          const old = sc[d.k] || [];
+          next[d.k] = items[d.k].map((it) => { const prev = old.find((o) => o.text === it.text); return prev ? { id: prev.id, text: it.text } : it; });
+        });
+        await attempt(() => colS.doc(s.id).update({ checklist: next, updatedAt: stamp() }));
+      }
+      const n = DEPTS.reduce((a, d) => a + items[d.k].length, 0);
+      hist("config", "점검 항목 편집", "출주 전 점검", "checklist", `총 ${n}개 항목`);
+      dlgK.close(); toast("점검 항목을 저장했어요");
+    } catch (err) { toast(explain(err)); }
+  });
+
+  // ---------- log dialog ----------
+  const dlgL = $("dlgLog");
+  function renderMetricInputs(dk, values) {
+    $("lMetrics").innerHTML = DEPT[dk].f.map((f) => `<label class="f">${esc(f.l)}<div class="unit"><input type="number" step="any" inputmode="decimal" id="m_${f.k}" data-mk="${f.k}" value="${values && num(values[f.k]) !== null ? num(values[f.k]) : ""}"${state.canWrite ? "" : " disabled"}><span>${esc(f.u)}</span></div></label>`).join("");
+  }
+  function readMetrics() {
+    const out = {};
+    $("lMetrics").querySelectorAll("[data-mk]").forEach((i) => { const v = num(i.value); if (v !== null) out[i.dataset.mk] = v; });
+    return out;
+  }
+  function renderLinkDraft() {
+    const cw = state.canWrite, dk = $("lDept").value;
+    $("lParts").innerHTML = state.linkDraft.map((id, i) => { const p = state.parts.find((x) => x.id === id); return p ? `<span class="chip">${dmark(deptOf(p))}<span>${esc(p.name)}</span>${cw ? `<button type="button" data-unlink="${i}" aria-label="연결 해제">×</button>` : ""}</span>` : ""; }).join("") || `<span class="hint">연결된 부품 없음</span>`;
+    const avail = state.parts.filter((p) => !state.linkDraft.includes(p.id));
+    const order = [dk].concat(DEPTS.map((d) => d.k).filter((k) => k !== dk));
+    $("lPartPick").innerHTML = `<option value="">${state.parts.length ? "+ 관련 부품 추가…" : "등록된 부품이 없어요"}</option>` + order.map((k) => {
+      const ps = avail.filter((p) => deptOf(p) === k).sort((a, b) => String(a.name).localeCompare(String(b.name), "ko"));
+      return ps.length ? `<optgroup label="${DEPT[k].l}">${ps.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</optgroup>` : "";
+    }).join("");
+    $("lPartPick").hidden = !cw;
+  }
+  $("lPartPick").addEventListener("change", (e) => { if (e.target.value) { state.linkDraft.push(e.target.value); renderLinkDraft(); } });
+  $("lParts").addEventListener("click", (e) => { const b = e.target.closest("[data-unlink]"); if (b) { state.linkDraft.splice(Number(b.dataset.unlink), 1); renderLinkDraft(); } });
+  function openLog(log, dept) {
+    const s = state.sessions.find((x) => x.id === (log ? log.sessionId : state.sel));
+    if (!s) return;
+    const cw = state.canWrite;
+    state.editLog = log ? log.id : null;
+    const dk = log?.dept || (DEPT[dept] ? dept : (DEPT[state.me.dept] ? state.me.dept : DEPTS[0].k));
+    $("dlgLogTitle").textContent = log ? (cw ? "부서 기록 수정" : "부서 기록") : "부서 기록 남기기";
+    $("dlgLogSession").textContent = `${fmtDate(s.date)} · ${s.event || "주행"}${s.location ? " · " + s.location : ""}`;
+    $("lDept").value = dk;
+    $("lAuthor").value = log ? (log.author || "") : state.me.name;
+    document.querySelectorAll('input[name="lst"]').forEach((r) => { r.checked = r.value === (log?.status || "ok"); });
+    $("lSetup").value = log?.setup || ""; $("lObs").value = log?.observation || ""; $("lAna").value = log?.analysis || "";
+    $("lAct").value = log?.action || ""; $("lDone").checked = !!log?.actionDone;
+    $("formLog").querySelectorAll("input,select,textarea,button[type=submit]").forEach((el) => { el.disabled = !cw; });
+    renderMetricInputs(dk, log?.metrics);
+    state.linkDraft = (log?.partIds || []).filter((id) => state.parts.some((p) => p.id === id));
+    renderLinkDraft();
+    resetAtt(log?.attachments); renderAtt("lAtt", "lFileBtn");
+    resetDelete($("btnDelLog"), "기록 삭제", !!(log && cw));
+    dlgL.dataset.sid = s.id;
+    dlgL.showModal();
+  }
+  $("lDept").addEventListener("change", (e) => { renderMetricInputs(e.target.value, readMetrics()); renderLinkDraft(); });
+  $("formLog").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!state.canWrite) { dlgL.close(); return; }
+    const btn = $("btnSaveLog"); btn.disabled = true;
+    try {
+      const old = state.editLog ? state.logs.find((l) => l.id === state.editLog) : null;
+      if (state.att.add.length) toast("첨부 파일을 올리는 중…");
+      const attachments = await commitAttachments();
+      const body = {
+        sessionId: dlgL.dataset.sid, dept: $("lDept").value, author: $("lAuthor").value.trim(),
+        status: (document.querySelector('input[name="lst"]:checked') || {}).value || "ok",
+        metrics: readMetrics(), setup: $("lSetup").value.trim(), observation: $("lObs").value.trim(),
+        analysis: $("lAna").value.trim(), action: $("lAct").value.trim(), actionDone: $("lDone").checked,
+        partIds: state.linkDraft.slice(), attachments,
+        createdAt: old?.createdAt || stamp(), updatedAt: stamp()
+      };
+      const ref = state.editLog ? colL.doc(state.editLog) : colL.doc();
+      await attempt(() => ref.set(body));
+      await dropRemoved();
+      const s = state.sessions.find((x) => x.id === body.sessionId);
+      const det = [VERDICT[body.status][1], s ? `${fmtShort(s.date)} ${s.event}` : "", body.partIds.length ? `관련 부품 ${body.partIds.length}개` : "", attachments.length ? `첨부 ${attachments.length}개` : ""].filter(Boolean).join(" · ");
+      hist("log", old ? "부서 기록 수정" : "부서 기록 작성", DEPT[body.dept].l, body.sessionId, det);
+      dlgL.close(); toast(`${DEPT[body.dept].l} 기록을 저장했어요`);
+    } catch (err) { toast(explain(err)); }
+    finally { btn.disabled = false; }
+  });
+  $("btnDelLog").addEventListener("click", async (e) => {
+    const b = e.currentTarget, id = state.editLog;
+    if (!armDelete(b)) return;
+    b.disabled = true;
+    const l = state.logs.find((x) => x.id === id);
+    try {
+      for (const c of state.comments.filter((c) => c.logId === id)) await attempt(() => colC.doc(c.id).delete());
+      await attempt(() => colL.doc(id).delete());
+      if (assets && l) for (const a of l.attachments || []) { try { await assets.delete(a.id); } catch {} }
+      hist("log", "부서 기록 삭제", l ? DEPT[l.dept]?.l : "", l?.sessionId, "");
+      dlgL.close(); toast("기록을 삭제했어요");
+    } catch (err) { toast(explain(err)); b.disabled = false; }
+  });
+
+  // ---------- milestones ----------
+  const dlgM = $("dlgMs");
+  function openMs(m, preset) {
+    state.editMs = m ? m.id : null;
+    $("dlgMsTitle").textContent = m ? "일정 수정" : "일정 추가";
+    $("mTitle").value = m?.title || preset?.title || ""; $("mDate").value = m?.date || "";
+    $("mKind").value = m?.kind || preset?.kind || MS_KINDS[0]; $("mDept").value = m?.dept || "";
+    $("mNote").value = m?.note || ""; $("mDone").checked = !!m?.done;
+    resetDelete($("btnDelMs"), "삭제", !!m);
+    dlgM.showModal();
+    (preset && !m ? $("mDate") : $("mTitle")).focus();
+  }
+  $("formMs").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = $("mTitle").value.trim(), date = $("mDate").value;
+    if (!title || !date) return;
+    const old = state.editMs ? state.milestones.find((m) => m.id === state.editMs) : null;
+    const body = { title, date, kind: $("mKind").value, dept: $("mDept").value, note: $("mNote").value.trim(), done: $("mDone").checked, createdAt: old?.createdAt || stamp(), updatedAt: stamp() };
+    const ref = state.editMs ? colM.doc(state.editMs) : colM.doc();
+    try {
+      await attempt(() => ref.set(body));
+      hist("milestone", old ? "일정 수정" : "일정 추가", title, ref.id, `${fmtDate(date)}${old && old.date !== date ? ` (이전 ${fmtDate(old.date)})` : ""}`);
+      dlgM.close(); toast(old ? "일정을 저장했어요" : "일정을 추가했어요");
+    } catch (err) { toast(explain(err)); }
+  });
+  $("btnDelMs").addEventListener("click", async (e) => {
+    const b = e.currentTarget;
+    if (!armDelete(b)) return;
+    b.disabled = true;
+    const m = state.milestones.find((x) => x.id === state.editMs);
+    try { await attempt(() => colM.doc(state.editMs).delete()); hist("milestone", "일정 삭제", m?.title, state.editMs, m ? fmtDate(m.date) : ""); dlgM.close(); toast("일정을 삭제했어요"); }
+    catch (err) { toast(explain(err)); b.disabled = false; }
+  });
+
+  // ---------- events ----------
+  document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+  $("meDept").addEventListener("change", (e) => { state.me.dept = e.target.value; store.set("fsk.me.dept", state.me.dept); render(); });
+  $("meName").addEventListener("change", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); render(); });
+  $("meName").addEventListener("input", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); });
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { state.tab = t.dataset.tab; render(); }));
+  $("pitNext").addEventListener("click", () => { state.tab = "schedule"; render(); });
+  $("btnAdd").addEventListener("click", () => openPart(null));
+  $("btnAddEmpty").addEventListener("click", () => openPart(null));
+  $("btnNewSession").addEventListener("click", () => openSession(null));
+  $("btnFirstSession").addEventListener("click", () => openSession(null));
+  $("btnAddMs").addEventListener("click", () => openMs(null));
+  ["fq", "fdept", "fst", "fsort"].forEach((id) => $(id).addEventListener(id === "fq" ? "input" : "change", () => { if (state.parts.length) renderPartList(); }));
+  ["tMetric", "tEvent"].forEach((id) => $(id).addEventListener("change", renderTrend));
+  ["iState", "iDept"].forEach((id) => $(id).addEventListener("change", renderIssues));
+  $("msDept").addEventListener("change", renderSchedule);
+  ["hType", "hDept"].forEach((id) => $(id).addEventListener("change", renderHistory));
+
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("dialog") && !t.closest("[data-goto]")) {
+      // clicks inside dialogs are handled by their own listeners
+    } else {
+      const part = t.closest("[data-part]"); if (part) { openPart(part.dataset.part); return; }
+      const iss = t.closest("[data-issues]"); if (iss) { $("iDept").value = iss.dataset.issues; $("iState").value = "open"; state.tab = "issues"; render(); return; }
+      const sItem = t.closest("[data-sid]");
+      if (sItem) { state.sel = sItem.dataset.sid; renderSessions(); if (window.innerWidth <= 900) $("sessDetail").scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+      if (t.closest("#btnEditSession")) { openSession(state.sessions.find((s) => s.id === state.sel)); return; }
+      if (t.closest("#btnEditCk")) { openCkEditor(); return; }
+      const add = t.closest("[data-addlog]"); if (add) { openLog(null, add.dataset.addlog); return; }
+      const ed = t.closest("[data-editlog]"); if (ed) { const l = state.logs.find((x) => x.id === ed.dataset.editlog); if (l) openLog(l); return; }
+      const ms = t.closest("[data-ms]"); if (ms) { openMs(state.milestones.find((m) => m.id === ms.dataset.ms)); return; }
+      const msn = t.closest("[data-msnew]"); if (msn) { openMs(null, { title: msn.dataset.msnew, kind: msn.dataset.mskind }); return; }
+      const ex = t.closest("[data-exp]"); if (ex) { openExp(ex.dataset.exp); return; }
+      if (t.closest("[data-expnew]")) { openExpNew(); return; }
+    }
+    const go = t.closest("[data-goto]");
+    if (go) { const d = go.closest("dialog"); if (d) d.close(); state.sel = go.dataset.goto; state.tab = "sessions"; render(); window.scrollTo({ top: 0 }); }
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches(".chip.static[data-part]")) { e.preventDefault(); openPart(e.target.dataset.part); }
+  });
+  document.addEventListener("change", async (e) => {
+    const sel = e.target.closest("select[data-stage]");
+    if (sel) {
+      const stage = sel.value, p = state.parts.find((x) => x.id === sel.dataset.stage), prev = p?.stage || "design";
+      sel.disabled = true;
+      try {
+        await attempt(() => colP.doc(sel.dataset.stage).update({ stage, updatedAt: stamp() }));
+        hist("part", "단계 변경", p?.name, sel.dataset.stage, `${STAGE_LABEL[prev]} → ${STAGE_LABEL[stage]}`);
+        toast(`${STAGE_LABEL[stage]} 단계로 바꿨어요`);
+      } catch (err) { toast(explain(err)); render(); }
+      finally { sel.disabled = !state.canWrite; }
+      return;
+    }
+    const ck = e.target.closest("input[data-ck]");
+    if (ck) { toggleCheck(ck); return; }
+    const cb = e.target.closest("input[data-done]");
+    if (cb) {
+      const l = state.logs.find((x) => x.id === cb.dataset.done);
+      cb.disabled = true;
+      try {
+        await attempt(() => colL.doc(cb.dataset.done).update({ actionDone: cb.checked, updatedAt: stamp() }));
+        hist("log", cb.checked ? "이슈 해결" : "이슈 다시 열기", l ? DEPT[l.dept]?.l : "", l?.sessionId, l?.action || "");
+        toast(cb.checked ? "해결됨으로 표시했어요" : "미해결로 되돌렸어요");
+      } catch (err) { cb.checked = !cb.checked; toast(explain(err)); }
+      finally { cb.disabled = !state.canWrite; }
+      return;
+    }
+    const md = e.target.closest("input[data-msdone]");
+    if (md) {
+      const m = state.milestones.find((x) => x.id === md.dataset.msdone);
+      md.disabled = true;
+      try { await attempt(() => colM.doc(md.dataset.msdone).update({ done: md.checked, updatedAt: stamp() })); hist("milestone", md.checked ? "일정 완료" : "일정 완료 취소", m?.title, md.dataset.msdone, m ? fmtDate(m.date) : ""); }
+      catch (err) { md.checked = !md.checked; toast(explain(err)); }
+      finally { md.disabled = false; }
+    }
+  });
+  document.addEventListener("submit", async (e) => {
+    const f = e.target.closest("form[data-cform]");
+    if (!f) return;
+    e.preventDefault();
+    const input = f.querySelector("input"), text = input.value.trim(), log = state.logs.find((l) => l.id === f.dataset.cform);
+    if (!text || !log) return;
+    input.disabled = true;
+    try {
+      await attempt(() => colC.doc().set({ logId: log.id, sessionId: log.sessionId, dept: state.me.dept || "", author: state.me.name || "", text, createdAt: stamp() }));
+      hist("comment", "의견 등록", `${DEPT[log.dept]?.l || ""} 기록`, log.sessionId, text.slice(0, 60));
+      input.value = "";
+    } catch (err) { toast(explain(err)); }
+    finally { input.disabled = false; }
+  });
+
+  // ---------- template & export ----------
+  $("btnTemplate").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    let n = 0;
+    try {
+      for (const [dept, name, qty, make] of TEMPLATE) {
+        await savePart(null, { name, partNo: "", dept, make, stage: "design", qty, unitMass: null, unitCost: null, owner: "", supplier: "", due: "", note: "", attachments: [] });
+        n++;
+      }
+      toast(`기본 부품 ${n}개를 넣었어요`);
+    } catch (err) { toast(n ? `${n}개까지 넣고 멈췄어요. ${explain(err)}` : explain(err)); }
+    finally { b.disabled = false; if (n) hist("part", "기본 부품 목록 추가", `${n}개`, "", "EV 기본 목록"); }
+  });
+  $("btnExport").addEventListener("click", async () => {
+    const head = ["부서", "부품명", "부품번호", "구분", "제작 단계", "수량", "개당 질량(g)", "총 질량(g)", "개당 비용(원)", "금액(원)", "공급처/가공처", "담당자", "마감일", "메모"];
+    const cell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const sorted = state.parts.slice().sort((a, b) => DEPT_INDEX[deptOf(a)] - DEPT_INDEX[deptOf(b)] || String(a.name).localeCompare(String(b.name), "ko"));
+    const lines = [head.join(",")].concat(sorted.map((p) => {
+      const q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost);
+      return [DEPT[deptOf(p)].l, p.name, p.partNo, p.make === "buy" ? "구매" : "제작", STAGE_LABEL[p.stage] || "설계", q,
+        m ?? "", m === null ? "" : m * q, c ?? "", c === null ? "" : c * q, p.supplier, p.owner, p.due, p.note].map(cell).join(",");
+    }));
+    const csv = "﻿" + lines.join("\r\n");
+    const filename = `${(state.cfg.carName || "차량").replace(/[\\/:*?"<>|]/g, "")}_BOM_${todayStr()}.csv`;
+    let dl = null;
+    try { dl = await window.claude.use("downloads"); } catch {}
+    if (dl) {
+      try { await dl.save({ filename, data: csv }); toast("BOM 파일을 저장했어요"); return; }
+      catch (err) { if (err && err.code === "declined") return; }
+    }
+    try { await navigator.clipboard.writeText(csv); toast("파일로 저장할 수 없어 CSV를 클립보드에 복사했어요"); }
+    catch { toast("이 화면에서는 내보낼 수 없어요"); }
+  });
+
+  // ---------- 사비 정산 ----------
+  const EXP_HEADER = ["번호", "팀명", "날짜", "구분", "사용목적", "제품명", "구매(가공)처-링크포함", "단가", "수량", "합계"];
+  const EXP_COLS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
+  const DEFAULT_TEAMS = ["배터리", "파워트레인", "프레임", "회로", "에어로", "기타"];
+  const DEFAULT_CATS = ["엔진&구동시스템", "조향시스템", "현가시스템", "제동시스템", "프레임&바디", "전장시스템", "휠&타이어", "기타"];
+  const BANKS = ["신한", "국민", "KB", "우리", "하나", "농협", "NH", "기업", "IBK", "카카오", "토스", "케이뱅크", "새마을", "우체국", "수협", "SC", "제일", "씨티", "대구", "iM", "부산", "경남", "광주", "전북", "제주", "신협", "산업"];
+  const EXP_ST = { pending: "검토 대기", fix: "보완 요청", approved: "승인 · 지급 대기", paid: "지급 완료", rejected: "반려" };
+  const LEVEL_LABEL = { ok: "양식 통과", warn: "확인 필요", bad: "양식 불일치" };
+  const RNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const IMG_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+
+  const trustedReviewers = () => { const r = state.roles || {}; return new Set([r.ownerUid, ...(r.treasurers || [])].filter(Boolean)); };
+  const isTreasurer = () => !!(state.uid && state.roles && (state.roles.treasurers || []).includes(state.uid));
+  function isManager() { return state.isOwner || isTreasurer(); }
+  const canSubmit = () => !!state.uid && state.canWrite && (isManager() || !state.roles || state.roles.allowMemberSubmit !== false);
+  function allSubs() {
+    const out = [];
+    state.expenseDocs.forEach((d) => Object.values(d.subs || {}).forEach((s) => { if (s && s.id) out.push({ ...s, ownerUid: d.id, key: `${d.id}:${s.id}` }); }));
+    return out.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+  }
+  // Only review entries written by the owner or a designated treasurer count; anyone else's reviews/<id> doc is ignored.
+  function reviewOf(key) {
+    const trusted = trustedReviewers(); let best = null;
+    state.reviewDocs.forEach((d) => { if (!trusted.has(d.id)) return; const e = (d.items || {})[key]; if (e && (!best || String(e.at) > String(best.at))) best = { ...e, reviewer: d.id }; });
+    return best;
+  }
+  const fpOf = (s) => `${s.hash}|${s.total}`;
+  // Treasurer "delete" hides a submission (review entry deleted: true); the owner can restore it or purge the data and files.
+  function isDeleted(s) { const r = reviewOf(s.key); return !!(r && r.deleted); }
+  const liveSubs = () => allSubs().filter((s) => !isDeleted(s));
+  function statusOf(s) { const r = reviewOf(s.key); return r && EXP_ST[r.status] ? r.status : "pending"; }
+  function isChanged(s) { const r = reviewOf(s.key); return !!(r && r.fp && r.fp !== fpOf(s)); }
+  const effective = (s) => { const r = reviewOf(s.key); return r && r.override ? { ...s, ...r.override, overridden: true } : s; };
+  const payPill = (st, lg) => `<span class="pay ${st}${lg ? " lg" : ""}"><i></i>${EXP_ST[st]}</span>`;
+  const checkChip = (lvl) => lvl === "bad" ? '<span class="stt bad">✕ 양식 불일치</span>' : lvl === "warn" ? '<span class="stt warn">! 확인 필요</span>' : '<span class="stt ok">✓ 양식 통과</span>';
+  const nameOfUid = (uid) => { const p = state.people.find((x) => x.id === uid); return p && p.name ? p.name : ""; };
+  const linkify = (v) => esc(v).replace(/(https?:\/\/[^\s)<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  function explainExp(e) {
+    if (e && e.code === "invalid_argument") return "저장이 거부됐어요. 권한이 없거나 내 제출 기록이 너무 많아요 (1인당 약 50건). 총무에게 알려 주세요.";
+    return explain(e);
+  }
+  function renderExpenseIfOpen() { if (state.tab === "expense") { renderExpense(); if ($("dlgExp").open) renderExpDetail(); } else render(); }
+  function registerMe() {
+    if (!colPeople || !state.uid || !state.canWrite) return;
+    const mine = state.people.find((p) => p.id === state.uid);
+    state.registered = true;
+    if (mine && mine.name === (state.me.name || "") && mine.dept === (state.me.dept || "") && String(mine.seen || "").slice(0, 10) === todayStr()) return;
+    db.doc("people/" + state.uid).set({ name: state.me.name || "", dept: state.me.dept || "", seen: stamp() }).catch(() => {});
+  }
+  function toB64(bytes) { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
+  function fromB64(str) { const bin = atob(str); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+  async function sha256(buf) { try { const h = await crypto.subtle.digest("SHA-256", buf); return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join(""); } catch { return `size-${buf.byteLength}`; } }
+  function maskAccount(a) {
+    if (!a) return "";
+    const bank = BANKS.find((b) => a.toUpperCase().includes(b.toUpperCase())) || "", d = a.replace(/\D/g, "");
+    return d ? `${bank ? bank + " " : ""}${"•".repeat(Math.max(0, d.length - 4))}${d.slice(-4)}` : "";
+  }
+
+  // xlsx reader (works for Excel and Hancell files: namespace-agnostic lookups)
+  const byTag = (node, name) => Array.from(node.getElementsByTagNameNS("*", name));
+  function resolvePath(base, target) {
+    if (target.startsWith("/")) return target.slice(1);
+    const parts = base.split("/"); parts.pop();
+    target.split("/").forEach((seg) => { if (seg === "..") parts.pop(); else if (seg && seg !== ".") parts.push(seg); });
+    return parts.join("/");
+  }
+  async function readXml(zip, path) { const f = zip.file(path); return f ? new DOMParser().parseFromString(await f.async("string"), "application/xml") : null; }
+  async function relsOf(zip, partPath) {
+    const dir = partPath.split("/"), file = dir.pop();
+    const doc = await readXml(zip, [...dir, "_rels", file + ".rels"].join("/")), map = {};
+    if (doc) byTag(doc, "Relationship").forEach((r) => { map[r.getAttribute("Id")] = resolvePath(partPath, r.getAttribute("Target") || ""); });
+    return map;
+  }
+  const rAttr = (el, name) => el.getAttributeNS(RNS, name) || el.getAttribute("r:" + name);
+  const inPhonetic = (el) => { for (let p = el.parentNode; p; p = p.parentNode) if (p.localName === "rPh") return true; return false; };
+  async function readWorkbook(buf) {
+    let zip;
+    try { zip = await JSZip.loadAsync(buf); } catch { throw { user: "xlsx 파일을 열 수 없어요. 파일이 손상됐거나 암호가 걸려 있을 수 있어요." }; }
+    const wbPath = "xl/workbook.xml", wb = await readXml(zip, wbPath);
+    if (!wb) throw { user: "엑셀(xlsx) 통합 문서가 아니에요." };
+    const rels = await relsOf(zip, wbPath);
+    const ssDoc = await readXml(zip, "xl/sharedStrings.xml");
+    const ss = ssDoc ? byTag(ssDoc, "si").map((si) => byTag(si, "t").filter((t) => !inPhonetic(t)).map((t) => t.textContent).join("")) : [];
+    const sheets = [];
+    for (const s of byTag(wb, "sheet")) {
+      const path = rels[rAttr(s, "id")]; if (!path) continue;
+      const doc = await readXml(zip, path); if (!doc) continue;
+      const cells = {};
+      byTag(doc, "c").forEach((c) => {
+        const t = c.getAttribute("t"), vEl = byTag(c, "v")[0];
+        let v = null;
+        if (t === "s" && vEl) v = ss[Number(vEl.textContent)] ?? "";
+        else if (t === "inlineStr") v = byTag(c, "t").map((x) => x.textContent).join("");
+        else if (vEl) { const raw = vEl.textContent; v = (t === "str" || t === "e" || raw.trim() === "" || !isFinite(Number(raw))) ? raw : Number(raw); }
+        cells[c.getAttribute("r")] = { v, f: byTag(c, "f").length > 0 };
+      });
+      const srels = await relsOf(zip, path), images = [];
+      for (const d of byTag(doc, "drawing")) {
+        const dpath = srels[rAttr(d, "id")]; if (!dpath) continue;
+        const ddoc = await readXml(zip, dpath); if (!ddoc) continue;
+        const drels = await relsOf(zip, dpath);
+        [...byTag(ddoc, "twoCellAnchor"), ...byTag(ddoc, "oneCellAnchor"), ...byTag(ddoc, "absoluteAnchor")].forEach((a) => {
+          const blip = byTag(a, "blip")[0], media = blip && drels[rAttr(blip, "embed")];
+          if (!media) return;
+          const from = byTag(a, "from")[0];
+          images.push({ path: media, col: from ? Number(byTag(from, "col")[0]?.textContent || 0) : 0, row: from ? Number(byTag(from, "row")[0]?.textContent || 0) : 0 });
+        });
+      }
+      sheets.push({ name: s.getAttribute("name") || "", state: s.getAttribute("state") || "visible", cells, images });
+    }
+    return { zip, sheets };
+  }
+
+  const normH = (s) => String(s ?? "").replace(/\s+/g, "");
+  const cellStr = (c) => c && c.v !== null && c.v !== undefined ? String(c.v).trim() : "";
+  const toNum = (v) => { if (typeof v === "number") return v; if (typeof v !== "string") return null; const s = v.replace(/[,원\s₩]/g, ""); return s !== "" && isFinite(Number(s)) ? Number(s) : null; };
+  function excelDate(v) {
+    const ok = (y, m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
+    if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000).toISOString().slice(0, 10);
+    if (typeof v === "string") {
+      const s = v.trim();
+      let m = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*일?\.?$/); if (m) return ok(m[1], +m[2], +m[3]);
+      m = s.match(/^(\d{1,2})\s*[/.월]\s*(\d{1,2})\s*일?$/); if (m) return ok(new Date().getFullYear(), +m[1], +m[2]);
+    }
+    return null;
+  }
+  const receiptSlot = (col, row) => { const block = col < 10 ? 0 : col < 19 ? 1 : col < 28 ? 2 : 3; return Math.min(10, block * 3 + Math.min(2, Math.max(0, Math.floor((row - 2) / 12))) + 1); };
+
+  // Checks a statement against the club form (내역서 B2:K13, 영수증 sheet, hidden list sheet).
+  function checkStatement(wbk, fileName) {
+    const E = [], W = [], I = [];
+    const res = { errors: E, warns: W, infos: I, items: [], total: 0, account: "", receipts: [], applicant: "", totalRow: 13 };
+    const done = () => { res.level = E.length ? "bad" : W.length ? "warn" : "ok"; return res; };
+    const fm = String(fileName).replace(/\.xlsx$/i, "").match(/^개인\s*사비\s*사용\s*내역서\s*[_\-\s]\s*([^_\-\s]+)\s*[_\-\s]\s*(.+)$/);
+    if (fm) res.applicant = fm[1]; else W.push("파일명이 '개인사비사용내역서_이름_날짜' 형식이 아니에요.");
+    const sheet = wbk.sheets.find((s) => normH(s.name) === "내역서"), rsheet = wbk.sheets.find((s) => normH(s.name) === "영수증");
+    if (!sheet) { E.push("'내역서' 시트가 없어요. 동아리 사비 내역서 양식 파일인지 확인해 주세요."); return done(); }
+    if (!rsheet) E.push("'영수증' 시트가 없어요. 시트를 지우거나 이름을 바꾸지 마세요.");
+    const g = (ref) => sheet.cells[ref];
+    const badHead = EXP_HEADER.filter((h, i) => normH(cellStr(g(EXP_COLS[i] + "2"))) !== normH(h));
+    if (badHead.length) E.push(`2행 머리글이 양식과 달라요 (${badHead.join(", ")}). 열을 추가·삭제하지 말고 원본 양식을 써 주세요.`);
+    const hid = wbk.sheets.find((s) => s !== sheet && s !== rsheet && (s.state !== "visible" || s.name === "."));
+    const listCol = (col) => { const out = []; if (hid) for (let r = 1; r <= 60; r++) { const v = cellStr(hid.cells[col + r]); if (v) out.push(v); } return out; };
+    let cats = listCol("B"), teams = listCol("D");
+    if (cats.length < 3) cats = DEFAULT_CATS;
+    if (teams.length < 3) teams = DEFAULT_TEAMS;
+    let totalRow = 0;
+    for (let r = 3; r <= 80; r++) if (normH(cellStr(g("J" + r))) === "총합계") { totalRow = r; break; }
+    if (!totalRow) { E.push("'총 합계' 칸(J13)을 찾을 수 없어요. 양식의 아래쪽 칸을 지우지 마세요."); totalRow = 13; }
+    else if (totalRow !== 13) W.push(`항목 행 수가 양식과 달라요 (총 합계가 ${totalRow}행에 있음). 행을 추가·삭제했는지 확인해 주세요.`);
+    res.totalRow = totalRow;
+    const groups = new Set();
+    let formulaLost = 0;
+    for (let r = 3; r < totalRow; r++) {
+      if (!["C", "D", "E", "F", "G", "H", "I", "J"].some((c) => cellStr(g(c + r)))) continue;
+      const no = cellStr(g("B" + r)) || String(r - 2), label = `${no}번 (${r}행)`;
+      const [team, dateRaw, cat, purpose, product, vendor] = ["C", "D", "E", "F", "G", "H"].map((c) => cellStr(g(c + r)));
+      const missing = [["팀명", team], ["날짜", dateRaw], ["구분", cat], ["사용목적", purpose], ["제품명", product], ["구매처", vendor], ["단가", cellStr(g("I" + r))], ["수량", cellStr(g("J" + r))]].filter((x) => !x[1]).map((x) => x[0]);
+      if (missing.length) E.push(`${label}: ${missing.join(", ")} 칸이 비어 있어요.`);
+      if (team && !teams.includes(team)) E.push(`${label} C${r}: 팀명 '${team}'은(는) 목록(${teams.join(", ")})에 없어요.`);
+      if (cat && !cats.includes(cat)) E.push(`${label} E${r}: 구분 '${cat}'은(는) 목록에 없어요. 칸의 화살표를 눌러 목록에서 고르세요.`);
+      const date = dateRaw ? excelDate(g("D" + r).v) : null;
+      if (dateRaw && !date) E.push(`${label} D${r}: 날짜 '${dateRaw}'를 읽을 수 없어요. 10/30처럼 월/일로 입력하세요.`);
+      else if (date && date > todayStr()) W.push(`${label}: 날짜(${date})가 오늘 이후예요.`);
+      const price = toNum(g("I" + r)?.v), qty = toNum(g("J" + r)?.v), tot = toNum(g("K" + r)?.v);
+      if (cellStr(g("I" + r)) && (price === null || price <= 0)) E.push(`${label} I${r}: 단가가 숫자가 아니에요.`);
+      if (cellStr(g("J" + r)) && (qty === null || qty <= 0)) E.push(`${label} J${r}: 수량이 숫자가 아니에요.`);
+      else if (qty !== null && !Number.isInteger(qty)) W.push(`${label}: 수량이 정수가 아니에요 (${qty}).`);
+      const calc = price !== null && qty !== null ? Math.round(price * qty) : null;
+      if (calc !== null && tot !== null && Math.abs(calc - tot) > 1) E.push(`${label} K${r}: 합계 ${won(tot)}이 단가×수량 ${won(calc)}과 달라요.`);
+      if (calc !== null && tot === null) W.push(`${label} K${r}: 합계 칸이 비어 있어 단가×수량으로 계산했어요.`);
+      if (g("K" + r) && !g("K" + r).f && tot !== null) formulaLost++;
+      if (/배송|택배|운송/.test(product + purpose) && cat && cat !== "기타") W.push(`${label}: 배송비는 구분을 '기타'로 적어야 해요.`);
+      if (vendor && !/(https?:\/\/|www\.|\.(com|kr|net|co|shop|store)\b|스마트스토어|쿠팡|\(|\d+\s*[-–]\s*\d+|[시군구로길동]\s*\d)/i.test(vendor)) W.push(`${label} H${r}: 구매처에 링크나 주소가 없어요.`);
+      groups.add(`${date || dateRaw}|${vendor}`);
+      res.items.push({ no, team, date: date || dateRaw, cat, purpose, product, vendor, price, qty, total: calc ?? tot ?? 0 });
+    }
+    if (!res.items.length) E.push("작성된 사용 내역이 없어요.");
+    if (formulaLost) I.push(`합계 칸 ${formulaLost}개의 수식이 숫자로 바뀌어 있어요. 값은 단가×수량과 비교해 확인했어요.`);
+    res.total = res.items.reduce((a, it) => a + (it.total || 0), 0);
+    const fileTotal = toNum(g("K" + totalRow)?.v);
+    if (fileTotal !== null && Math.abs(fileTotal - res.total) > 1) E.push(`K${totalRow}: 총 합계 ${won(fileTotal)}이 항목 합계 ${won(res.total)}과 달라요.`);
+    const acct = cellStr(g("H" + totalRow));
+    res.account = acct;
+    if (!acct) E.push(`H${totalRow}: 계좌번호가 비어 있어요. 은행명과 계좌번호를 적어 주세요.`);
+    else {
+      const digits = acct.replace(/\D/g, "").length;
+      if (digits < 10 || digits > 16) E.push(`H${totalRow}: 계좌번호 자릿수가 이상해요 (${digits}자리).`);
+      if (!BANKS.some((b) => acct.toUpperCase().includes(b.toUpperCase()))) W.push(`H${totalRow}: 계좌번호에 은행 이름이 없어요.`);
+    }
+    if (rsheet) {
+      res.receipts = rsheet.images.map((im) => ({ ...im, slot: receiptSlot(im.col, im.row) })).sort((a, b) => a.slot - b.slot);
+      if (!res.receipts.length) E.push("'영수증' 시트에 영수증 사진이 없어요.");
+      else if (res.receipts.length < groups.size) W.push(`영수증 사진은 ${res.receipts.length}장인데 구매 건(날짜·구매처 기준)은 ${groups.size}건이에요. 빠진 영수증이 없는지 확인해 주세요.`);
+    }
+    return done();
+  }
+  async function receiptBlobs(wbk, res) {
+    const out = [];
+    for (const r of res.receipts) {
+      const ext = r.path.split(".").pop().toLowerCase(), f = wbk.zip.file(r.path);
+      if (!IMG_TYPES[ext] || !f) { out.push({ ...r, unsupported: true }); continue; }
+      const blob = new Blob([await f.async("arraybuffer")], { type: IMG_TYPES[ext] });
+      out.push({ ...r, blob, url: URL.createObjectURL(blob) });
+    }
+    if (out.some((p) => p.unsupported)) res.infos.push("일부 영수증 이미지(EMF 등)는 미리보기로 바꿀 수 없어요. 원본 파일에서 확인해 주세요.");
+    return out;
+  }
+
+  function statementView(res, receipts) {
+    const lines = [...(res.errors || []).map((m) => ["e", "✕", m]), ...(res.warns || []).map((m) => ["w", "!", m]), ...(res.infos || []).map((m) => ["i", "·", m])];
+    if (!(res.errors || []).length && !(res.warns || []).length) lines.unshift(["o", "✓", "양식 검사를 모두 통과했어요."]);
+    const items = res.items || [], teams = [...new Set(items.map((i) => i.team).filter(Boolean))];
+    return `<div class="xsum">${checkChip(res.level)}<div class="fact"><span>신청 금액</span><b class="num">${won(res.total || 0)}</b></div><div class="fact"><span>항목</span><b>${items.length}개</b></div><div class="fact"><span>팀</span><b>${esc(teams.join(", ") || "–")}</b></div><div class="fact"><span>영수증</span><b>${(receipts || []).length}장</b></div></div>
+      <div class="txt"><span>자동 검사 결과</span><div class="checks">${lines.map(([c, i, m]) => `<div><span class="${c}">${i}</span><p>${esc(m)}</p></div>`).join("")}</div></div>
+      ${items.length ? `<div class="scroll"><table><thead><tr><th>번호</th><th>팀명</th><th>날짜</th><th>구분</th><th>사용목적</th><th>제품명</th><th>구매처</th><th class="r">단가</th><th class="r">수량</th><th class="r">합계</th></tr></thead><tbody>${items.map((it) => `<tr><td>${esc(it.no)}</td><td>${esc(it.team)}</td><td class="num">${esc(it.date)}</td><td>${esc(it.cat)}</td><td>${esc(it.purpose)}</td><td>${esc(it.product)}</td><td style="white-space:normal;min-width:200px">${linkify(it.vendor)}</td><td class="r num">${it.price === null || it.price === undefined ? "–" : fmtN(it.price)}</td><td class="r num">${it.qty === null || it.qty === undefined ? "–" : fmtN(it.qty)}</td><td class="r num">${won(it.total || 0)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+      ${receipts && receipts.length ? `<div class="txt"><span>영수증</span><div class="rcpts">${receipts.map((r) => r.src ? (r.href ? `<a class="rcpt" href="${r.href}" target="_blank" rel="noopener"><img src="${r.src}" alt="영수증 ${r.slot}번" loading="lazy">영수증 ${r.slot}번</a>` : `<span class="rcpt"><img src="${r.src}" alt="영수증 ${r.slot}번">영수증 ${r.slot}번</span>`) : `<span class="rcpt">영수증 ${r.slot}번 · 미리보기 없음</span>`).join("")}</div></div>` : ""}`;
+  }
+
+  function renderExpense() {
+    const mgr = isManager(), ok = live();
+    const role = !state.uid ? "계정 정보 없음" : state.isOwner ? "개발자" : isTreasurer() ? "총무" : state.canWrite ? "팀원" : "보기 전용";
+    $("expRole").innerHTML = `내 권한 <b class="${mgr ? "mgr" : ""}">${role}</b>`;
+    $("btnRoles").hidden = !(ok && state.isOwner);
+    $("btnExpCsv").hidden = !(ok && mgr);
+    $("btnExpNew").hidden = !(ok && canSubmit());
+    $("expNote").textContent = !state.uid ? "claude.ai 계정 정보를 받지 못해 제출할 수 없어요. 로그인한 상태로 다시 열어 주세요."
+      : mgr ? "총무·개발자는 내역서를 열어 지급 상태를 바꾸고, 수정본으로 교체하거나 다른 사람 대신 등록할 수 있어요."
+      : (state.roles && state.roles.allowMemberSubmit === false) ? "지금은 총무만 내역서를 등록해요. 파일을 총무에게 보내 주세요."
+      : "내역서를 제출하면 양식을 자동으로 확인해요. 제출 후 수정과 지급 상태 변경은 총무만 할 수 있어요.";
+    const subs = liveSubs(), removed = mgr ? allSubs().filter(isDeleted) : [];
+    const delOpt = $("xStatus").querySelector('option[value="deleted"]');
+    if (mgr && !delOpt) $("xStatus").insertAdjacentHTML("beforeend", '<option value="deleted">삭제됨 (총무·개발자만)</option>');
+    if (!mgr && delOpt) { if ($("xStatus").value === "deleted") $("xStatus").value = ""; delOpt.remove(); }
+    const teamList = [...new Set(subs.flatMap((s) => effective(s).teams || []))].sort(), curTeam = $("xTeam").value;
+    $("xTeam").innerHTML = `<option value="">모든 팀</option>` + teamList.map((t) => `<option${t === curTeam ? " selected" : ""}>${esc(t)}</option>`).join("");
+    if (!ok) { $("expTiles").innerHTML = ""; $("expBody").innerHTML = `<div class="empty"><p>저장소에 연결되면 사비 정산 내역이 여기에 나타나요.</p></div>`; return; }
+    const total = (list) => list.reduce((a, s) => a + (effective(s).total || 0), 0);
+    const by = (st) => subs.filter((s) => statusOf(s) === st);
+    const month = todayStr().slice(0, 7);
+    const paidMonth = by("paid").filter((s) => String(reviewOf(s.key)?.paidAt || "").slice(0, 7) === month);
+    const paidSum = paidMonth.reduce((a, s) => a + (num(reviewOf(s.key)?.paidAmount) ?? effective(s).total ?? 0), 0);
+    const ws = (n) => { const w = wonShort(n); return `${w.v}<small>${w.u}</small>`; };
+    const tile = (label, value, sub, cls) => `<div class="gauge"><span class="g-label">${label}</span><span class="g-value num ${cls || ""}">${value}</span><span class="g-sub">${sub}</span></div>`;
+    const changed = subs.filter((s) => statusOf(s) !== "pending" && isChanged(s)).length;
+    $("expTiles").innerHTML = tile("지급 대기 (승인됨)", ws(total(by("approved"))), `${by("approved").length}건`)
+      + tile("검토 대기", `${by("pending").length}<small>건</small>`, `${won(total(by("pending")))}${by("fix").length ? ` · 보완 요청 ${by("fix").length}건` : ""}${changed ? ` · 재확인 ${changed}건` : ""}`)
+      + tile("이번 달 지급 완료", ws(paidSum), `${paidMonth.length}건`, paidMonth.length ? "calm" : "")
+      + tile("전체 신청 금액", ws(total(subs.filter((s) => statusOf(s) !== "rejected"))), `${subs.length}건 · 반려 제외`);
+    if (!subs.length && !removed.length) {
+      $("expBody").innerHTML = `<div class="empty"><h3>아직 제출된 사비 내역서가 없어요</h3><p>사비로 산 물품의 내역서(xlsx)를 올리면 팀명·구분·합계·계좌번호·영수증이 양식에 맞는지 자동으로 확인하고, 총무가 지급 상태를 관리해요.</p>${canSubmit() ? '<button class="btn primary" type="button" data-expnew>+ 첫 내역서 제출</button>' : ""}</div>`;
+      return;
+    }
+    const q = $("xq").value.trim().toLowerCase(), fs = $("xStatus").value, ft = $("xTeam").value, mine = $("xMine").checked;
+    const list = (fs === "deleted" ? removed : subs).filter((s) => {
+      const e = effective(s), st = statusOf(s);
+      if (fs === "open" && !["pending", "fix", "approved"].includes(st)) return false;
+      if (fs && fs !== "open" && fs !== "deleted" && st !== fs) return false;
+      if (ft && !(e.teams || []).includes(ft)) return false;
+      if (mine && s.ownerUid !== state.uid) return false;
+      if (q && ![e.applicant, e.fileName, s.by, ...(e.items || []).map((i) => i.product)].some((v) => String(v || "").toLowerCase().includes(q))) return false;
+      return true;
+    });
+    $("expBody").innerHTML = `<div class="scroll"><table><thead><tr><th>지급 상태</th><th>제출</th><th>신청자</th><th>팀</th><th class="r">항목</th><th class="r">금액</th><th>자동 검사</th><th>지급일</th></tr></thead><tbody>${list.length ? list.map((s) => {
+      const e = effective(s), r = reviewOf(s.key), st = statusOf(s);
+      return `<tr class="link" data-exp="${esc(s.key)}"><td>${fs === "deleted" ? '<span class="stt bad">삭제됨</span>' : payPill(st)}${isChanged(s) ? '<span class="changed">검토 후 변경됨</span>' : ""}</td>
+        <td class="num">${esc(fmtWhen(s.submittedAt))}</td>
+        <td><b>${esc(e.applicant || s.by || "이름 없음")}</b>${s.by && e.applicant && s.by !== e.applicant ? ` <span class="dim" style="font-size:12px">· ${esc(s.by)} 등록</span>` : ""}</td>
+        <td>${esc((e.teams || []).join(", ") || "–")}</td><td class="r num">${(e.items || []).length}</td><td class="r num"><b>${won(e.total || 0)}</b></td>
+        <td>${checkChip(e.check?.level)}${e.overridden ? ' <span class="tag">수정본</span>' : ""}</td>
+        <td class="num">${r && r.paidAt && st === "paid" ? esc(fmtDate(r.paidAt)) : '<span class="dim">–</span>'}</td></tr>`;
+    }).join("") : `<tr><td colspan="8" class="dim">조건에 맞는 내역서가 없어요.</td></tr>`}</tbody></table></div>`;
+  }
+
+  // new submission
+  const dlgXN = $("dlgExpNew");
+  function openExpNew() {
+    (state.xDraft?.previews || []).forEach((p) => p.url && URL.revokeObjectURL(p.url));
+    state.xDraft = null;
+    $("xFile").value = ""; $("xFileName").textContent = "선택한 파일 없음"; $("xResult").innerHTML = ""; $("xApplicantWrap").hidden = true;
+    const b = $("btnXSubmit"); b.disabled = true; b.textContent = "제출"; b.classList.remove("armed"); $("xSubmitHint").textContent = "";
+    $("xNewTitle").textContent = isManager() ? "사비 내역서 등록" : "사비 내역서 제출";
+    dlgXN.showModal();
+  }
+  $("xFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    $("xFileName").textContent = `${f.name} · ${fmtBytes(f.size)}`;
+    $("xResult").innerHTML = '<p class="hint">양식을 확인하는 중…</p>';
+    $("btnXSubmit").disabled = true;
+    try {
+      if (!/\.xlsx$/i.test(f.name)) throw { user: "xlsx 파일만 올릴 수 있어요. 한셀·엑셀에서 'Excel 통합 문서(.xlsx)'로 저장해 주세요." };
+      if (f.size > 14 * 1024 * 1024) throw { user: "파일이 너무 커요 (14MB까지). 영수증 사진 크기를 줄여서 다시 저장해 주세요." };
+      if (typeof JSZip === "undefined") throw { user: "파일 분석 도구를 불러오지 못했어요. 페이지를 새로고침해 주세요." };
+      const buf = await f.arrayBuffer(), wbk = await readWorkbook(buf), res = checkStatement(wbk, f.name);
+      const previews = await receiptBlobs(wbk, res), hash = await sha256(buf);
+      state.xDraft = { file: f, buf, res, previews, hash };
+      $("xApplicant").value = res.applicant || state.me.name || ""; $("xApplicantWrap").hidden = false;
+      $("xResult").innerHTML = statementView(res, previews.map((p) => ({ slot: p.slot, src: p.url })));
+      const dup = liveSubs().find((s) => s.hash === hash), blocked = res.level === "bad" && !isManager();
+      $("btnXSubmit").disabled = blocked;
+      $("xSubmitHint").textContent = blocked ? "양식 불일치 항목을 고친 뒤 다시 올려 주세요." : dup ? `같은 파일이 이미 제출돼 있어요 (${dup.applicant || dup.by}, ${fmtWhen(dup.submittedAt)}).` : res.level === "bad" ? "양식 불일치지만 총무 권한으로 등록할 수 있어요." : "";
+    } catch (err) {
+      state.xDraft = null;
+      $("xResult").innerHTML = `<div class="checks"><div><span class="e">✕</span><p>${esc(err && err.user ? err.user : "파일을 읽을 수 없어요. 동아리 양식의 xlsx 파일인지 확인해 주세요.")}</p></div></div>`;
+    }
+  });
+  async function assetUpload(blob, type) {
+    try { return await assets.upload(blob, { type }); }
+    catch (e) { if (e && e.code === "store_unavailable") { await new Promise((r) => setTimeout(r, 900)); return assets.upload(blob, { type }); } throw e; }
+  }
+  // xlsx is not an accepted asset type, so the original is stored base64-wrapped as text/plain.
+  async function uploadFileAssets(d) {
+    const fr = await assetUpload(new Blob([toB64(new Uint8Array(d.buf))], { type: "text/plain" }), "text/plain");
+    const receipts = [];
+    for (const p of d.previews) { if (p.unsupported || !p.blob || p.blob.size > MAX_BYTES) continue; const r = await assetUpload(p.blob, p.blob.type); receipts.push({ asset: r.id, slot: p.slot, type: p.blob.type }); }
+    return { fileAsset: fr.id, receipts };
+  }
+  const compactCheck = (res) => ({ level: res.level, errors: res.errors.slice(0, 40), warns: res.warns.slice(0, 40), infos: res.infos.slice(0, 20) });
+  const teamsOf = (items) => [...new Set(items.map((i) => i.team).filter(Boolean))];
+  $("formExpNew").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const d = state.xDraft, btn = $("btnXSubmit");
+    if (!d || !canSubmit()) return;
+    if (!assets) { toast("이 화면에서는 파일을 올릴 수 없어요. 편집자 권한이 필요해요."); return; }
+    if (liveSubs().some((s) => s.hash === d.hash) && !btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = "같은 파일이에요. 그래도 제출"; return; }
+    btn.disabled = true; btn.textContent = "올리는 중…";
+    try {
+      const up = await uploadFileAssets(d), r = d.res;
+      const sub = {
+        id: rid() + rid().slice(0, 4), submittedAt: stamp(), by: state.me.name || "", byDept: state.me.dept || "",
+        applicant: $("xApplicant").value.trim() || r.applicant || state.me.name || "",
+        fileName: d.file.name, fileSize: d.buf.byteLength, fileAsset: up.fileAsset, hash: d.hash,
+        items: r.items, total: r.total, teams: teamsOf(r.items), accountMasked: maskAccount(r.account), check: compactCheck(r), receipts: up.receipts
+      };
+      const ref = db.doc("expenses/" + state.uid);
+      if (state.expenseDocs.some((x) => x.id === state.uid)) await attempt(() => ref.update({ subs: { [sub.id]: sub }, updatedAt: stamp() }));
+      else await attempt(() => ref.set({ subs: { [sub.id]: sub }, updatedAt: stamp() }));
+      hist("expense", "사비 내역서 제출", sub.applicant, `${state.uid}:${sub.id}`, `${won(sub.total)} · ${LEVEL_LABEL[sub.check.level]}`);
+      dlgXN.close(); toast("제출했어요. 총무가 확인하면 지급 상태가 바뀌어요.");
+    } catch (err) { toast(explainExp(err)); }
+    finally { btn.disabled = false; btn.textContent = "제출"; btn.classList.remove("armed"); }
+  });
+
+  // detail + treasurer actions
+  const dlgX = $("dlgExp");
+  function openExp(key) { state.xOpen = key; renderExpDetail(); dlgX.showModal(); }
+  function actionPanel(r, e, st) {
+    return `<fieldset><legend class="fl">총무 처리 · 총무와 개발자에게만 보여요</legend>
+      <div class="seg">${Object.entries(EXP_ST).map(([k, l]) => `<label><input type="radio" name="xst" value="${k}" ${k === st ? "checked" : ""}> ${l}</label>`).join("")}</div>
+      <div class="grid2"><label class="f">지급일<input type="date" id="xPaidAt" value="${esc(r?.paidAt || "")}"></label>
+        <label class="f">지급 금액<div class="unit"><input type="number" id="xPaidAmt" min="0" step="1" value="${num(r?.paidAmount) ?? e.total ?? ""}"><span>원</span></div></label>
+        <label class="f full">메모 (신청자에게도 보여요)<textarea id="xNote" maxlength="600" placeholder="보완 요청·반려 사유, 지급 방법 등">${esc(r?.note || "")}</textarea></label></div>
+      <div class="toolbar"><button class="btn primary" type="button" data-xsave>처리 저장</button><span class="btn sm filebtn">수정본으로 교체<input type="file" id="xReplace" accept=".xlsx"></span><span class="hint" id="xReplaceHint"></span></div>
+    </fieldset>`;
+  }
+  function renderExpDetail() {
+    const s = allSubs().find((x) => x.key === state.xOpen);
+    if (!s) { $("expDetail").innerHTML = `<p>이 내역서를 찾을 수 없어요.</p><div class="dlg-foot"><div class="right"><button class="btn" type="button" data-xclose>닫기</button></div></div>`; return; }
+    const keep = $("xNote") ? { note: $("xNote").value, paidAt: $("xPaidAt").value, amt: $("xPaidAmt").value, st: (document.querySelector('input[name="xst"]:checked') || {}).value } : null;
+    const e = effective(s), r = reviewOf(s.key), st = statusOf(s), mgr = isManager(), acct = state.acctCache[s.key];
+    const receipts = (e.receipts || []).map((x) => ({ slot: x.slot, src: "/_blob/" + encodeURIComponent(x.asset), href: "/_blob/" + encodeURIComponent(x.asset) }));
+    $("expDetail").innerHTML = `
+      <div class="dhead-top"><div><h3>${esc(e.applicant || s.by || "이름 없음")} · ${won(e.total || 0)}</h3>
+        <span class="hint">${esc(fmtWhen(s.submittedAt))} 제출 · ${esc(s.by || "이름 미입력")}${DEPT[s.byDept] ? ` (${DEPT[s.byDept].l})` : ""} · ${esc(e.fileName || "")}</span></div>${payPill(st, true)}</div>
+      ${r && r.deleted ? `<p class="banner bad" style="margin:0">삭제된 내역서예요 (${esc(r.deletedBy || "이름 미입력")}, ${esc(fmtWhen(r.deletedAt))}). 목록과 합계에서 빠져 있어요.</p>` : ""}
+      ${isChanged(s) ? '<p class="banner bad" style="margin:0">총무가 검토한 뒤 제출 내용이 바뀌었어요. 다시 확인해 주세요.</p>' : ""}
+      ${e.overridden ? `<p class="banner" style="margin:0">총무가 올린 수정본(${esc(e.replacedBy || "")}, ${esc(fmtWhen(e.replacedAt))}) 기준으로 보여요.</p>` : ""}
+      ${r && r.note ? `<p class="goal"><b>총무 메모</b> · ${esc(r.note)}</p>` : ""}
+      ${r && r.paidAt && st === "paid" ? `<p class="hint">지급일 ${esc(fmtDate(r.paidAt))}${num(r.paidAmount) !== null ? ` · 지급액 ${won(num(r.paidAmount))}` : ""}</p>` : ""}
+      <div class="txt"><span>입금 계좌</span><div class="acct">${acct ? `<b>${esc(acct)}</b><button class="btn ghost sm" type="button" data-xcopy>복사</button>` : `<span>${esc(e.accountMasked || "–")}</span>${mgr ? '<button class="btn ghost sm" type="button" data-xacct>전체 번호 보기</button>' : ""}`}</div></div>
+      ${statementView({ ...(e.check || {}), items: e.items || [], total: e.total }, receipts)}
+      ${mgr ? actionPanel(r, e, st) : ""}
+      ${r && (r.log || []).length ? `<div class="txt"><span>처리 기록</span><div class="xlog">${r.log.slice().reverse().map((l) => `<div><span class="mono">${esc(fmtWhen(l.at))}</span> · ${esc(l.by || "이름 미입력")} · ${esc(l.text)}</div>`).join("")}</div></div>` : ""}
+      <div class="dlg-foot"><div class="toolbar">${mgr || s.ownerUid === state.uid ? '<button class="btn" type="button" data-xdl>원본 파일 내려받기</button>' : '<span class="hint">원본 파일은 제출자와 총무만 내려받을 수 있어요.</span>'}
+        ${mgr && !(r && r.deleted) ? '<button class="btn danger" type="button" data-xdel>내역서 삭제</button>' : ""}
+        ${mgr && r && r.deleted ? '<button class="btn" type="button" data-xrestore>복구</button>' : ""}
+        ${state.isOwner ? '<button class="btn danger" type="button" data-xpurge>완전 삭제</button>' : ""}</div><div class="right"><button class="btn" type="button" data-xclose>닫기</button></div></div>`;
+    if (keep && $("xNote")) {
+      $("xNote").value = keep.note; $("xPaidAt").value = keep.paidAt; $("xPaidAmt").value = keep.amt;
+      const radio = document.querySelector(`input[name="xst"][value="${keep.st}"]`); if (radio) radio.checked = true;
+    }
+  }
+  async function loadOriginal(s) {
+    const resp = await fetch("/_blob/" + encodeURIComponent(effective(s).fileAsset));
+    if (!resp.ok) throw new Error("fetch");
+    return fromB64((await resp.text()).trim());
+  }
+  async function writeReview(key, patch, logText) {
+    const ref = db.doc("reviews/" + state.uid), prev = reviewOf(key) || {};
+    const entry = {
+      status: prev.status || "pending", note: prev.note || "", paidAt: prev.paidAt || "", paidAmount: prev.paidAmount ?? null, fp: prev.fp || "",
+      ...(prev.override ? { override: prev.override } : {}), ...patch, by: state.me.name || "", at: stamp(),
+      log: [...(prev.log || []), { at: stamp(), by: state.me.name || "", text: logText }].slice(-30)
+    };
+    if (state.reviewDocs.some((d) => d.id === state.uid)) await attempt(() => ref.update({ items: { [key]: entry }, updatedAt: stamp() }));
+    else await attempt(() => ref.set({ items: { [key]: entry }, updatedAt: stamp() }));
+  }
+  // Owner only: the db rules let the owner write every expenses/<id> and reviews/<id> document.
+  async function purgeSubmission(s) {
+    const ref = db.doc("expenses/" + s.ownerUid), snap = await ref.get();
+    const cur = snap.exists ? snap.data() : {}, subs = { ...(cur.subs || {}) };
+    const assetIds = [s.fileAsset, ...(s.receipts || []).map((x) => x.asset)];
+    delete subs[s.id];
+    await attempt(() => ref.set({ ...cur, subs, updatedAt: stamp() }));
+    for (const d of state.reviewDocs) {
+      const entry = (d.items || {})[s.key];
+      if (!entry) continue;
+      if (entry.override) assetIds.push(entry.override.fileAsset, ...(entry.override.receipts || []).map((x) => x.asset));
+      const rref = db.doc("reviews/" + d.id), rs = await rref.get();
+      const rc = rs.exists ? rs.data() : {}, items = { ...(rc.items || {}) };
+      delete items[s.key];
+      await attempt(() => rref.set({ ...rc, items, updatedAt: stamp() }));
+    }
+    let n = 0;
+    if (assets) for (const id of assetIds.filter(Boolean)) { try { await assets.delete(id); n++; } catch {} }
+    delete state.acctCache[s.key];
+    hist("expense", "사비 내역서 완전 삭제", effective(s).applicant, s.key, `${won(effective(s).total || 0)} · 파일 ${n}개 삭제`);
+    return n;
+  }
+  dlgX.addEventListener("click", async (ev) => {
+    const t = ev.target, s = allSubs().find((x) => x.key === state.xOpen);
+    if (t.closest("[data-xclose]")) { dlgX.close(); return; }
+    if (!s) return;
+    if (t.closest("[data-xcopy]")) {
+      try { await navigator.clipboard.writeText(state.acctCache[s.key]); toast("계좌번호를 복사했어요"); } catch { toast("복사할 수 없어요. 직접 선택해서 복사해 주세요."); }
+      return;
+    }
+    if (t.closest("[data-xacct]") && isManager()) {
+      try {
+        const wbk = await readWorkbook((await loadOriginal(s)).buffer), res = checkStatement(wbk, effective(s).fileName || "");
+        state.acctCache[s.key] = res.account || "(비어 있음)";
+        hist("expense", "계좌번호 열람", effective(s).applicant, s.key, "");
+        renderExpDetail();
+      } catch { toast("원본 파일을 불러오지 못했어요."); }
+      return;
+    }
+    if (t.closest("[data-xdl]") && (isManager() || s.ownerUid === state.uid)) {
+      let dl = null;
+      try { dl = await window.claude.use("downloads"); } catch {}
+      if (!dl) { toast("이 화면에서는 파일을 내려받을 수 없어요."); return; }
+      try { await dl.save({ filename: effective(s).fileName || "사비내역서.xlsx", data: await loadOriginal(s) }); }
+      catch (err) { if (!(err && err.code === "declined")) toast("원본 파일을 내려받지 못했어요."); }
+      return;
+    }
+    const del = t.closest("[data-xdel]");
+    if (del && isManager()) {
+      if (!armDelete(del, "목록에서 지울까요? 한 번 더 누르세요")) return;
+      del.disabled = true;
+      try {
+        await writeReview(s.key, { deleted: true, deletedAt: stamp(), deletedBy: state.me.name || "" }, "내역서 삭제");
+        hist("expense", "사비 내역서 삭제", effective(s).applicant, s.key, `${won(effective(s).total || 0)} · ${EXP_ST[statusOf(s)]}`);
+        dlgX.close(); toast("내역서를 삭제했어요. 개발자는 '삭제됨' 목록에서 복구할 수 있어요.");
+      } catch (err) { toast(explainExp(err)); del.disabled = false; }
+      return;
+    }
+    if (t.closest("[data-xrestore]") && isManager()) {
+      try {
+        await writeReview(s.key, { deleted: false, deletedAt: "", deletedBy: "" }, "내역서 복구");
+        hist("expense", "사비 내역서 복구", effective(s).applicant, s.key, won(effective(s).total || 0));
+        toast("내역서를 복구했어요");
+      } catch (err) { toast(explainExp(err)); }
+      return;
+    }
+    const purge = t.closest("[data-xpurge]");
+    if (purge && state.isOwner) {
+      if (!armDelete(purge, "기록과 파일이 모두 사라져요. 한 번 더 누르세요")) return;
+      purge.disabled = true;
+      try { const n = await purgeSubmission(s); dlgX.close(); toast(`내역서를 완전히 삭제했어요 (파일 ${n}개)`); }
+      catch (err) { toast(explainExp(err)); purge.disabled = false; }
+      return;
+    }
+    if (t.closest("[data-xsave]") && isManager()) {
+      const st = (document.querySelector('input[name="xst"]:checked') || {}).value || "pending";
+      let paidAt = $("xPaidAt").value; if (st === "paid" && !paidAt) paidAt = todayStr();
+      const patch = { status: st, note: $("xNote").value.trim(), paidAt, paidAmount: num($("xPaidAmt").value), fp: fpOf(s) };
+      const btn = t.closest("[data-xsave]"); btn.disabled = true;
+      try {
+        await writeReview(s.key, patch, `${EXP_ST[st]}${patch.note ? " · " + patch.note.slice(0, 50) : ""}`);
+        hist("expense", `지급 상태 → ${EXP_ST[st]}`, effective(s).applicant, s.key, `${won(effective(s).total || 0)}${st === "paid" ? " · 지급일 " + paidAt : ""}`);
+        toast(`${EXP_ST[st]}(으)로 저장했어요`);
+      } catch (err) { toast(explainExp(err)); }
+      finally { btn.disabled = false; }
+    }
+  });
+  dlgX.addEventListener("change", async (ev) => {
+    if (ev.target.name === "xst" && ev.target.value === "paid" && !$("xPaidAt").value) $("xPaidAt").value = todayStr();
+    if (ev.target.id !== "xReplace") return;
+    const input = ev.target, f = input.files[0], s = allSubs().find((x) => x.key === state.xOpen);
+    input.value = "";
+    if (!f || !s || !isManager()) return;
+    if (!assets) { toast("이 화면에서는 파일을 올릴 수 없어요."); return; }
+    $("xReplaceHint").textContent = "수정본을 확인하고 올리는 중…";
+    try {
+      if (!/\.xlsx$/i.test(f.name)) throw { user: "xlsx 파일만 올릴 수 있어요." };
+      const buf = await f.arrayBuffer(), wbk = await readWorkbook(buf), res = checkStatement(wbk, f.name);
+      const d = { file: f, buf, res, previews: await receiptBlobs(wbk, res), hash: await sha256(buf) };
+      const up = await uploadFileAssets(d);
+      const override = { fileName: f.name, fileAsset: up.fileAsset, receipts: up.receipts, items: res.items, total: res.total, teams: teamsOf(res.items), accountMasked: maskAccount(res.account), check: compactCheck(res), replacedAt: stamp(), replacedBy: state.me.name || "" };
+      await writeReview(s.key, { override, fp: fpOf(s) }, `수정본으로 교체: ${f.name} (${won(res.total)}, ${LEVEL_LABEL[res.level]})`);
+      delete state.acctCache[s.key];
+      hist("expense", "수정본으로 교체", effective(s).applicant, s.key, `${f.name} · ${won(res.total)}`);
+      toast("수정본으로 교체했어요");
+    } catch (err) { $("xReplaceHint").textContent = ""; toast(err && err.user ? err.user : explainExp(err)); }
+  });
+
+  // roles (owner only; config/roles is write: owner in the db rules)
+  const dlgR = $("dlgRoles");
+  function openRoles() {
+    const roles = state.roles || {}, tre = new Set(roles.treasurers || []);
+    const ids = new Set([...state.people.map((p) => p.id), ...state.expenseDocs.map((d) => d.id), ...tre]);
+    ids.delete(state.uid);
+    const rowsHtml = [`<label><input type="checkbox" checked disabled><span><b>${esc(state.me.name || nameOfUid(state.uid) || "나")}</b> <small>개발자 · 소유자 (항상 모든 권한)</small></span><span class="tag make">개발자</span></label>`]
+      .concat([...ids].map((id) => { const p = state.people.find((x) => x.id === id); return `<label><input type="checkbox" data-tre="${esc(id)}" ${tre.has(id) ? "checked" : ""}><span><b data-uid="${esc(id)}">${esc(p?.name || "이름 미입력")}</b> <small>${p && DEPT[p.dept] ? DEPT[p.dept].l : ""}${p?.seen ? " · 최근 접속 " + esc(fmtWhen(p.seen)) : ""}</small></span><span class="tag">${tre.has(id) ? "총무" : "팀원"}</span></label>`; }));
+    $("rolePeople").innerHTML = rowsHtml.join("") + (ids.size ? "" : `<label><span></span><span class="hint">아직 다른 사람이 이 페이지를 열지 않았어요. 총무가 한 번 접속해 이름을 입력한 뒤 지정하세요.</span><span></span></label>`);
+    $("roleAllow").checked = roles.allowMemberSubmit !== false;
+    const unnamed = [...ids].filter((id) => !nameOfUid(id));
+    if (userNs && unnamed.length) userNs.profiles(unnamed).then((ps) => { $("rolePeople").querySelectorAll("b[data-uid]").forEach((el) => { const p = ps[el.dataset.uid]; if (p && p.name && !nameOfUid(el.dataset.uid)) el.textContent = p.name; }); }).catch(() => {});
+    dlgR.showModal();
+  }
+  $("formRoles").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!state.isOwner) return;
+    const treasurers = [...$("rolePeople").querySelectorAll("[data-tre]")].filter((c) => c.checked).map((c) => c.dataset.tre);
+    try {
+      await attempt(() => rolesRef.set({ ownerUid: state.uid, treasurers, allowMemberSubmit: $("roleAllow").checked, updatedAt: stamp() }));
+      hist("config", "총무 권한 변경", "사비 정산", "roles", `총무 ${treasurers.length}명${treasurers.length ? ": " + treasurers.map((id) => nameOfUid(id) || "이름 미입력").join(", ") : ""}`);
+      dlgR.close(); toast("권한을 저장했어요");
+    } catch (err) { toast(err && err.code === "invalid_argument" ? "권한은 개발자(소유자)만 바꿀 수 있어요." : explainExp(err)); }
+  });
+
+  $("btnExpNew").addEventListener("click", openExpNew);
+  $("btnRoles").addEventListener("click", openRoles);
+  ["xStatus", "xTeam", "xMine"].forEach((id) => $(id).addEventListener("change", renderExpense));
+  $("xq").addEventListener("input", renderExpense);
+  $("meName").addEventListener("change", () => { state.registered = false; registerMe(); });
+  $("meDept").addEventListener("change", () => { state.registered = false; registerMe(); });
+  $("btnExpCsv").addEventListener("click", async () => {
+    const cell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const head = ["제출일시", "신청자", "등록한 사람", "팀", "항목 수", "신청 금액(원)", "자동 검사", "지급 상태", "지급일", "지급 금액(원)", "총무 메모", "파일명", "계좌(일부)"];
+    const lines = [head.join(",")].concat(liveSubs().map((s) => {
+      const e = effective(s), r = reviewOf(s.key), st = statusOf(s);
+      return [fmtWhen(s.submittedAt), e.applicant, s.by, (e.teams || []).join(" "), (e.items || []).length, e.total || 0, LEVEL_LABEL[e.check?.level] || "", EXP_ST[st], st === "paid" ? r?.paidAt || "" : "", num(r?.paidAmount) ?? "", r?.note || "", e.fileName, e.accountMasked].map(cell).join(",");
+    }));
+    const csv = "﻿" + lines.join("\r\n"), filename = `사비정산_${todayStr()}.csv`;
+    let dl = null;
+    try { dl = await window.claude.use("downloads"); } catch {}
+    if (dl) { try { await dl.save({ filename, data: csv }); toast("정산 내역을 저장했어요"); return; } catch (err) { if (err && err.code === "declined") return; } }
+    try { await navigator.clipboard.writeText(csv); toast("파일로 저장할 수 없어 CSV를 클립보드에 복사했어요"); } catch { toast("이 화면에서는 내보낼 수 없어요"); }
+  });
+
+  if (typeof ResizeObserver === "function") {
+    let lastW = 0;
+    new ResizeObserver((entries) => { const w = Math.round(entries[0].contentRect.width); if (w !== lastW) { lastW = w; if (state.tab === "trend") renderTrend(); } }).observe($("view-trend"));
+  }
+
+  boot();
+})();
+</script>

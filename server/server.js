@@ -7,8 +7,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import crypto from "node:crypto";
-import { openStore, createDocs, createRules, runQuery, splitPath, StoreError, ROLE_LEVEL } from "./store.js";
-import { createAuth, checkPasswordRule, checkUsername, verifyPassword, tempPassword, ROLES, STATUSES, newId } from "./auth.js";
+import { openStore, createDocs, createRules, runQuery, splitPath, StoreError, levelOf, POSITIONS } from "./store.js";
+import { createAuth, checkPasswordRule, checkUsername, verifyPassword, tempPassword, ROLES, STATUSES, POSITION_LABEL, tierOf } from "./auth.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -53,22 +53,34 @@ function broadcast(path, doc) {
 }
 function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) c.res.end(); }
 
-// config/roles mirrors account roles so the page's treasurer logic keeps working unchanged.
-function syncRoles() {
+// config/roles mirrors the organization so the page's treasurer logic keeps working unchanged:
+// ownerUid = first developer, treasurers = other developers + 부팀장 (vice_lead).
+function syncRoles(patch = {}) {
   const cur = docs.get("config/roles")?.data || {};
   const devs = auth.activeDevelopers();
-  const treasurers = auth.list().filter((u) => u.status === "active" && u.role === "treasurer").map((u) => u.id);
-  const data = { ownerUid: devs[0] || cur.ownerUid || "", treasurers: [...devs.slice(1), ...treasurers], allowMemberSubmit: cur.allowMemberSubmit !== false, updatedAt: new Date().toISOString() };
+  const vice = auth.list().filter((u) => u.status === "active" && u.position === "vice_lead" && !devs.includes(u.id)).map((u) => u.id);
+  const data = { ownerUid: devs[0] || cur.ownerUid || "", treasurers: [...devs.slice(1), ...vice], allowMemberSubmit: (patch.allowMemberSubmit ?? cur.allowMemberSubmit) !== false, updatedAt: new Date().toISOString() };
   broadcast("config/roles", docs.set("config/roles", data, "system"));
 }
-function applyRolesWrite(ctx, data) {
-  const want = new Set(Array.isArray(data.treasurers) ? data.treasurers : []);
+// The page's own 권한 관리 dialog writes config/roles; on this server the treasurer is whoever is 부팀장,
+// so only the "members may submit" switch is taken from that write.
+function applyRolesWrite(ctx, data) { syncRoles({ allowMemberSubmit: data.allowMemberSubmit !== false }); }
+
+// One 팀장, one 부팀장, one 파트장 per department: giving someone a position returns the previous holder to 팀원.
+function checkPosition(position, dept) {
+  if (!POSITIONS.includes(position)) throw new StoreError("invalid_argument", "직책 값이 올바르지 않아요.");
+  if (position === "part_lead" && !dept) throw new StoreError("invalid_argument", "파트장은 부서를 먼저 정해 주세요.");
+}
+function handOver(ctx, targetId, position, dept) {
+  const moved = [];
+  if (!position) return moved;
   for (const u of auth.list()) {
-    if (u.role === "developer") continue;
-    if (want.has(u.id) && u.role !== "treasurer" && u.status === "active") { auth.update(u.id, { role: "treasurer" }); dropStreams(u.id); audit(ctx, "role.change", u.username, "treasurer (사비 정산 권한 관리)"); }
-    if (!want.has(u.id) && u.role === "treasurer") { auth.update(u.id, { role: "member" }); dropStreams(u.id); audit(ctx, "role.change", u.username, "member (사비 정산 권한 관리)"); }
+    if (u.id === targetId || u.position !== position || (position === "part_lead" && u.dept !== dept)) continue;
+    auth.update(u.id, { position: "" }); dropStreams(u.id);
+    audit(ctx, "role.change", u.username, `${POSITION_LABEL[position]} → 팀원 (새 ${POSITION_LABEL[position]}에게 넘김)`);
+    moved.push({ name: u.name, position });
   }
-  syncRoles();
+  return moved;
 }
 
 // ---------- backups ----------
@@ -165,7 +177,7 @@ function pageSource() {
 }
 const safeJson = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
 function renderPage(user) {
-  const me = { ...auth.publicUser(user), level: ROLE_LEVEL[user.role] || 0 };
+  const me = { ...auth.publicUser(user), level: levelOf(user) };
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`
     + `<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>`
     + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource()}\n</body></html>`;
@@ -176,7 +188,7 @@ const staticFile = (name) => readFileSync(join(HERE, "public", name));
 const routes = [];
 const route = (method, pattern, handler, opts = {}) => routes.push({ method, re: new RegExp("^" + pattern.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$"), handler, auth: opts.auth || "user" });
 const assertWrite = (ctx, path) => { if (!rules.canWrite(ctx.user, path)) throw new StoreError("invalid_argument", "이 경로에 쓸 권한이 없어요.", 403); };
-const level = (u) => ROLE_LEVEL[u.role] || 0;
+const level = levelOf;
 
 // pages
 route("GET", "/", (ctx) => {
@@ -361,7 +373,15 @@ route("GET", "/api/admin/status", (ctx) => {
     loadavg: os.loadavg(), memory: { rss: process.memoryUsage().rss, systemFree: os.freemem(), systemTotal: os.totalmem() },
     dataDir: CONFIG.dataDir, dbBytes: size(dbFile) + size(dbFile + "-wal"), assets: { files: assets.n, bytes: assets.bytes }, disk,
     liveConnections: clients.size, liveUsers: new Set([...clients].map((c) => c.user.id)).size,
-    users: { total: users.length, pending: users.filter((u) => u.status === "pending").length, byRole: Object.fromEntries(ROLES.map((r) => [r, users.filter((u) => u.role === r && u.status === "active").length])) },
+    users: {
+      total: users.length, pending: users.filter((u) => u.status === "pending").length,
+      byTier: Object.fromEntries(["developer", "executive", "member"].map((t) => [t, users.filter((u) => u.status === "active" && tierOf(u) === t).length])),
+      org: {
+        teamLead: users.filter((u) => u.status === "active" && u.position === "team_lead").map((u) => u.name),
+        viceLead: users.filter((u) => u.status === "active" && u.position === "vice_lead").map((u) => u.name),
+        partLeads: Object.fromEntries(DEPTS.map((d) => [d, users.filter((u) => u.status === "active" && u.position === "part_lead" && u.dept === d).map((u) => u.name)]))
+      }
+    },
     collections: docs.counts(), lastBackup: backups[0] || null, backupBytes: dirBytes(BACKUP_DIR), settings: { ...allSettings(), inviteCode: undefined },
     behindProxy: CONFIG.trustProxy, cookieSecure: isHttps(ctx.req)
   });
@@ -375,14 +395,17 @@ route("GET", "/api/admin/users", (ctx) => {
 route("POST", "/api/admin/users", async (ctx) => {
   const b = await readJson(ctx.req);
   const username = String(b.username || "").trim().toLowerCase(), name = String(b.name || "").trim();
-  const err = checkUsername(username) || (!name || name.length > 20 ? "이름을 1~20자로 적어 주세요." : null) || (!ROLES.includes(b.role) ? "역할을 골라 주세요." : null);
+  const role = b.role === "developer" ? "developer" : "member", position = b.position || "", dept = DEPTS.includes(b.dept) ? b.dept : "";
+  const err = checkUsername(username) || (!name || name.length > 20 ? "이름을 1~20자로 적어 주세요." : null);
   if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
+  checkPosition(position, dept);
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
   const pw = tempPassword();
-  const u = auth.create({ username, name, dept: DEPTS.includes(b.dept) ? b.dept : "", role: b.role, status: "active", password: pw, mustChange: true });
-  audit(ctx, "user.create", username, b.role);
+  const u = auth.create({ username, name, dept, role, position, status: "active", password: pw, mustChange: true });
+  const moved = handOver(ctx, u.id, position, dept);
+  audit(ctx, "user.create", username, auth.publicUser(u).title);
   syncRoles();
-  send(ctx.res, 200, { user: auth.publicUser(u), tempPassword: pw });
+  send(ctx.res, 200, { user: auth.publicUser(u), tempPassword: pw, handedOver: moved });
 }, { auth: "developer" });
 route("POST", "/api/admin/users/:id", async (ctx) => {
   const u = findUser(ctx.params.id), b = await readJson(ctx.req);
@@ -392,12 +415,17 @@ route("POST", "/api/admin/users/:id", async (ctx) => {
   if (!name || name.length > 20) return send(ctx.res, 400, { code: "invalid_argument", message: "이름을 1~20자로 적어 주세요." });
   guardLastDeveloper(u, role, status);
   const dept = b.dept === undefined ? u.dept : (DEPTS.includes(b.dept) ? b.dept : "");
-  auth.update(u.id, { name, dept, role, status });
-  const changes = [role !== u.role && `역할 ${u.role} → ${role}`, status !== u.status && `상태 ${u.status} → ${status}`, name !== u.name && `이름 ${u.name} → ${name}`, dept !== u.dept && `부서 ${u.dept || "-"} → ${dept || "-"}`].filter(Boolean);
+  const position = b.position === undefined ? (u.position || "") : String(b.position);
+  checkPosition(position, dept);
+  const moved = position !== u.position || (position === "part_lead" && dept !== u.dept) ? handOver(ctx, u.id, position, dept) : [];
+  auth.update(u.id, { name, dept, role, position, status });
+  const label = (p) => POSITION_LABEL[p || ""];
+  const changes = [role !== u.role && `개발자 권한 ${u.role === "developer" ? "있음" : "없음"} → ${role === "developer" ? "있음" : "없음"}`, position !== (u.position || "") && `직책 ${label(u.position)} → ${label(position)}`,
+    status !== u.status && `상태 ${u.status} → ${status}`, name !== u.name && `이름 ${u.name} → ${name}`, dept !== u.dept && `부서 ${u.dept || "-"} → ${dept || "-"}`].filter(Boolean);
   if (changes.length) audit(ctx, status !== u.status && u.status === "pending" && status === "active" ? "user.approve" : "user.update", u.username, changes.join(", "));
   if (status !== "active") auth.endAllSessions(u.id);
-  if (role !== u.role || status !== u.status) { dropStreams(u.id); syncRoles(); }
-  send(ctx.res, 200, { user: auth.publicUser(auth.byId(u.id)) });
+  if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id); syncRoles(); }
+  send(ctx.res, 200, { user: auth.publicUser(auth.byId(u.id)), handedOver: moved });
 }, { auth: "developer" });
 route("POST", "/api/admin/users/:id/reset-password", (ctx) => {
   const u = findUser(ctx.params.id), pw = tempPassword();
@@ -419,7 +447,8 @@ route("DELETE", "/api/admin/users/:id", (ctx) => {
   audit(ctx, "user.delete", u.username, `${u.name} · ${u.role}`);
   send(ctx.res, 200, { ok: true });
 }, { auth: "developer" });
-route("GET", "/api/admin/settings", (ctx) => send(ctx.res, 200, allSettings()), { auth: "developer" });
+const adminSettings = () => ({ ...allSettings(), allowMemberSubmit: docs.get("config/roles")?.data?.allowMemberSubmit !== false });
+route("GET", "/api/admin/settings", (ctx) => send(ctx.res, 200, adminSettings()), { auth: "developer" });
 route("POST", "/api/admin/settings", async (ctx) => {
   const b = await readJson(ctx.req), changed = [];
   if (b.signupMode !== undefined) { if (!["approval", "invite", "closed"].includes(b.signupMode)) throw new StoreError("invalid_argument", "가입 방식 값이 올바르지 않아요."); setSetting("signupMode", b.signupMode); changed.push(`가입 방식 ${b.signupMode}`); }
@@ -427,8 +456,9 @@ route("POST", "/api/admin/settings", async (ctx) => {
   if (b.autoBackup !== undefined) { setSetting("autoBackup", !!b.autoBackup); changed.push(`자동 백업 ${b.autoBackup ? "켬" : "끔"}`); }
   if (b.backupHour !== undefined) { const h = Math.round(Number(b.backupHour)); if (!(h >= 0 && h <= 23)) throw new StoreError("invalid_argument", "백업 시각은 0~23시예요."); setSetting("backupHour", h); changed.push(`백업 시각 ${h}시`); }
   if (b.backupKeep !== undefined) { const k = Math.round(Number(b.backupKeep)); if (!(k >= 1 && k <= 90)) throw new StoreError("invalid_argument", "보관 개수는 1~90개예요."); setSetting("backupKeep", k); changed.push(`자동 백업 ${k}개 보관`); }
+  if (b.allowMemberSubmit !== undefined) { syncRoles({ allowMemberSubmit: !!b.allowMemberSubmit }); changed.push(`팀원 사비 내역서 제출 ${b.allowMemberSubmit ? "허용" : "막음"}`); }
   if (changed.length) audit(ctx, "settings.update", "", changed.join(", "));
-  send(ctx.res, 200, allSettings());
+  send(ctx.res, 200, adminSettings());
 }, { auth: "developer" });
 route("GET", "/api/admin/collections", (ctx) => send(ctx.res, 200, { collections: docs.counts() }), { auth: "developer" });
 route("GET", "/api/admin/docs", (ctx) => {

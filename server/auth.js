@@ -3,9 +3,12 @@ import crypto from "node:crypto";
 
 const SESSION_DAYS = 30;
 const SCRYPT = { N: 16384, r: 8, p: 1 };
-export const ROLES = ["developer", "treasurer", "member", "viewer"];
+export const ROLES = ["developer", "member"];
 export const STATUSES = ["active", "pending", "disabled"];
-export const ROLE_LABEL = { developer: "개발자", treasurer: "총무", member: "팀원", viewer: "보기 전용" };
+export const ROLE_LABEL = { developer: "개발자", member: "일반" };
+export const POSITION_LABEL = { "": "팀원", team_lead: "팀장", vice_lead: "부팀장", part_lead: "파트장" };
+export const tierOf = (u) => u.role === "developer" ? "developer" : u.position ? "executive" : "member";
+export const TIER_LABEL = { developer: "개발자", executive: "임원진", member: "팀원" };
 export const STATUS_LABEL = { active: "활성", pending: "승인 대기", disabled: "비활성" };
 
 export const newId = (prefix = "", bytes = 16) => prefix + crypto.randomBytes(bytes).toString("base64url");
@@ -44,8 +47,8 @@ export function createAuth(db) {
     count: db.prepare("SELECT COUNT(*) AS n FROM users"),
     byName: db.prepare("SELECT * FROM users WHERE username = ?"),
     byId: db.prepare("SELECT * FROM users WHERE id = ?"),
-    insert: db.prepare("INSERT INTO users (id, username, name, dept, role, status, pw_hash, must_change_pw, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"),
-    all: db.prepare("SELECT id, username, name, dept, role, status, must_change_pw, created_at, last_login FROM users ORDER BY created_at"),
+    insert: db.prepare("INSERT INTO users (id, username, name, dept, role, position, status, pw_hash, must_change_pw, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
+    all: db.prepare("SELECT id, username, name, dept, role, position, status, must_change_pw, created_at, last_login FROM users ORDER BY created_at"),
     sessionInsert: db.prepare("INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen, ip, ua) VALUES (?, ?, ?, ?, ?, ?, ?)"),
     sessionGet: db.prepare("SELECT s.token_hash, s.expires_at, s.last_seen, u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?"),
     sessionTouch: db.prepare("UPDATE sessions SET last_seen = ? WHERE token_hash = ?"),
@@ -56,11 +59,15 @@ export function createAuth(db) {
     sessionPurge: db.prepare("DELETE FROM sessions WHERE expires_at < ?"),
     lastLogin: db.prepare("UPDATE users SET last_login = ? WHERE id = ?"),
     setPw: db.prepare("UPDATE users SET pw_hash = ?, must_change_pw = ? WHERE id = ?"),
-    update: db.prepare("UPDATE users SET name = ?, dept = ?, role = ?, status = ? WHERE id = ?"),
+    update: db.prepare("UPDATE users SET name = ?, dept = ?, role = ?, position = ?, status = ? WHERE id = ?"),
     del: db.prepare("DELETE FROM users WHERE id = ?"),
     devs: db.prepare("SELECT id FROM users WHERE role = 'developer' AND status = 'active' ORDER BY created_at")
   };
-  const publicUser = (u) => u && ({ id: u.id, username: u.username, name: u.name, dept: u.dept, role: u.role, status: u.status, mustChangePassword: !!u.must_change_pw, createdAt: u.created_at, lastLogin: u.last_login });
+  const publicUser = (u) => u && ({
+    id: u.id, username: u.username, name: u.name, dept: u.dept, role: u.role, position: u.position || "", tier: tierOf(u),
+    title: [u.role === "developer" ? "개발자" : "", u.position ? POSITION_LABEL[u.position] + (u.position === "vice_lead" ? " (총무)" : "") : (u.role === "developer" ? "" : "팀원")].filter(Boolean).join(" · "),
+    treasurer: u.position === "vice_lead", status: u.status, mustChangePassword: !!u.must_change_pw, createdAt: u.created_at, lastLogin: u.last_login
+  });
   return {
     publicUser,
     count: () => q.count.get().n,
@@ -68,14 +75,14 @@ export function createAuth(db) {
     byId: (id) => q.byId.get(id),
     list: () => q.all.all(),
     activeDevelopers: () => q.devs.all().map((r) => r.id),
-    create({ username, name, dept, role, status, password, mustChange = false }) {
+    create({ username, name, dept, role, position = "", status, password, mustChange = false }) {
       const id = newId("u_");
-      q.insert.run(id, username, name, dept || "", role, status, hashPassword(password), mustChange ? 1 : 0, new Date().toISOString());
+      q.insert.run(id, username, name, dept || "", role, position, status, hashPassword(password), mustChange ? 1 : 0, new Date().toISOString());
       return q.byId.get(id);
     },
-    update(id, { name, dept, role, status }) {
+    update(id, { name, dept, role, position, status }) {
       const u = q.byId.get(id);
-      q.update.run(name ?? u.name, dept ?? u.dept, role ?? u.role, status ?? u.status, id);
+      q.update.run(name ?? u.name, dept ?? u.dept, role ?? u.role, position ?? u.position ?? "", status ?? u.status, id);
       return q.byId.get(id);
     },
     remove: (id) => q.del.run(id),

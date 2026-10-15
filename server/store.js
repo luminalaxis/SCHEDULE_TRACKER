@@ -3,7 +3,11 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-export const ROLE_LEVEL = { developer: 4, treasurer: 3, member: 2, viewer: 1 };
+// Organization: 개발자 (developer) > 임원진 (executive: 팀장·부팀장·파트장) > 팀원 (member).
+// role is "developer" or "member"; position is "", "team_lead", "vice_lead" (부팀장, also the treasurer) or "part_lead".
+// Access levels follow the Artifact db levels: member → interact (2), executive → admin (3), developer → owner (4).
+export const POSITIONS = ["", "team_lead", "vice_lead", "part_lead"];
+export const levelOf = (u) => !u ? 0 : u.role === "developer" ? 4 : u.position ? 3 : 2;
 const LEVEL = { view: 1, interact: 2, admin: 3, owner: 4 };
 const SEGMENT = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
 export const MAX_DOC_BYTES = 256 * 1024;
@@ -60,6 +64,12 @@ export function openStore(dataDir) {
     CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `);
+  // v1.0 → v1.1: roles became developer/member + position. Old treasurers become 부팀장, old viewers become members.
+  if (!db.prepare("PRAGMA table_info(users)").all().some((c) => c.name === "position")) {
+    db.exec("ALTER TABLE users ADD COLUMN position TEXT NOT NULL DEFAULT ''");
+    db.exec("UPDATE users SET role = 'member', position = 'vice_lead' WHERE role = 'treasurer'");
+    db.exec("UPDATE users SET role = 'member' WHERE role NOT IN ('developer', 'member')");
+  }
   return db;
 }
 
@@ -120,7 +130,7 @@ export function createDocs(db) {
 }
 
 // Access rules: the same declaration the Artifact uses (artifact.config.json → capabilities.db.rules).
-// Levels: view < interact < admin < owner. Roles map to levels: viewer 1, member 2, treasurer 3, developer 4.
+// Levels: view < interact < admin < owner. Users map to levels with levelOf().
 export function createRules(rules) {
   const parsed = (rules || []).map((r) => ({ segs: r.path ? r.path.split("/") : [], read: r.read ? LEVEL[r.read] : null, write: r.write ? LEVEL[r.write] : null }))
     .sort((a, b) => a.segs.length - b.segs.length);
@@ -142,8 +152,8 @@ export function createRules(rules) {
     return { read, write: Math.max(write, read) };
   }
   return {
-    canRead(user, path) { return !!user && effective(path, user.id).read <= (ROLE_LEVEL[user.role] || 0); },
-    canWrite(user, path) { return !!user && effective(path, user.id).write <= (ROLE_LEVEL[user.role] || 0); }
+    canRead(user, path) { return !!user && effective(path, user.id).read <= levelOf(user); },
+    canWrite(user, path) { return !!user && effective(path, user.id).write <= levelOf(user); }
   };
 }
 

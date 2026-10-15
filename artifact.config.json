@@ -6,6 +6,9 @@
     "db": {
       "rules": [
         { "path": "config/roles", "write": "owner" },
+        { "path": "config/car", "write": "admin" },
+        { "path": "config/checklist", "write": "admin" },
+        { "path": "milestones", "write": "admin" },
         { "path": "people", "read": "view", "write": "owner" },
         { "path": "people/{self}", "write": "interact" },
         { "path": "expenses", "read": "view", "write": "owner" },

@@ -907,7 +907,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   let db = null, assets = null, userNs = null;
   let colP, cfgRef, ckRef, colS, colL, colC, colK, colM, colH, colPeople, colExp, colRev, rolesRef;
   const state = {
-    phase: "loading", canWrite: true, tab: "parts", uid: "", isOwner: false,
+    phase: "loading", canWrite: true, canManageTeam: false, tab: "parts", uid: "", isOwner: false,
     roles: null, rolesLoaded: false, people: [], expenseDocs: [], reviewDocs: [], xDraft: null, acctCache: {},
     parts: [], cfg: {}, ckCfg: null, sessions: [], logs: [], comments: [], checks: [], milestones: [], history: [],
     sel: null, editPart: null, editSession: null, editLog: null, editMs: null, ckOpen: true,
@@ -957,7 +957,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
     if (!db) { state.phase = "offline"; render(); return; }
     try {
       userNs = await window.claude.use("user");
-      if (userNs) { const c = await userNs.can("data.write"); if (c === false) state.canWrite = false; state.uid = (await userNs.id()) || ""; state.isOwner = await userNs.isOwner(); }
+      if (userNs) { const c = await userNs.can("data.write"); if (c === false) state.canWrite = false; state.uid = (await userNs.id()) || ""; state.isOwner = await userNs.isOwner(); state.canManageTeam = await userNs.canEdit(); }
     } catch {}
     window.claude.use("assets").then((a) => { assets = a; render(); }).catch(() => {});
     colP = db.collection("parts"); cfgRef = db.doc("config/car"); ckRef = db.doc("config/checklist");
@@ -1035,14 +1035,14 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
     const nm = nextMilestone(), pn = $("pitNext");
     pn.hidden = !nm;
     if (nm) { const n = daysUntil(nm.date); pn.innerHTML = `다음 일정 · <b>${esc(nm.title)}</b> <span class="${n <= 7 ? "soon" : ""}">${dLabel(n)}</span>`; }
-    $("btnSettings").hidden = !(live() && canWrite);
+    $("btnSettings").hidden = !(live() && canWrite && state.canManageTeam);
 
     const banner = $("banner");
     banner.className = "banner";
     if (phase === "offline") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "팀 저장소에 연결할 수 없어요. claude.ai에 로그인한 상태로 이 페이지를 열어 주세요."; }
     else if (phase === "error") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "데이터를 불러오지 못했어요. 페이지를 새로고침해 주세요."; }
     else if (live() && !canWrite) { banner.hidden = false; banner.textContent = "보기 전용으로 열려 있어요. 수정하려면 소유자에게 편집자로 초대해 달라고 요청하세요."; }
-    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = "오른쪽 위에서 내 부서와 이름을 입력해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
+    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = window.FSK_SELF_HOSTED ? "오른쪽 위에서 내 부서를 골라 주세요. 새 기록과 부품의 기본 부서로 쓰여요." : "오른쪽 위에서 내 부서와 이름을 입력해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
     else banner.hidden = true;
 
     const ids = sessionIds();
@@ -1248,7 +1248,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <summary><h3>출주 전 점검</h3>${ready ? '<span class="stt ok">✓ 출주 준비 완료</span>' : `<span class="stt ${n ? "warn" : "none"}">${n ? "점검 중" : "점검 전"}</span>`}
         <div class="track"><span class="fill ${ready ? "ok" : ""}" style="width:${total ? (n / total) * 100 : 0}%"></span></div><span class="num dim" style="font-size:12px">${n}/${total}</span><span class="caret"></span></summary>
       <div class="ckgrid">${blocks}</div>
-      ${cw ? `<div class="ck-foot"><button class="btn ghost sm" type="button" id="btnEditCk">점검 항목 편집</button></div>` : ""}
+      ${cw && state.canManageTeam ? `<div class="ck-foot"><button class="btn ghost sm" type="button" id="btnEditCk">점검 항목 편집</button></div>` : ""}
     </details>`;
   }
 
@@ -1431,7 +1431,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
   // ---------- schedule ----------
   function msRow(m, isNext) {
-    const n = m.date ? daysUntil(m.date) : null, cw = state.canWrite;
+    const n = m.date ? daysUntil(m.date) : null, cw = state.canWrite && state.canManageTeam;
     const dcls = m.done ? "past" : n < 0 ? "past" : n <= 7 ? "soon" : "";
     return `<div class="ms${m.done ? " done" : ""}${isNext ? " next" : ""}">
       <span class="ms-date">${esc(fmtDate(m.date))}</span>
@@ -1443,7 +1443,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
     </div>`;
   }
   function renderSchedule() {
-    const cw = state.canWrite && live();
+    const cw = state.canWrite && state.canManageTeam && live();
     $("btnAddMs").hidden = !cw;
     const have = new Set(state.milestones.map((m) => m.title));
     const sugg = MS_SUGGEST.filter(([t]) => !have.has(t));
@@ -2206,7 +2206,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
   function renderExpense() {
     const mgr = isManager(), ok = live();
-    const role = !state.uid ? "계정 정보 없음" : state.isOwner ? "개발자" : isTreasurer() ? "총무" : state.canWrite ? "팀원" : "보기 전용";
+    const me0 = window.__FSK_ME, role = !state.uid ? "계정 정보 없음" : me0 && me0.title ? me0.title : state.isOwner ? "개발자" : isTreasurer() ? "총무" : state.canWrite ? "팀원" : "보기 전용";
     $("expRole").innerHTML = `내 권한 <b class="${mgr ? "mgr" : ""}">${role}</b>`;
     $("btnRoles").hidden = !(ok && state.isOwner);
     $("btnExpCsv").hidden = !(ok && mgr);
@@ -2493,6 +2493,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   // roles (owner only; config/roles is write: owner in the db rules)
   const dlgR = $("dlgRoles");
   function openRoles() {
+    if (window.FSK_SELF_HOSTED) { location.href = "/admin#users"; return; }
     const roles = state.roles || {}, tre = new Set(roles.treasurers || []);
     const ids = new Set([...state.people.map((p) => p.id), ...state.expenseDocs.map((d) => d.id), ...tre]);
     ids.delete(state.uid);

@@ -3,9 +3,8 @@
 (() => {
   const ME = window.__FSK_ME;
   if (!ME) return;
-  const LEVEL = { developer: 4, treasurer: 3, member: 2, viewer: 1 };
-  const ROLE_LABEL = { developer: "개발자", treasurer: "총무", member: "팀원", viewer: "보기 전용" };
-  const level = LEVEL[ME.role] || 0;
+  // level: 4 developer, 3 임원진 (팀장·부팀장·파트장), 2 팀원 — computed by the server.
+  const level = ME.level || 0;
 
   // The page keeps "who am I" in localStorage; seed it from the signed-in account.
   try { localStorage.setItem("fsk.me.name", ME.name || ""); if (ME.dept) localStorage.setItem("fsk.me.dept", ME.dept); } catch {}
@@ -194,7 +193,7 @@
       .acct-bar a:hover,.acct-bar button:hover{text-decoration:underline}
     </style><b></b><span class="acct-role"></span>${ME.role === "developer" ? '<a href="/admin">관리 창</a>' : ""}<button type="button" data-logout>로그아웃</button>`;
     bar.querySelector("b").textContent = ME.name;
-    bar.querySelector(".acct-role").textContent = ROLE_LABEL[ME.role] || ME.role;
+    bar.querySelector(".acct-role").textContent = ME.title || "팀원";
     bar.querySelector("[data-logout]").addEventListener("click", async () => { await api("POST", "/api/auth/logout", {}).catch(() => {}); location.href = "/login"; });
     side.prepend(bar);
     const nameInput = document.getElementById("meName");

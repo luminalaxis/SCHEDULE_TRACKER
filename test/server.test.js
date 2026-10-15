@@ -101,19 +101,52 @@ test("members cannot reach the admin console", async () => {
   assert.equal((await dev.req("GET", "/admin")).status, 200);
 });
 
-test("making someone treasurer updates config/roles", async () => {
-  await dev.req("POST", `/api/admin/users/${memId}`, { role: "treasurer" });
-  const roles = (await dev.req("GET", "/api/db/doc?path=config/roles")).json.data;
+test("부팀장 is the treasurer; positions are unique and hand over", async () => {
+  await dev.req("POST", `/api/admin/users/${memId}`, { position: "vice_lead" });
+  let roles = (await dev.req("GET", "/api/db/doc?path=config/roles")).json.data;
   assert.deepEqual(roles.treasurers, [memId]);
-  assert.equal((await mem.req("POST", "/api/db/set", { path: "config/roles", data: { ownerUid: memId } })).status, 403, "treasurers still cannot edit roles");
-  // the page's 권한 관리 dialog writes config/roles; the server mirrors it into account roles
-  await dev.req("POST", "/api/db/set", { path: "config/roles", data: { ownerUid: devId, treasurers: [], allowMemberSubmit: true } });
-  const u = (await dev.req("GET", "/api/admin/users")).json.users.find((x) => x.id === memId);
-  assert.equal(u.role, "member");
+  assert.equal((await mem.req("GET", "/api/me")).json.title, "부팀장 (총무)");
+  assert.equal((await mem.req("POST", "/api/db/set", { path: "config/roles", data: { ownerUid: memId } })).status, 403, "부팀장 still cannot edit roles");
+  // a new 부팀장 takes over; the previous one goes back to 팀원
+  const c = await dev.req("POST", "/api/admin/users", { username: "vice2", name: "새부팀장", role: "member", position: "vice_lead" });
+  assert.equal(c.json.handedOver[0].name, "팀원");
+  roles = (await dev.req("GET", "/api/db/doc?path=config/roles")).json.data;
+  assert.deepEqual(roles.treasurers, [c.json.user.id]);
+  const users = (await dev.req("GET", "/api/admin/users")).json.users;
+  assert.equal(users.find((u) => u.id === memId).position, "");
+  // the page's 권한 관리 dialog cannot make a non-부팀장 the treasurer on this server
+  await dev.req("POST", "/api/db/set", { path: "config/roles", data: { ownerUid: devId, treasurers: [memId], allowMemberSubmit: false } });
+  roles = (await dev.req("GET", "/api/db/doc?path=config/roles")).json.data;
+  assert.deepEqual(roles.treasurers, [c.json.user.id]);
+  assert.equal(roles.allowMemberSubmit, false);
+  await dev.req("POST", "/api/admin/settings", { allowMemberSubmit: true });
+  assert.equal((await dev.req("GET", "/api/db/doc?path=config/roles")).json.data.allowMemberSubmit, true);
+});
+
+test("파트장 needs a department and is unique per department", async () => {
+  assert.equal((await dev.req("POST", "/api/admin/users", { username: "pl0", name: "부서없음", position: "part_lead" })).status, 400);
+  const a = await dev.req("POST", "/api/admin/users", { username: "pl1", name: "에어로파트장", position: "part_lead", dept: "aero" });
+  const b = await dev.req("POST", "/api/admin/users", { username: "pl2", name: "배터리파트장", position: "part_lead", dept: "battery" });
+  assert.equal(b.json.handedOver.length, 0, "different departments do not clash");
+  const c = await dev.req("POST", "/api/admin/users", { username: "pl3", name: "새에어로", position: "part_lead", dept: "aero" });
+  assert.deepEqual(c.json.handedOver.map((h) => h.name), ["에어로파트장"]);
+  assert.equal(a.json.user.tier, "executive");
+});
+
+test("only executives change team settings", async () => {
+  await dev.req("POST", `/api/admin/users/${memId}`, { position: "" });
+  assert.equal((await mem.req("POST", "/api/db/set", { path: "config/car", data: { carName: "x" } })).status, 403);
+  assert.equal((await mem.req("POST", "/api/db/set", { path: "milestones/m9", data: { title: "x" } })).status, 403);
+  assert.equal((await mem.req("POST", "/api/db/set", { path: "sessions/s9", data: { date: "2026-10-01" } })).status, 200, "members still log test sessions");
+  await dev.req("POST", `/api/admin/users/${memId}`, { position: "team_lead" });
+  assert.equal((await mem.req("POST", "/api/db/set", { path: "config/car", data: { carName: "KR-27" } })).status, 200);
+  assert.equal((await mem.req("GET", "/api/me")).json.level, 3);
+  await dev.req("POST", `/api/admin/users/${memId}`, { position: "" });
 });
 
 test("the last developer cannot demote or disable themselves", async () => {
   const r = await dev.req("POST", `/api/admin/users/${devId}`, { role: "member" });
+  assert.match(r.json.message, /마지막 개발자/);
   assert.equal(r.status, 400);
 });
 
@@ -129,16 +162,14 @@ test("assets: upload, serve, permissions", async () => {
   assert.equal(xlsx.status, 200, "xlsx is accepted on the self-hosted server");
 });
 
-test("viewer role is read-only", async () => {
-  const c = await dev.req("POST", "/api/admin/users", { username: "view", name: "보기", role: "viewer" });
-  assert.equal(c.status, 200);
+test("accounts created by the developer must change the temp password", async () => {
+  const c = await dev.req("POST", "/api/admin/users", { username: "view", name: "새팀원" });
+  assert.equal(c.status, 200); assert.equal(c.json.user.tier, "member");
   const l = await view.req("POST", "/api/auth/login", { username: "view", password: c.json.tempPassword });
   assert.equal(l.json.user.mustChangePassword, true);
   assert.equal((await view.req("GET", "/api/db/doc?path=parts/p1")).status, 401, "must change the temp password first");
-  assert.equal((await view.req("POST", "/api/auth/password", { current: c.json.tempPassword, next: "viewer-pass" })).status, 200);
+  assert.equal((await view.req("POST", "/api/auth/password", { current: c.json.tempPassword, next: "member-pass" })).status, 200);
   assert.equal((await view.req("GET", "/api/db/doc?path=parts/p1")).json.exists, true);
-  assert.equal((await view.req("POST", "/api/db/set", { path: "parts/v", data: {} })).status, 403);
-  assert.equal((await view.req("POST", "/api/assets", Buffer.from("x"), { "content-type": "text/plain" })).status, 403);
 });
 
 test("live updates reach other signed-in users", async () => {

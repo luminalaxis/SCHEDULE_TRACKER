@@ -1,6 +1,6 @@
 // Command-line admin for when the web admin page is out of reach (locked out, fresh install, disaster recovery).
 //   node server/cli.js list-users
-//   node server/cli.js create-user <username> <developer|treasurer|member|viewer> [이름]
+//   node server/cli.js create-user <username> <developer|member|team_lead|vice_lead|part_lead> [이름] [부서]
 //   node server/cli.js reset-password <username>
 //   node server/cli.js backup
 //   node server/cli.js restore <backup.json> [--force]
@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openStore, createDocs } from "./store.js";
-import { createAuth, tempPassword, checkUsername, ROLES } from "./auth.js";
+import { createAuth, tempPassword, checkUsername } from "./auth.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = process.env.DATA_DIR || join(ROOT, "data");
@@ -19,17 +19,19 @@ const die = (msg) => { console.error(msg); process.exit(1); };
 
 switch (cmd) {
   case "list-users":
-    console.table(auth.list().map((u) => ({ 아이디: u.username, 이름: u.name, 역할: u.role, 상태: u.status, 마지막로그인: u.last_login || "" })));
+    console.table(auth.list().map((u) => ({ 아이디: u.username, 이름: u.name, 구분: auth.publicUser(u).title, 상태: u.status, 마지막로그인: u.last_login || "" })));
     break;
   case "create-user": {
-    const [username, role, name] = args;
+    const [username, kind, name, dept = ""] = args;
+    const KINDS = { developer: ["developer", ""], member: ["member", ""], team_lead: ["member", "team_lead"], vice_lead: ["member", "vice_lead"], part_lead: ["member", "part_lead"] };
     if (checkUsername(username || "")) die(checkUsername(username || ""));
-    if (!ROLES.includes(role)) die(`역할은 ${ROLES.join(", ")} 중 하나예요.`);
+    if (!KINDS[kind]) die(`종류는 ${Object.keys(KINDS).join(", ")} 중 하나예요.`);
+    if (kind === "part_lead" && !["battery", "circuit", "chassis", "aero", "powertrain"].includes(dept)) die("파트장은 부서(battery, circuit, chassis, aero, powertrain)를 함께 적어 주세요.");
     if (auth.byUsername(username)) die("이미 있는 아이디예요.");
-    const pw = tempPassword();
-    auth.create({ username, name: name || username, dept: "", role, status: "active", password: pw, mustChange: true });
-    audit("user.create", username, `${role} (cli)`);
-    console.log(`만들었어요: ${username} (${role})\n임시 비밀번호: ${pw}\n처음 로그인할 때 새 비밀번호를 정하게 돼요. 역할 변경이 페이지에 반영되려면 서버를 다시 시작하거나 관리 창에서 역할을 한 번 저장하세요.`);
+    const [role, position] = KINDS[kind], pw = tempPassword();
+    auth.create({ username, name: name || username, dept, role, position, status: "active", password: pw, mustChange: true });
+    audit("user.create", username, `${kind} (cli)`);
+    console.log(`만들었어요: ${username} (${kind})\n임시 비밀번호: ${pw}\n처음 로그인할 때 새 비밀번호를 정하게 돼요. 역할 변경이 페이지에 반영되려면 서버를 다시 시작하거나 관리 창에서 역할을 한 번 저장하세요.`);
     break;
   }
   case "reset-password": {
@@ -71,7 +73,7 @@ switch (cmd) {
   default:
     console.log(`사용법:
   node server/cli.js list-users
-  node server/cli.js create-user <아이디> <developer|treasurer|member|viewer> [이름]
+  node server/cli.js create-user <아이디> <developer|member|team_lead|vice_lead|part_lead> [이름] [부서]
   node server/cli.js reset-password <아이디>
   node server/cli.js backup
   node server/cli.js restore <백업.json> [--force]`);

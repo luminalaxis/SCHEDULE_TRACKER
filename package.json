@@ -1,0 +1,13 @@
+{
+  "name": "fsk-pitboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FSK 차량 제작동아리 피트보드 (자체 호스팅 서버)",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/server.js",
+    "admin": "node --disable-warning=ExperimentalWarning server/cli.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

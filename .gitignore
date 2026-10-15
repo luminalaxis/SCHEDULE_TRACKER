@@ -1,0 +1,7 @@
+# runtime data: database, uploaded files, backups (never commit — contains team and payment data)
+data/
+*.db
+*.db-wal
+*.db-shm
+node_modules/
+.env

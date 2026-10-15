@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>피트보드 관리 창</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: dark control-room header strip → tab bar → one panel per tab. Same workshop tokens as the pit board, with the header inverted so the admin console is never mistaken for the team page. */
+:root {
+  --bg: #EDF0F3; --surface: #FFFFFF; --surface-2: #F5F7F9; --ink: #131A24; --muted: #5A6575; --line: #D3D9E1;
+  --accent: #1E4CCB; --accent-ink: #FFFFFF; --accent-soft: #E2E9FA;
+  --ok: #1B8049; --ok-soft: #E3F3E9; --warn: #A86B12; --warn-soft: #FBF0DC; --bad: #C2352B; --bad-soft: #FBE9E7;
+  --head-bg: #131A24; --head-ink: #E5EAF1; --head-muted: #95A1B2;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443;
+    --accent: #7D9CFF; --accent-ink: #0E131A; --accent-soft: #1F2A45; --ok: #4CC07F; --ok-soft: #16301F; --warn: #E0A84B; --warn-soft: #33270F; --bad: #F07A6E; --bad-soft: #3A1E1D;
+    --head-bg: #05080C; --head-ink: #E5EAF1; --head-muted: #8592A4; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); }
+.dim { color: var(--muted); }
+
+header { background: var(--head-bg); color: var(--head-ink); }
+.head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; padding-block: 16px 0; }
+.head .eyebrow { font-size: 12px; letter-spacing: .08em; color: var(--head-muted); }
+.head h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.05; }
+.who { display: flex; gap: 12px; align-items: center; font-size: 13px; color: var(--head-muted); flex-wrap: wrap; }
+.who b { color: var(--head-ink); }
+.who a, .who button { color: var(--head-ink); background: none; border: 1px solid #3A4555; border-radius: var(--r); padding: 4px 10px; text-decoration: none; cursor: pointer; font-size: 12px; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; width: 100%; margin-top: 8px; }
+.tab { border: 0; background: none; color: var(--head-muted); padding: 10px 14px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--head-ink); border-bottom-color: #7D9CFF; }
+.tab .badge { font-size: 11px; background: var(--bad); color: #fff; border-radius: 999px; padding: 0 7px; margin-left: 4px; }
+
+main { padding-block: 22px 72px; }
+.panel { display: flex; flex-direction: column; gap: 18px; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.sec-head h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 7px 12px; border-radius: var(--r); cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.sm { padding: 3px 9px; font-size: 12px; }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.btn:disabled { opacity: .5; cursor: default; }
+.field { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 7px 10px; min-width: 0; }
+.alerts { display: flex; flex-direction: column; gap: 8px; }
+.alert { padding: 10px 14px; border-radius: var(--r); font-size: 13px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.alert.bad { background: var(--bad-soft); } .alert.warn { background: var(--warn-soft); } .alert.info { background: var(--accent-soft); }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tile span { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.tile b { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-height: 1; }
+.tile b small { font-size: 15px; color: var(--muted); font-weight: 500; margin-left: 3px; }
+.tile em { font-style: normal; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.track { height: 8px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.track > span { display: block; height: 100%; background: var(--accent); }
+.track > span.bad { background: var(--bad); }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+th { font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface-2); }
+tbody tr:last-child td { border-bottom: 0; }
+td.r, th.r { text-align: right; }
+td.wrap { white-space: normal; min-width: 220px; overflow-wrap: anywhere; }
+tr.sel td { background: var(--accent-soft); }
+tr.link { cursor: pointer; }
+tr.link:hover td { background: var(--surface-2); }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); } .pill.bad { background: var(--bad-soft); color: var(--bad); } .pill.none { background: var(--surface-2); color: var(--muted); } .pill.acc { background: var(--accent-soft); color: var(--accent); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.dot.on { background: var(--ok); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card h3 { font-size: 15px; font-weight: 600; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+label.f input, label.f select, label.f textarea { border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--r); padding: 8px 10px; color: var(--ink); width: 100%; }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.split { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+.cols { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.cols button { display: flex; justify-content: space-between; gap: 8px; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 9px 12px; cursor: pointer; }
+.cols button:last-child { border-bottom: 0; }
+.cols button[aria-current="true"] { background: var(--accent-soft); font-weight: 600; }
+textarea.json { font-family: var(--font-mono); font-size: 12px; min-height: 340px; width: 100%; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); color: var(--ink); padding: 10px; resize: vertical; }
+.secret { font-family: var(--font-mono); font-size: 18px; letter-spacing: .06em; padding: 10px 14px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: var(--r); user-select: all; }
+.thumb { width: 44px; height: 34px; object-fit: cover; border-radius: 3px; border: 1px solid var(--line); display: block; background: var(--surface-2); }
+dialog { border: 1px solid var(--line); border-radius: 10px; padding: 0; background: var(--surface); color: var(--ink); width: min(460px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(8, 12, 18, .5); }
+.dlg { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.dlg h3 { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: var(--r); font-size: 13px; max-width: calc(100vw - 32px); z-index: 10; }
+.hint { font-size: 12px; color: var(--muted); }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .tiles, .grid2 { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap head">
+    <div><span class="eyebrow">FSK 피트보드 · 개발자 전용</span><h1>관리 창</h1></div>
+    <div class="who"><span><b id="meName">…</b> · 개발자</span><a href="/">피트보드로</a><button type="button" id="btnLogout">로그아웃</button></div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button class="tab" role="tab" data-tab="overview" aria-selected="true">개요</button>
+      <button class="tab" role="tab" data-tab="users" aria-selected="false">사용자<span class="badge" id="pendingBadge" hidden></span></button>
+      <button class="tab" role="tab" data-tab="data" aria-selected="false">데이터</button>
+      <button class="tab" role="tab" data-tab="backups" aria-selected="false">백업 · 복원</button>
+      <button class="tab" role="tab" data-tab="files" aria-selected="false">첨부 파일</button>
+      <button class="tab" role="tab" data-tab="audit" aria-selected="false">감사 로그</button>
+      <button class="tab" role="tab" data-tab="settings" aria-selected="false">설정</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- overview -->
+  <section class="panel" id="p-overview">
+    <div class="alerts" id="alerts"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="sec-head"><h2>데이터 컬렉션</h2><span class="hint" id="sysLine"></span></div>
+    <div class="scroll"><table><thead><tr><th>컬렉션</th><th>내용</th><th class="r">문서</th><th class="r">크기</th><th>마지막 변경</th></tr></thead><tbody id="colBody"></tbody></table></div>
+  </section>
+
+  <!-- users -->
+  <section class="panel" id="p-users" hidden>
+    <div class="sec-head"><h2>사용자</h2><div class="toolbar"><input class="field" type="search" id="uq" placeholder="이름·아이디 검색" aria-label="검색"><button class="btn primary" type="button" id="btnNewUser">+ 계정 직접 만들기</button></div></div>
+    <div id="pendingBox"></div>
+    <div class="scroll"><table><thead><tr><th></th><th>이름</th><th>아이디</th><th>부서</th><th>역할</th><th>상태</th><th>마지막 접속</th><th class="r">작성한 문서</th><th>관리</th></tr></thead><tbody id="userBody"></tbody></table></div>
+    <p class="hint">역할: 개발자(모든 권한·관리 창) · 총무(사비 정산 처리) · 팀원(기록·제출) · 보기 전용(읽기만). 역할이나 상태를 바꾸면 그 사람의 화면이 바로 새 권한으로 다시 연결돼요.</p>
+  </section>
+
+  <!-- data -->
+  <section class="panel" id="p-data" hidden>
+    <div class="alert warn">여기서 직접 고치면 페이지의 권한 규칙과 양식 검사를 거치지 않아요. 고치기 전에 백업을 만들어 두세요. 모든 수정은 감사 로그에 남아요.</div>
+    <div class="split">
+      <div class="cols" id="colList"></div>
+      <div class="panel" style="gap:12px;min-width:0">
+        <div class="toolbar"><input class="field" type="search" id="dq" placeholder="경로·내용 검색" style="flex:1 1 200px" aria-label="문서 검색"><button class="btn" type="button" id="btnNewDoc">+ 새 문서</button></div>
+        <div class="scroll"><table><thead><tr><th>문서</th><th>미리보기</th><th class="r">크기</th><th>마지막 변경</th></tr></thead><tbody id="docBody"></tbody></table></div>
+        <div class="card" id="editor" hidden>
+          <div class="sec-head"><h3 id="edPath" class="mono"></h3><span class="hint" id="edMeta"></span></div>
+          <textarea class="json" id="edJson" spellcheck="false" aria-label="문서 JSON"></textarea>
+          <div class="toolbar"><button class="btn primary" type="button" id="btnSaveDoc">저장</button><button class="btn" type="button" id="btnFormat">정렬</button><button class="btn danger" type="button" id="btnDelDoc">문서 삭제</button><span class="hint" id="edMsg"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- backups -->
+  <section class="panel" id="p-backups" hidden>
+    <div class="sec-head"><h2>백업</h2><div class="toolbar"><input class="field" id="bNote" placeholder="메모 (선택)" maxlength="100" aria-label="백업 메모"><button class="btn primary" type="button" id="btnBackup">지금 백업</button></div></div>
+    <p class="hint">백업 파일에는 모든 데이터 문서, 계정(비밀번호는 암호화된 상태), 설정, 첨부 파일 목록이 들어가요. 첨부 파일 자체는 <span class="mono">data/assets</span> 폴더에 있으니 서버 백업 때 폴더째 함께 복사하세요.</p>
+    <div class="scroll"><table><thead><tr><th>파일</th><th>종류</th><th class="r">크기</th><th>만든 시각</th><th>관리</th></tr></thead><tbody id="backupBody"></tbody></table></div>
+    <div class="card">
+      <h3>데이터 가져오기</h3>
+      <p class="hint">백업 파일이나 claude.ai 피트보드에서 내보낸 JSON(<span class="mono">{ docs: [{ path, data }] }</span>)을 가져와요. 가져오기 직전 상태는 자동으로 백업돼요. 계정은 바뀌지 않아요.</p>
+      <div class="toolbar"><input type="file" id="impFile" accept=".json,application/json"><select class="field" id="impMode" aria-label="가져오기 방식"><option value="merge">합치기 (같은 경로만 덮어쓰기)</option><option value="replace">전체 교체 (기존 데이터 삭제)</option></select><button class="btn danger" type="button" id="btnImport" disabled>가져오기</button></div>
+      <span class="hint" id="impMsg"></span>
+    </div>
+  </section>
+
+  <!-- files -->
+  <section class="panel" id="p-files" hidden>
+    <div class="sec-head"><h2>첨부 파일</h2><div class="toolbar"><select class="field" id="fFilter" aria-label="필터"><option value="">전체</option><option value="orphan">어디에서도 쓰지 않는 파일</option></select><button class="btn danger" type="button" id="btnCleanup">안 쓰는 파일 정리</button></div></div>
+    <p class="hint" id="fSummary"></p>
+    <div class="scroll"><table><thead><tr><th></th><th>이름</th><th>형식</th><th class="r">크기</th><th>올린 사람</th><th>올린 시각</th><th>사용</th><th></th></tr></thead><tbody id="fileBody"></tbody></table></div>
+  </section>
+
+  <!-- audit -->
+  <section class="panel" id="p-audit" hidden>
+    <div class="sec-head"><h2>감사 로그</h2><div class="toolbar"><select class="field" id="aFilter" aria-label="종류"><option value="">모든 기록</option><option value="login">로그인</option><option value="signup">가입</option><option value="user.">사용자 관리</option><option value="role.">역할 변경</option><option value="data.">데이터 직접 수정</option><option value="backup.">백업·복원</option><option value="asset.">첨부 파일</option><option value="settings.">설정</option><option value="password">비밀번호</option></select></div></div>
+    <p class="hint">서버가 직접 남기는 기록이라 페이지의 변경 이력과 달리 고칠 수 없어요. 로그인 실패, 권한 변경, 데이터 직접 수정이 모두 남아요.</p>
+    <div class="scroll"><table><thead><tr><th>시각</th><th>사람</th><th>동작</th><th>대상</th><th>내용</th><th>IP</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+  </section>
+
+  <!-- settings -->
+  <section class="panel" id="p-settings" hidden>
+    <div class="grid2">
+      <form class="card" id="formSignup">
+        <h3>가입 방식</h3>
+        <label class="check"><input type="radio" name="sm" value="approval"> 승인제: 누구나 신청, 개발자가 승인</label>
+        <label class="check"><input type="radio" name="sm" value="invite"> 초대 코드: 코드를 아는 사람은 바로 가입</label>
+        <label class="check"><input type="radio" name="sm" value="closed"> 닫힘: 개발자가 계정을 직접 만듦</label>
+        <div class="toolbar"><span class="hint">초대 코드</span><span class="secret" id="inviteCode" style="font-size:15px;padding:4px 10px"></span><button class="btn sm" type="button" id="btnInviteCopy">복사</button><button class="btn sm" type="button" id="btnInviteNew">새 코드</button></div>
+        <div class="toolbar"><button class="btn primary" type="submit">저장</button></div>
+      </form>
+      <form class="card" id="formBackup">
+        <h3>자동 백업</h3>
+        <label class="check"><input type="checkbox" id="sAuto"> 하루 한 번 자동 백업</label>
+        <div class="grid2">
+          <label class="f">백업 시각 (이 시각 이후 첫 확인 때)<select id="sHour"></select></label>
+          <label class="f">자동 백업 보관 개수<input id="sKeep" type="number" min="1" max="90"></label>
+        </div>
+        <div class="toolbar"><button class="btn primary" type="submit">저장</button></div>
+      </form>
+      <form class="card" id="formPw">
+        <h3>내 비밀번호 바꾸기</h3>
+        <label class="f">현재 비밀번호<input id="pCur" type="password" autocomplete="current-password" required></label>
+        <label class="f">새 비밀번호 (8자 이상)<input id="pNew" type="password" autocomplete="new-password" minlength="8" required></label>
+        <div class="toolbar"><button class="btn primary" type="submit">바꾸기</button><span class="hint">다른 기기의 로그인은 모두 끊어져요.</span></div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlgUser">
+  <form class="dlg" id="formUser">
+    <h3>계정 만들기</h3>
+    <label class="f">이름<input id="nuName" maxlength="20" required></label>
+    <label class="f">아이디 (영문 소문자·숫자 3~32자)<input id="nuUser" pattern="[a-z0-9._\-]{3,32}" autocapitalize="none" required></label>
+    <div class="grid2">
+      <label class="f">부서<select id="nuDept"></select></label>
+      <label class="f">역할<select id="nuRole"></select></label>
+    </div>
+    <p class="hint">임시 비밀번호가 만들어져요. 처음 로그인할 때 새 비밀번호로 바꾸게 돼요.</p>
+    <div class="toolbar" style="justify-content:flex-end"><button class="btn" type="button" data-close>취소</button><button class="btn primary" type="submit">만들기</button></div>
+  </form>
+</dialog>
+<dialog id="dlgSecret">
+  <div class="dlg">
+    <h3 id="secTitle">임시 비밀번호</h3>
+    <p class="hint" id="secText"></p>
+    <div class="secret" id="secValue"></div>
+    <p class="hint">이 창을 닫으면 다시 볼 수 없어요. 본인에게 직접 전달하세요.</p>
+    <div class="toolbar" style="justify-content:flex-end"><button class="btn" type="button" id="btnSecCopy">복사</button><button class="btn primary" type="button" data-close>닫기</button></div>
+  </div>
+</dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const ROLE = { developer: "개발자", treasurer: "총무", member: "팀원", viewer: "보기 전용" };
+  const STATUS = { active: "활성", pending: "승인 대기", disabled: "비활성" };
+  const DEPT = { battery: "배터리", circuit: "회로", chassis: "프레임·현가", aero: "에어로", powertrain: "파워트레인" };
+  const COLL = { parts: "부품", sessions: "테스트 세션", logs: "부서 기록", comments: "의견", checks: "출주 전 점검", milestones: "일정", history: "변경 이력", config: "설정 (차량·점검·권한)", people: "사람 목록 (페이지용)", expenses: "사비 내역서", reviews: "총무 검토·지급" };
+  const ACTION = { login: "로그인", "login.fail": "로그인 실패", logout: "로그아웃", signup: "가입", "password.change": "비밀번호 변경", "profile.name": "이름 변경",
+    "user.create": "계정 생성", "user.update": "계정 변경", "user.approve": "가입 승인", "user.reset_password": "비밀번호 초기화", "user.force_logout": "강제 로그아웃", "user.delete": "계정 삭제",
+    "role.change": "역할 변경", "settings.update": "설정 변경", "data.edit": "데이터 수정", "data.create": "데이터 생성", "data.delete": "데이터 삭제", "data.import": "데이터 가져오기",
+    "backup.create": "백업", "backup.download": "백업 내려받기", "backup.restore": "백업 복원", "backup.delete": "백업 삭제", "asset.delete": "파일 삭제", "asset.cleanup": "파일 정리" };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const bytes = (n) => n >= 1073741824 ? (n / 1073741824).toFixed(1) + "GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n >= 1024 ? Math.round(n / 1024) + "KB" : (n || 0) + "B";
+  const when = (iso) => { if (!iso) return "–"; const d = new Date(iso); if (isNaN(d)) return "–"; return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  const ago = (iso) => { if (!iso) return "없음"; const s = (Date.now() - new Date(iso)) / 1000; return s < 60 ? "방금" : s < 3600 ? `${Math.round(s / 60)}분 전` : s < 86400 ? `${Math.round(s / 3600)}시간 전` : `${Math.round(s / 86400)}일 전`; };
+  const dur = (sec) => sec < 3600 ? `${Math.round(sec / 60)}분` : sec < 86400 ? `${Math.floor(sec / 3600)}시간 ${Math.round((sec % 3600) / 60)}분` : `${Math.floor(sec / 86400)}일 ${Math.floor((sec % 86400) / 3600)}시간`;
+  let toastT;
+  const toast = (m) => { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200); };
+  async function api(method, url, body, raw) {
+    const init = { method, credentials: "same-origin", headers: { "x-fsk": "1" } };
+    if (raw !== undefined) { init.body = raw; init.headers["content-type"] = "application/json"; }
+    else if (body !== undefined) { init.body = JSON.stringify(body); init.headers["content-type"] = "application/json"; }
+    const r = await fetch(url, init);
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401 || (r.status === 403 && j.code === "forbidden" && method === "GET")) { location.href = "/login?next=/admin"; throw j; }
+    if (!r.ok) throw j;
+    return j;
+  }
+  const fail = (e) => toast(e && e.message ? e.message : "요청을 처리하지 못했어요.");
+  function arm(btn, label) { if (btn.classList.contains("armed")) return true; btn.dataset.label = btn.textContent; btn.classList.add("armed"); btn.textContent = label || "한 번 더 누르세요"; setTimeout(() => { btn.classList.remove("armed"); btn.textContent = btn.dataset.label; }, 4000); return false; }
+  document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+
+  // tabs
+  let tab = "overview";
+  const loaders = {};
+  function show(t) {
+    tab = t;
+    document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === t)));
+    document.querySelectorAll("main > .panel").forEach((p) => (p.hidden = p.id !== "p-" + t));
+    try { history.replaceState(null, "", "#" + t); } catch {}
+    loaders[t] && loaders[t]();
+  }
+  document.querySelectorAll(".tab").forEach((x) => x.addEventListener("click", () => show(x.dataset.tab)));
+  $("btnLogout").addEventListener("click", async () => { await api("POST", "/api/auth/logout", {}).catch(() => {}); location.href = "/login"; });
+
+  // ---------- overview ----------
+  loaders.overview = async () => {
+    let s;
+    try { s = await api("GET", "/api/admin/status"); } catch (e) { return fail(e); }
+    const tile = (label, value, sub, bar) => `<div class="tile"><span>${label}</span><b class="num">${value}</b>${bar !== undefined ? `<div class="track"><span class="${bar > 90 ? "bad" : ""}" style="width:${Math.min(100, bar)}%"></span></div>` : ""}<em>${sub}</em></div>`;
+    const diskUsed = s.disk ? Math.round((1 - s.disk.free / s.disk.total) * 100) : null;
+    const memUsed = Math.round((1 - s.memory.systemFree / s.memory.systemTotal) * 100);
+    $("tiles").innerHTML =
+      tile("서버 가동", dur(s.uptimeSec), `${when(s.startedAt)} 시작 · 기기 ${dur(s.systemUptimeSec)}`) +
+      tile("지금 접속 중", `${s.liveUsers}<small>명</small>`, `실시간 연결 ${s.liveConnections}개`) +
+      tile("사용자", `${s.users.total - s.users.pending}<small>명</small>`, `승인 대기 ${s.users.pending} · 개발자 ${s.users.byRole.developer} · 총무 ${s.users.byRole.treasurer}`) +
+      tile("마지막 백업", s.lastBackup ? ago(s.lastBackup.createdAt) : "없음", s.lastBackup ? `${s.lastBackup.name} · ${bytes(s.lastBackup.bytes)}` : "백업 · 복원 탭에서 만들 수 있어요") +
+      tile("데이터베이스", bytes(s.dbBytes), `문서 ${s.collections.reduce((a, c) => a + c.n, 0)}개 · 백업 폴더 ${bytes(s.backupBytes)}`) +
+      tile("첨부 파일", bytes(s.assets.bytes), `${s.assets.files}개`) +
+      tile("디스크", s.disk ? `${diskUsed}<small>%</small>` : "–", s.disk ? `남은 공간 ${bytes(s.disk.free)} / ${bytes(s.disk.total)}` : "확인할 수 없어요", diskUsed ?? undefined) +
+      tile("메모리", `${memUsed}<small>%</small>`, `서버 ${bytes(s.memory.rss)} · 부하 ${s.loadavg.map((x) => x.toFixed(2)).join(" / ")}`, memUsed);
+    $("sysLine").textContent = `피트보드 ${s.version} · Node ${s.node} · ${s.platform} · ${s.hostname} · 데이터 ${s.dataDir}`;
+    $("colBody").innerHTML = s.collections.length ? s.collections.map((c) => `<tr class="link" data-col="${esc(c.collection)}"><td class="mono">${esc(c.collection)}</td><td>${esc(COLL[c.collection.split("/")[0]] || "")}</td><td class="r num">${c.n}</td><td class="r num">${bytes(c.bytes)}</td><td>${esc(when(c.last))}</td></tr>`).join("") : `<tr><td colspan="5" class="dim">아직 데이터가 없어요.</td></tr>`;
+    const al = [];
+    if (s.users.pending) al.push(["warn", `가입 승인을 기다리는 사람이 ${s.users.pending}명 있어요.`, '<button class="btn sm" type="button" data-go="users">사용자 탭으로</button>']);
+    if (!s.lastBackup || Date.now() - new Date(s.lastBackup.createdAt) > 2 * 86400000) al.push(["bad", s.lastBackup ? `마지막 백업이 ${ago(s.lastBackup.createdAt)}이에요.` : "백업이 하나도 없어요.", '<button class="btn sm" type="button" data-go="backups">백업 만들기</button>']);
+    if (s.disk && s.disk.free / s.disk.total < 0.1) al.push(["bad", `디스크 남은 공간이 ${bytes(s.disk.free)}뿐이에요. 오래된 백업이나 안 쓰는 첨부 파일을 정리하세요.`, ""]);
+    if (!s.cookieSecure) al.push(["info", "지금 HTTPS가 아닌 주소로 접속 중이에요. 외부에 공개할 때는 Cloudflare Tunnel 같은 HTTPS 경로를 쓰고 TRUST_PROXY=1로 실행하세요.", ""]);
+    if (!s.settings.autoBackup) al.push(["warn", "자동 백업이 꺼져 있어요.", '<button class="btn sm" type="button" data-go="settings">설정</button>']);
+    $("alerts").innerHTML = al.map(([k, t, b]) => `<div class="alert ${k}"><span>${esc(t)}</span>${b}</div>`).join("");
+    $("pendingBadge").hidden = !s.users.pending; $("pendingBadge").textContent = s.users.pending;
+  };
+  document.addEventListener("click", (e) => {
+    const go = e.target.closest("[data-go]"); if (go) show(go.dataset.go);
+    const col = e.target.closest("tr[data-col]"); if (col) { state.col = col.dataset.col; show("data"); }
+  });
+
+  // ---------- users ----------
+  const state = { users: [], col: null, docs: [], doc: null, files: [], backups: [] };
+  const opt = (map, v) => Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
+  loaders.users = async () => {
+    try { state.users = (await api("GET", "/api/admin/users")).users; } catch (e) { return fail(e); }
+    renderUsers();
+  };
+  function renderUsers() {
+    const q = $("uq").value.trim().toLowerCase();
+    const pending = state.users.filter((u) => u.status === "pending");
+    $("pendingBadge").hidden = !pending.length; $("pendingBadge").textContent = pending.length;
+    $("pendingBox").innerHTML = pending.length ? `<div class="card"><h3>가입 승인 대기 ${pending.length}명</h3><div class="scroll"><table><tbody>${pending.map((u) => `<tr><td><b>${esc(u.name)}</b> <span class="dim mono">${esc(u.username)}</span></td><td>${esc(DEPT[u.dept] || "부서 없음")}</td><td>${esc(when(u.createdAt))} 신청</td><td class="r"><select class="field" data-approve-role="${u.id}" aria-label="승인할 역할">${opt({ member: "팀원", viewer: "보기 전용", treasurer: "총무" }, "member")}</select> <button class="btn primary sm" type="button" data-approve="${u.id}">승인</button> <button class="btn danger sm" type="button" data-reject="${u.id}">거절</button></td></tr>`).join("")}</tbody></table></div></div>` : "";
+    const list = state.users.filter((u) => u.status !== "pending" && (!q || (u.name + u.username).toLowerCase().includes(q)));
+    $("userBody").innerHTML = list.map((u) => `<tr>
+      <td><span class="dot ${u.online ? "on" : ""}" title="${u.online ? "지금 접속 중" : "오프라인"}"></span></td>
+      <td><b>${esc(u.name)}</b>${u.mustChangePassword ? ' <span class="pill warn">임시 비밀번호</span>' : ""}</td>
+      <td class="mono">${esc(u.username)}</td>
+      <td><select class="field" data-field="dept" data-id="${u.id}" aria-label="부서"><option value="">없음</option>${opt(DEPT, u.dept)}</select></td>
+      <td><select class="field" data-field="role" data-id="${u.id}" aria-label="역할">${opt(ROLE, u.role)}</select></td>
+      <td><select class="field" data-field="status" data-id="${u.id}" aria-label="상태">${opt({ active: "활성", disabled: "비활성" }, u.status)}</select></td>
+      <td>${esc(u.lastSeen ? ago(u.lastSeen) : u.lastLogin ? ago(u.lastLogin) : "없음")}</td>
+      <td class="r num">${u.docsWritten}</td>
+      <td><button class="btn sm" type="button" data-reset="${u.id}">비밀번호 초기화</button> <button class="btn sm" type="button" data-kick="${u.id}"${u.sessions ? "" : " disabled"}>로그아웃시키기</button> <button class="btn danger sm" type="button" data-deluser="${u.id}">삭제</button></td>
+    </tr>`).join("") || `<tr><td colspan="9" class="dim">사용자가 없어요.</td></tr>`;
+  }
+  $("uq").addEventListener("input", renderUsers);
+  const userById = (id) => state.users.find((u) => u.id === id);
+  async function patchUser(id, body, msg) { try { await api("POST", `/api/admin/users/${id}`, body); toast(msg); } catch (e) { fail(e); } loaders.users(); }
+  $("p-users").addEventListener("change", (e) => {
+    const s = e.target.closest("select[data-field]"); if (!s) return;
+    const u = userById(s.dataset.id);
+    patchUser(s.dataset.id, { [s.dataset.field]: s.value }, `${u.name}: ${s.dataset.field === "role" ? ROLE[s.value] : s.dataset.field === "status" ? STATUS[s.value] : (DEPT[s.value] || "부서 없음")}(으)로 바꿨어요`);
+  });
+  $("p-users").addEventListener("click", async (e) => {
+    const t = e.target;
+    const ap = t.closest("[data-approve]");
+    if (ap) { const role = document.querySelector(`[data-approve-role="${ap.dataset.approve}"]`).value; return patchUser(ap.dataset.approve, { status: "active", role }, `${userById(ap.dataset.approve).name}님을 승인했어요`); }
+    const rj = t.closest("[data-reject]");
+    if (rj) { if (!arm(rj, "거절하고 삭제")) return; try { await api("DELETE", `/api/admin/users/${rj.dataset.reject}`); toast("가입 신청을 거절했어요"); } catch (er) { fail(er); } return loaders.users(); }
+    const rs = t.closest("[data-reset]");
+    if (rs) { if (!arm(rs, "초기화할까요?")) return; try { const r = await api("POST", `/api/admin/users/${rs.dataset.reset}/reset-password`); secret("비밀번호 초기화", `${userById(rs.dataset.reset).name}님의 임시 비밀번호예요. 로그인하면 새 비밀번호를 정하게 돼요.`, r.tempPassword); } catch (er) { fail(er); } return loaders.users(); }
+    const kk = t.closest("[data-kick]");
+    if (kk) { try { await api("POST", `/api/admin/users/${kk.dataset.kick}/logout`); toast("모든 기기에서 로그아웃시켰어요"); } catch (er) { fail(er); } return loaders.users(); }
+    const du = t.closest("[data-deluser]");
+    if (du) { if (!arm(du, "계정을 지울까요?")) return; try { await api("DELETE", `/api/admin/users/${du.dataset.deluser}`); toast("계정을 삭제했어요. 그 사람이 남긴 기록은 그대로 있어요."); } catch (er) { fail(er); } return loaders.users(); }
+  });
+  function secret(title, text, value) { $("secTitle").textContent = title; $("secText").textContent = text; $("secValue").textContent = value; $("dlgSecret").showModal(); }
+  $("btnSecCopy").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("secValue").textContent); toast("복사했어요"); } catch { toast("직접 선택해서 복사해 주세요"); } });
+  $("nuDept").innerHTML = `<option value="">없음</option>${opt(DEPT, "")}`;
+  $("nuRole").innerHTML = opt(ROLE, "member");
+  $("btnNewUser").addEventListener("click", () => { $("formUser").reset(); $("nuRole").value = "member"; $("dlgUser").showModal(); });
+  $("formUser").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("POST", "/api/admin/users", { name: $("nuName").value.trim(), username: $("nuUser").value.trim().toLowerCase(), dept: $("nuDept").value, role: $("nuRole").value });
+      $("dlgUser").close();
+      secret("계정을 만들었어요", `아이디 ${r.user.username} · ${ROLE[r.user.role]}. 이 임시 비밀번호로 처음 로그인하면 새 비밀번호를 정하게 돼요.`, r.tempPassword);
+      loaders.users();
+    } catch (er) { fail(er); }
+  });
+
+  // ---------- data ----------
+  loaders.data = async () => {
+    let cols;
+    try { cols = (await api("GET", "/api/admin/collections")).collections; } catch (e) { return fail(e); }
+    if (!state.col || !cols.some((c) => c.collection === state.col)) state.col = cols[0]?.collection || null;
+    $("colList").innerHTML = cols.map((c) => `<button type="button" data-pick="${esc(c.collection)}" aria-current="${c.collection === state.col}"><span class="mono">${esc(c.collection)}</span><span class="dim num">${c.n}</span></button>`).join("") || `<p class="hint" style="padding:12px">컬렉션이 없어요.</p>`;
+    loadDocs();
+  };
+  async function loadDocs() {
+    if (!state.col) { $("docBody").innerHTML = `<tr><td colspan="4" class="dim">컬렉션을 고르세요.</td></tr>`; return; }
+    try { state.docs = (await api("GET", `/api/admin/docs?collection=${encodeURIComponent(state.col)}&q=${encodeURIComponent($("dq").value.trim())}`)).docs; } catch (e) { return fail(e); }
+    $("docBody").innerHTML = state.docs.map((d) => `<tr class="link${state.doc && state.doc.path === d.path ? " sel" : ""}" data-doc="${esc(d.path)}"><td class="mono">${esc(d.id)}</td><td class="wrap dim mono" style="font-size:11px">${esc(d.preview)}</td><td class="r num">${bytes(d.bytes)}</td><td>${esc(when(d.updatedAt))}<br><span class="dim" style="font-size:12px">${esc(d.updatedByName || "")}</span></td></tr>`).join("") || `<tr><td colspan="4" class="dim">문서가 없어요.</td></tr>`;
+  }
+  $("colList").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (!b) return; state.col = b.dataset.pick; state.doc = null; $("editor").hidden = true; loaders.data(); });
+  let dqT; $("dq").addEventListener("input", () => { clearTimeout(dqT); dqT = setTimeout(loadDocs, 250); });
+  $("docBody").addEventListener("click", async (e) => {
+    const tr = e.target.closest("[data-doc]"); if (!tr) return;
+    try { state.doc = await api("GET", `/api/admin/doc?path=${encodeURIComponent(tr.dataset.doc)}`); } catch (er) { return fail(er); }
+    openEditor(); loadDocs();
+  });
+  function openEditor() {
+    const d = state.doc;
+    $("editor").hidden = false; $("edPath").textContent = d.path;
+    $("edMeta").textContent = d.version ? `v${d.version} · ${when(d.updatedAt)}` : "새 문서";
+    $("edJson").value = JSON.stringify(d.data, null, 2); $("edMsg").textContent = "";
+    $("editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  $("btnFormat").addEventListener("click", () => { try { $("edJson").value = JSON.stringify(JSON.parse($("edJson").value), null, 2); $("edMsg").textContent = ""; } catch (e) { $("edMsg").textContent = "JSON 형식 오류: " + e.message; } });
+  $("btnSaveDoc").addEventListener("click", async () => {
+    let data;
+    try { data = JSON.parse($("edJson").value); } catch (e) { $("edMsg").textContent = "JSON 형식 오류: " + e.message; return; }
+    if (!data || typeof data !== "object" || Array.isArray(data)) { $("edMsg").textContent = "문서는 { } 객체여야 해요."; return; }
+    try { state.doc = await api("PUT", "/api/admin/doc", { path: state.doc.path, data, version: state.doc.version }); openEditor(); toast("저장했어요. 열려 있는 피트보드 화면에도 바로 반영돼요."); loaders.data(); }
+    catch (er) { $("edMsg").textContent = er.message || "저장하지 못했어요."; }
+  });
+  $("btnDelDoc").addEventListener("click", async (e) => {
+    if (!state.doc || !state.doc.version) return;
+    if (!arm(e.currentTarget, "정말 삭제")) return;
+    try { await api("DELETE", `/api/admin/doc?path=${encodeURIComponent(state.doc.path)}`); toast("문서를 삭제했어요"); state.doc = null; $("editor").hidden = true; loaders.data(); } catch (er) { fail(er); }
+  });
+  $("btnNewDoc").addEventListener("click", () => {
+    const base = state.col || "config";
+    state.doc = { path: `${base}/new-${Math.random().toString(36).slice(2, 8)}`, data: {}, version: 0 };
+    openEditor();
+    $("edPath").contentEditable = "true"; $("edPath").focus();
+    $("edMsg").textContent = "위 경로를 눌러 바꿀 수 있어요 (컬렉션/문서id).";
+  });
+  $("edPath").addEventListener("input", () => { if (state.doc && !state.doc.version) state.doc.path = $("edPath").textContent.trim(); });
+
+  // ---------- backups ----------
+  loaders.backups = async () => {
+    try { state.backups = (await api("GET", "/api/admin/backups")).backups; } catch (e) { return fail(e); }
+    const kind = (n) => n.endsWith("-auto.json") ? '<span class="pill acc">자동</span>' : n.endsWith("-pre-restore.json") ? '<span class="pill warn">복원 직전</span>' : '<span class="pill none">수동</span>';
+    $("backupBody").innerHTML = state.backups.map((b) => `<tr><td class="mono">${esc(b.name)}</td><td>${kind(b.name)}</td><td class="r num">${bytes(b.bytes)}</td><td>${esc(when(b.createdAt))}</td>
+      <td><a class="btn sm" href="/api/admin/backups/${encodeURIComponent(b.name)}" download>내려받기</a> <button class="btn sm danger" type="button" data-restore="${esc(b.name)}">이 시점으로 복원</button> <button class="btn sm danger" type="button" data-delbackup="${esc(b.name)}">삭제</button></td></tr>`).join("") || `<tr><td colspan="5" class="dim">아직 백업이 없어요.</td></tr>`;
+  };
+  $("btnBackup").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try { const r = await api("POST", "/api/admin/backups", { note: $("bNote").value.trim() }); $("bNote").value = ""; toast(`백업했어요: ${r.name}`); loaders.backups(); } catch (er) { fail(er); }
+    finally { btn.disabled = false; }
+  });
+  $("backupBody").addEventListener("click", async (e) => {
+    const rs = e.target.closest("[data-restore]");
+    if (rs) { if (!arm(rs, "지금 데이터를 이 백업으로 바꿔요. 한 번 더")) return; try { const r = await api("POST", `/api/admin/backups/${encodeURIComponent(rs.dataset.restore)}/restore`, { mode: "replace" }); toast(`문서 ${r.restored}개로 복원했어요. 직전 상태는 ${r.safety}`); } catch (er) { fail(er); } return loaders.backups(); }
+    const db = e.target.closest("[data-delbackup]");
+    if (db) { if (!arm(db, "삭제할까요?")) return; try { await api("DELETE", `/api/admin/backups/${encodeURIComponent(db.dataset.delbackup)}`); toast("백업을 삭제했어요"); } catch (er) { fail(er); } loaders.backups(); }
+  });
+  $("impFile").addEventListener("change", () => { $("btnImport").disabled = !$("impFile").files.length; $("impMsg").textContent = ""; });
+  $("btnImport").addEventListener("click", async (e) => {
+    const f = $("impFile").files[0]; if (!f) return;
+    const mode = $("impMode").value;
+    if (!arm(e.currentTarget, mode === "replace" ? "기존 데이터를 모두 바꿔요. 한 번 더" : "가져올까요? 한 번 더")) return;
+    try {
+      const text = await f.text(); JSON.parse(text);
+      const r = await api("POST", `/api/admin/import?mode=${mode}`, undefined, text);
+      $("impMsg").textContent = `문서 ${r.imported}개를 가져왔어요. 직전 상태 백업: ${r.safety}`; toast("가져왔어요"); loaders.backups();
+    } catch (er) { $("impMsg").textContent = er.message || "JSON 파일을 읽을 수 없어요."; }
+  });
+
+  // ---------- files ----------
+  loaders.files = async () => {
+    try { state.files = (await api("GET", "/api/admin/assets")).assets; } catch (e) { return fail(e); }
+    renderFiles();
+  };
+  function renderFiles() {
+    const orphanOnly = $("fFilter").value === "orphan";
+    const list = state.files.filter((a) => !orphanOnly || !a.referenced);
+    const total = state.files.reduce((s, a) => s + a.size, 0), orphans = state.files.filter((a) => !a.referenced);
+    $("fSummary").textContent = `전체 ${state.files.length}개 · ${bytes(total)} · 어디에서도 쓰지 않는 파일 ${orphans.length}개 (${bytes(orphans.reduce((s, a) => s + a.size, 0))}). 정리는 올린 지 하루가 지난 파일만 지워요.`;
+    $("fileBody").innerHTML = list.map((a) => `<tr><td>${a.contentType.startsWith("image/") ? `<a href="/_blob/${a.id}" target="_blank" rel="noopener"><img class="thumb" src="/_blob/${a.id}" alt="" loading="lazy"></a>` : ""}</td>
+      <td class="wrap"><a href="/_blob/${a.id}" target="_blank" rel="noopener">${esc(a.name || a.id)}</a></td><td class="dim">${esc(a.contentType.split("/").pop())}</td><td class="r num">${bytes(a.size)}</td>
+      <td>${esc(a.uploaderName || "–")}</td><td>${esc(when(a.createdAt))}</td><td>${a.referenced ? '<span class="pill ok">사용 중</span>' : '<span class="pill warn">안 씀</span>'}</td>
+      <td><button class="btn sm danger" type="button" data-delfile="${a.id}">삭제</button></td></tr>`).join("") || `<tr><td colspan="8" class="dim">파일이 없어요.</td></tr>`;
+  }
+  $("fFilter").addEventListener("change", renderFiles);
+  $("fileBody").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-delfile]"); if (!b) return;
+    const a = state.files.find((x) => x.id === b.dataset.delfile);
+    if (!arm(b, a && a.referenced ? "사용 중이에요. 그래도 삭제" : "삭제할까요?")) return;
+    try { await api("DELETE", `/api/admin/assets/${b.dataset.delfile}`); toast("파일을 삭제했어요"); } catch (er) { fail(er); }
+    loaders.files();
+  });
+  $("btnCleanup").addEventListener("click", async (e) => {
+    if (!arm(e.currentTarget, "안 쓰는 파일을 지울까요?")) return;
+    try { const r = await api("POST", "/api/admin/assets/cleanup", {}); toast(`${r.removed}개 (${bytes(r.bytes)})를 정리했어요`); } catch (er) { fail(er); }
+    loaders.files();
+  });
+
+  // ---------- audit ----------
+  loaders.audit = async () => {
+    let rows;
+    try { rows = (await api("GET", `/api/admin/audit?limit=500&action=${encodeURIComponent($("aFilter").value)}`)).entries; } catch (e) { return fail(e); }
+    const cls = (a) => a === "login.fail" || a.endsWith(".delete") || a === "backup.restore" || a === "data.import" ? "bad" : a.startsWith("user.") || a.startsWith("role.") || a.startsWith("data.") ? "warn" : "none";
+    $("auditBody").innerHTML = rows.map((r) => `<tr><td class="num">${esc(when(r.at))}</td><td>${esc(r.actor_name || (r.actor ? r.actor : "–"))}</td><td><span class="pill ${cls(r.action)}">${esc(ACTION[r.action] || r.action)}</span></td><td class="mono" style="font-size:12px">${esc(r.target || "")}</td><td class="wrap" style="font-size:12px">${esc(r.detail || "")}</td><td class="mono dim" style="font-size:12px">${esc(r.ip || "")}</td></tr>`).join("") || `<tr><td colspan="6" class="dim">기록이 없어요.</td></tr>`;
+  };
+  $("aFilter").addEventListener("change", loaders.audit);
+
+  // ---------- settings ----------
+  $("sHour").innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${h}시</option>`).join("");
+  loaders.settings = async () => {
+    let s;
+    try { s = await api("GET", "/api/admin/settings"); } catch (e) { return fail(e); }
+    document.querySelectorAll('input[name="sm"]').forEach((r) => (r.checked = r.value === s.signupMode));
+    $("inviteCode").textContent = s.inviteCode; $("sAuto").checked = !!s.autoBackup; $("sHour").value = String(s.backupHour); $("sKeep").value = s.backupKeep;
+  };
+  $("formSignup").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const v = (document.querySelector('input[name="sm"]:checked') || {}).value;
+    try { await api("POST", "/api/admin/settings", { signupMode: v }); toast("가입 방식을 저장했어요"); } catch (er) { fail(er); }
+  });
+  $("btnInviteNew").addEventListener("click", async () => { try { const s = await api("POST", "/api/admin/settings", { regenerateInvite: true }); $("inviteCode").textContent = s.inviteCode; toast("새 초대 코드를 만들었어요. 이전 코드는 더 이상 쓸 수 없어요."); } catch (er) { fail(er); } });
+  $("btnInviteCopy").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("inviteCode").textContent); toast("초대 코드를 복사했어요"); } catch { toast("직접 선택해서 복사해 주세요"); } });
+  $("formBackup").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try { await api("POST", "/api/admin/settings", { autoBackup: $("sAuto").checked, backupHour: Number($("sHour").value), backupKeep: Number($("sKeep").value) }); toast("자동 백업 설정을 저장했어요"); } catch (er) { fail(er); }
+  });
+  $("formPw").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try { await api("POST", "/api/auth/password", { current: $("pCur").value, next: $("pNew").value }); e.target.reset(); toast("비밀번호를 바꿨어요"); } catch (er) { fail(er); }
+  });
+
+  // boot
+  api("GET", "/api/me").then((me) => { $("meName").textContent = me.name; }).catch(() => {});
+  const start = (location.hash || "").slice(1);
+  show(loaders[start] ? start : "overview");
+  window.addEventListener("hashchange", () => { const t = location.hash.slice(1); if (loaders[t] && t !== tab) show(t); });
+  setInterval(() => { if (tab === "overview" && !document.hidden) loaders.overview(); }, 30000);
+})();
+</script>
+</body>
+</html>

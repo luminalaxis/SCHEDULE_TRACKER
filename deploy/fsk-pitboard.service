@@ -1,0 +1,29 @@
+# systemd unit for the FSK 피트보드 server on a Raspberry Pi.
+# Install:  sudo cp deploy/fsk-pitboard.service /etc/systemd/system/
+#           (edit User / WorkingDirectory / DATA_DIR below if your paths differ)
+#           sudo systemctl daemon-reload && sudo systemctl enable --now fsk-pitboard
+[Unit]
+Description=FSK 피트보드
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/SCHEDULE_TRACKER
+Environment=PORT=8080
+# Listen only on the Pi itself; Cloudflare Tunnel (or Tailscale) carries outside traffic in.
+Environment=HOST=127.0.0.1
+Environment=DATA_DIR=/home/pi/fsk-data
+# Trust the tunnel's forwarded headers (real client IP, https). Only safe while HOST=127.0.0.1.
+Environment=TRUST_PROXY=1
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/pi/fsk-data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

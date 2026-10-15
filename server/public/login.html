@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FSK 피트보드 로그인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #EDF0F3; --surface: #FFFFFF; --surface-2: #F5F7F9; --ink: #131A24; --muted: #5A6575; --line: #D3D9E1;
+  --accent: #1E4CCB; --accent-ink: #FFFFFF; --accent-soft: #E2E9FA; --bad: #C2352B; --bad-soft: #FBE9E7; --ok: #1B8049; --ok-soft: #E3F3E9;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443;
+    --accent: #7D9CFF; --accent-ink: #0E131A; --accent-soft: #1F2A45; --bad: #F07A6E; --bad-soft: #3A1E1D; --ok: #4CC07F; --ok-soft: #16301F; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.55;
+  display: grid; place-items: center; padding: 24px max(16px, env(safe-area-inset-left, 0px)) 24px max(16px, env(safe-area-inset-right, 0px)); }
+.card { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 26px 24px; display: flex; flex-direction: column; gap: 16px; }
+.brand { display: flex; flex-direction: column; gap: 2px; }
+.brand span { font-size: 12px; letter-spacing: .08em; color: var(--muted); }
+.brand h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 32px; line-height: 1.05; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tab { border: 0; background: none; padding: 8px 12px; font: inherit; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+form { display: flex; flex-direction: column; gap: 12px; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+input, select { font: inherit; font-size: 15px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; width: 100%; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn { font: inherit; font-weight: 600; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); border-radius: var(--r); padding: 10px 14px; cursor: pointer; }
+.btn:disabled { opacity: .6; cursor: default; }
+.msg { font-size: 13px; padding: 9px 12px; border-radius: var(--r); background: var(--accent-soft); }
+.msg.bad { background: var(--bad-soft); color: var(--ink); }
+.msg.ok { background: var(--ok-soft); }
+.hint { font-size: 12px; color: var(--muted); margin: 0; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand"><span>FSK 차량 제작 현황</span><h1>피트보드</h1></div>
+  <p class="msg" id="first" hidden>아직 계정이 없어요. 처음 가입하는 사람이 <b>개발자(관리자)</b> 계정이 돼요.</p>
+  <div class="tabs" role="tablist" id="tabs">
+    <button class="tab" type="button" role="tab" data-tab="login" aria-selected="true">로그인</button>
+    <button class="tab" type="button" role="tab" data-tab="signup" aria-selected="false">가입 신청</button>
+  </div>
+  <p class="msg" id="msg" role="status" hidden></p>
+
+  <form id="loginForm">
+    <label>아이디<input id="lUser" autocomplete="username" autocapitalize="none" required></label>
+    <label>비밀번호<input id="lPw" type="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit">로그인</button>
+    <p class="hint">비밀번호를 잊었다면 개발자에게 초기화를 요청하세요.</p>
+  </form>
+
+  <form id="signupForm" hidden>
+    <label>이름<input id="sName" maxlength="20" autocomplete="name" required></label>
+    <label>부서<select id="sDept"><option value="">선택 안 함</option><option value="battery">배터리</option><option value="circuit">회로</option><option value="chassis">프레임·현가</option><option value="aero">에어로</option><option value="powertrain">파워트레인</option></select></label>
+    <label>아이디 (영문 소문자·숫자 3~32자)<input id="sUser" autocomplete="username" autocapitalize="none" pattern="[a-z0-9._\-]{3,32}" required></label>
+    <label>비밀번호 (8자 이상)<input id="sPw" type="password" autocomplete="new-password" minlength="8" required></label>
+    <label id="sInviteWrap" hidden>초대 코드<input id="sInvite" autocomplete="off" autocapitalize="none"></label>
+    <button class="btn" type="submit" id="sBtn">가입 신청</button>
+    <p class="hint" id="sHint">가입하면 개발자가 승인한 뒤에 쓸 수 있어요.</p>
+  </form>
+
+  <form id="changeForm" hidden>
+    <p class="msg">임시 비밀번호로 로그인했어요. 새 비밀번호를 정해 주세요.</p>
+    <label>현재(임시) 비밀번호<input id="cCur" type="password" autocomplete="current-password" required></label>
+    <label>새 비밀번호 (8자 이상)<input id="cNew" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="btn" type="submit">비밀번호 바꾸고 시작하기</button>
+  </form>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const next = (() => { const n = new URLSearchParams(location.search).get("next"); return n && n.startsWith("/") && !n.startsWith("//") ? n : "/"; })();
+  const post = async (url, body) => {
+    const r = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json", "x-fsk": "1" }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw j;
+    return j;
+  };
+  const say = (text, kind) => { const m = $("msg"); m.textContent = text; m.className = "msg" + (kind ? " " + kind : ""); m.hidden = !text; };
+  const show = (tab) => {
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === tab)));
+    $("loginForm").hidden = tab !== "login"; $("signupForm").hidden = tab !== "signup"; $("changeForm").hidden = tab !== "change";
+    $("tabs").hidden = tab === "change"; say("");
+  };
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => show(t.dataset.tab)));
+
+  fetch("/api/auth/config", { credentials: "same-origin" }).then((r) => r.json()).then((c) => {
+    $("first").hidden = !c.firstUser;
+    if (c.firstUser) { show("signup"); $("sHint").textContent = "이 계정으로 팀원 가입을 승인하고 권한을 관리해요."; $("sBtn").textContent = "개발자 계정 만들기"; return; }
+    if (c.signupMode === "invite") { $("sInviteWrap").hidden = false; $("sInvite").required = true; $("sHint").textContent = "초대 코드가 맞으면 바로 쓸 수 있어요."; }
+    if (c.signupMode === "closed") { document.querySelector('[data-tab="signup"]').hidden = true; }
+    if (new URLSearchParams(location.search).get("change") === "1" && c.signedIn) show("change");
+  }).catch(() => say("서버에 연결할 수 없어요.", "bad"));
+
+  $("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; if (btn) btn.disabled = true;
+    try {
+      const r = await post("/api/auth/login", { username: $("lUser").value.trim().toLowerCase(), password: $("lPw").value });
+      if (r.user.mustChangePassword) { $("cCur").value = $("lPw").value; show("change"); $("cNew").focus(); return; }
+      location.href = next;
+    } catch (err) { say(err.message || "로그인하지 못했어요.", "bad"); }
+    finally { if (btn) btn.disabled = false; }
+  });
+  $("signupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("sBtn"); btn.disabled = true;
+    try {
+      const r = await post("/api/auth/signup", { name: $("sName").value.trim(), dept: $("sDept").value, username: $("sUser").value.trim().toLowerCase(), password: $("sPw").value, invite: $("sInvite").value.trim() });
+      if (r.status === "active") { location.href = r.role === "developer" ? "/admin" : next; return; }
+      show("login"); $("lUser").value = $("sUser").value.trim().toLowerCase();
+      say("가입 신청을 보냈어요. 개발자가 승인하면 로그인할 수 있어요.", "ok");
+    } catch (err) { say(err.message || "가입하지 못했어요.", "bad"); }
+    finally { btn.disabled = false; }
+  });
+  $("changeForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try { await post("/api/auth/password", { current: $("cCur").value, next: $("cNew").value }); location.href = next; }
+    catch (err) { say(err.message || "비밀번호를 바꾸지 못했어요.", "bad"); }
+  });
+})();
+</script>
+</body>
+</html>

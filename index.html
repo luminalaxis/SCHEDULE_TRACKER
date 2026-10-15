@@ -983,7 +983,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
     colRev.onSnapshot((s) => { state.reviewDocs = rows(s); renderExpenseIfOpen(); }, () => {});
     rolesRef.onSnapshot((s) => {
       state.roles = s.exists ? s.data() : null; state.rolesLoaded = true;
-      if (state.isOwner && state.uid && (!state.roles || state.roles.ownerUid !== state.uid)) {
+      if (state.isOwner && state.uid && (!state.roles || !state.roles.ownerUid)) {
         rolesRef.set({ treasurers: [], allowMemberSubmit: true, ...(state.roles || {}), ownerUid: state.uid, updatedAt: stamp() }).catch(() => {});
       }
       render();

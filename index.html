@@ -4,33 +4,36 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
 <style>
-/* Layout: pit-board header (car + D-day + next deadline + who am I) → tabs. 부품 현황 = gauges, department matrix, parts sheet. 테스트 세션 = list + pre-run checklist + per-department cards. 추이 분석 = metric chart + verdict matrix. 이슈, 일정 (timeline), 변경 이력 (activity log). Workshop-drawing neutrals, CAD-selection blue accent, part stages as a sequential ramp ending in green, departments as fixed categorical hues. */
+/* Layout: one-line sticky header (car · D-day pill · account · 일반/TV switch) → pill tabs. 오늘 = today's cards + my department's parts. TV = read-only workshop screen (full-window overlay).
+   Earlier layout notes: pit-board header (car + D-day + next deadline + who am I) → tabs. 부품 현황 = gauges, department matrix, parts sheet. 테스트 세션 = list + pre-run checklist + per-department cards. 추이 분석 = metric chart + verdict matrix. 이슈, 일정 (timeline), 변경 이력 (activity log). Workshop-drawing neutrals, CAD-selection blue accent, part stages as a sequential ramp ending in green, departments as fixed categorical hues. */
 :root {
-  --bg: #EDF0F3; --surface: #FFFFFF; --surface-2: #F5F7F9; --ink: #131A24; --muted: #5A6575; --line: #D3D9E1; --grid: #E3E7EC;
-  --accent: #1E4CCB; --accent-ink: #FFFFFF; --accent-soft: #E2E9FA;
-  --ok: #1B8049; --ok-soft: #E3F3E9; --warn: #A86B12; --warn-soft: #FBF0DC; --bad: #C2352B; --bad-soft: #FBE9E7;
-  --s0: #C5CDD8; --s1: #A3B5E6; --s2: #7491E0; --s3: #4C6FD3; --s4: #2A4AAE; --s5: #1B8049;
+  --bg: #F5F6FA; --surface: #FFFFFF; --surface-2: #F3F4F8; --ink: #161A23; --muted: #667085; --line: #E2E5EC; --grid: #EEF0F5;
+  --accent: #4F46E5; --accent-ink: #FFFFFF; --accent-soft: #EEEDFD;
+  --ok: #16833F; --ok-soft: #E6F5EC; --warn: #B45309; --warn-soft: #FDF1E3; --bad: #C2352B; --bad-soft: #FBE9E7;
+  --s0: #DDE1EA; --s1: #C7C4F7; --s2: #A29BF1; --s3: #7C72EA; --s4: #5146E0; --s5: #16833F;
+  --card-border: transparent; --card-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 2px 8px rgba(16, 24, 40, .06);
   --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4;
-  --font-display: "Barlow Condensed", "Arial Narrow", "IBM Plex Sans KR", sans-serif;
+  --font-display: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "Barlow Condensed", "Arial Narrow", "IBM Plex Sans KR", sans-serif;
   --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --r: 6px;
+  --r: 10px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443; --grid: #232C39;
-    --accent: #7D9CFF; --accent-ink: #0E131A; --accent-soft: #1F2A45;
+    --accent: #9A94FF; --accent-ink: #0E131A; --accent-soft: #262452; --card-border: var(--line); --card-shadow: none;
     --ok: #4CC07F; --ok-soft: #16301F; --warn: #E0A84B; --warn-soft: #33270F; --bad: #F07A6E; --bad-soft: #3A1E1D;
-    --s0: #3A4555; --s1: #3E5390; --s2: #4F6BC4; --s3: #6E8CEB; --s4: #9BB2FF; --s5: #4CC07F;
+    --s0: #3A4555; --s1: #3B3A7A; --s2: #5550B8; --s3: #7A74F0; --s4: #A7A2FF; --s5: #4CC07F;
     --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443; --grid: #232C39;
-  --accent: #7D9CFF; --accent-ink: #0E131A; --accent-soft: #1F2A45;
+  --accent: #9A94FF; --accent-ink: #0E131A; --accent-soft: #262452; --card-border: var(--line); --card-shadow: none;
   --ok: #4CC07F; --ok-soft: #16301F; --warn: #E0A84B; --warn-soft: #33270F; --bad: #F07A6E; --bad-soft: #3A1E1D;
-  --s0: #3A4555; --s1: #3E5390; --s2: #4F6BC4; --s3: #6E8CEB; --s4: #9BB2FF; --s5: #4CC07F;
+  --s0: #3A4555; --s1: #3B3A7A; --s2: #5550B8; --s3: #7A74F0; --s4: #A7A2FF; --s5: #4CC07F;
   --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
   color-scheme: dark;
 }
@@ -63,25 +66,30 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .late { color: var(--bad); font-weight: 600; }
 
 /* header */
-.top { border-bottom: 1px solid var(--line); background: var(--surface); }
-.top-in { display: flex; flex-wrap: wrap; align-items: stretch; gap: 14px 24px; padding-block: 18px 0; }
-.ident { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.top { position: sticky; top: 0; z-index: 6; background: var(--surface); box-shadow: 0 1px 0 var(--line); }
+.top-in { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-block: 10px 0; }
+.ident { flex: 0 1 auto; min-width: 0; }
 .eyebrow { font-size: 12px; letter-spacing: .08em; color: var(--muted); font-weight: 500; }
-.ident h1 { font-family: var(--font-display); font-weight: 700; font-size: 34px; line-height: 1.05; letter-spacing: .01em; overflow-wrap: anywhere; }
-.pit { display: grid; grid-template-columns: auto auto; align-items: end; column-gap: 12px; padding: 8px 14px; border: 2px solid var(--ink); border-radius: 4px; background: var(--surface-2); align-self: center; max-width: 100%; }
-.pit-label { font-size: 12px; color: var(--muted); grid-column: 1 / -1; letter-spacing: .06em; }
-.pit-num { font-family: var(--font-display); font-weight: 700; font-size: 40px; line-height: 1; letter-spacing: .02em; }
-.pit-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-bottom: 4px; }
-.pit.unset .pit-num { color: var(--muted); font-size: 26px; }
-.pit-next { grid-column: 1 / -1; font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 4px; background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; cursor: pointer; padding-left: 0; padding-right: 0; }
+.ident h1 { font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.15; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.pit { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 6px 16px; border-radius: 999px; background: var(--accent-soft); max-width: 100%; }
+.pit-label { font-size: 12px; color: var(--muted); }
+.pit-num { font-family: var(--font-num); font-weight: 700; font-size: 24px; line-height: 1; letter-spacing: .02em; color: var(--accent); }
+.pit-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.pit.unset .pit-num { color: var(--muted); font-family: var(--font-body); font-size: 15px; }
+.pit-next { font-size: 12px; color: var(--muted); border: 0; border-left: 1px solid var(--s1); background: none; padding: 0 0 0 10px; text-align: left; cursor: pointer; }
 .pit-next b { color: var(--ink); font-weight: 600; }
 .pit-next .soon { color: var(--bad); }
-.top-side { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 8px; }
-.me { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-.me input { width: 110px; }
-.tabs { display: flex; gap: 2px; width: 100%; overflow-x: auto; }
-.tab { border: 0; background: none; padding: 10px 13px; border-bottom: 2px solid transparent; cursor: pointer; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.top-side { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 10px; }
+.me { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.me input { width: 120px; }
+.viewsw { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--surface-2); }
+.viewsw button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+.viewsw button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.tabs { order: 9; display: flex; align-items: center; gap: 4px; width: 100%; overflow-x: auto; padding: 8px 0 10px; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.tab:hover { color: var(--ink); background: var(--surface-2); }
+.tab[aria-selected="true"] { color: var(--surface); background: var(--ink); }
+.tabs-end { margin-left: auto; flex: none; }
 .badge { font-size: 11px; background: var(--bad-soft); color: var(--bad); border-radius: 999px; padding: 0 7px; margin-left: 4px; }
 
 main { padding-block: 20px 72px; }
@@ -369,7 +377,63 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: var(--r); font-size: 13px; max-width: calc(100vw - 32px); z-index: 10; }
 
-@media (max-width: 900px) { .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } .slist { max-height: 360px; overflow-y: auto; } .top-side { align-items: flex-start; } }
+/* cards: soft shadows in light mode, borders in dark mode */
+.gauge, .scroll, .dcard, .ck, .panel, .dhead, .sitem, .ms, .issue, .hist { border-color: var(--card-border); box-shadow: var(--card-shadow); }
+
+/* 오늘 */
+.today-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.today-h h2 { font-size: 24px; font-weight: 700; }
+.today-dept { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.tgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.tcard { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--card-border); border-top: 4px solid var(--c); box-shadow: var(--card-shadow); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tcard:hover { border-color: var(--line); border-top-color: var(--c); }
+.tcard > span { font-size: 13px; color: var(--muted); }
+.tcard b { font-size: 30px; line-height: 1; font-weight: 700; color: var(--c); }
+.tcard em { font-style: normal; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.tlist { background: var(--surface); border: 1px solid var(--card-border); box-shadow: var(--card-shadow); border-radius: var(--r); overflow: hidden; }
+.tlist-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; padding: 12px 16px 8px; }
+.tlist-h h3 { font-size: 15px; font-weight: 600; }
+.trow { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto 64px; gap: 12px; align-items: center; width: 100%; padding: 10px 16px; border: 0; border-top: 1px solid var(--grid); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.trow:hover { background: var(--surface-2); }
+.tstage { justify-self: start; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.towner { color: var(--muted); font-size: 13px; }
+.tme { font-size: 11px; font-weight: 700; color: var(--accent); margin-left: 6px; }
+.tdue { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.tdue.late { color: var(--bad); } .tdue.soon { color: var(--warn); } .tdue.none { color: var(--muted); font-weight: 500; font-size: 12px; }
+
+/* TV: read-only workshop screen, always dark, sized to the screen */
+body.tv-on { overflow: hidden; }
+.tv { position: fixed; inset: 0; z-index: 50; background: #0A0C0F; color: #F3F5F8; display: grid; grid-template-columns: 1fr 1.25fr 1.2fr; grid-template-rows: 1fr auto; gap: clamp(16px, 2.2vw, 36px); padding: clamp(18px, 3vw, 52px) clamp(18px, 3.4vw, 60px) clamp(14px, 1.6vw, 28px); overflow: auto; font-family: var(--font-body); }
+.tv h4 { font-size: clamp(11px, .85vw, 15px); letter-spacing: .14em; color: #8A93A2; margin: 0 0 clamp(8px, .8vw, 14px); font-weight: 600; }
+.tv-car { font-family: var(--font-num); font-size: clamp(26px, 2.6vw, 52px); font-weight: 700; letter-spacing: .03em; overflow-wrap: anywhere; }
+.tv-dday { font-family: var(--font-num); font-size: clamp(84px, 10.5vw, 220px); line-height: .9; font-weight: 700; color: #FFD21F; margin: clamp(8px, 1vw, 18px) 0 6px; }
+.tv-dday.unset { font-size: clamp(36px, 4vw, 80px); color: #8A93A2; }
+.tv-sub { font-size: clamp(14px, 1.2vw, 22px); color: #B8C0CC; }
+.tv-block { margin-top: clamp(18px, 2.2vw, 40px); }
+.tv-ms { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(14px, 1.15vw, 22px); border-bottom: 1px solid #262B34; padding: 8px 0; }
+.tv-ms b, .tv-li b, .tv-dep b, .tv-big b { font-family: var(--font-num); font-weight: 700; }
+.tv-ms b { font-size: clamp(18px, 1.5vw, 28px); color: #FFD21F; white-space: nowrap; }
+.tv-big { display: flex; gap: clamp(14px, 2vw, 34px); margin-bottom: clamp(16px, 1.8vw, 32px); }
+.tv-big div { flex: 1; min-width: 0; }
+.tv-big b { display: block; font-size: clamp(40px, 4.2vw, 80px); line-height: 1; }
+.tv-big span { font-size: clamp(12px, .95vw, 17px); color: #8A93A2; }
+.tv-dep { display: grid; grid-template-columns: minmax(80px, 8vw) 1fr 64px; gap: 14px; align-items: center; font-size: clamp(14px, 1.1vw, 20px); margin-bottom: clamp(10px, .9vw, 16px); }
+.tv-dep .t { height: clamp(10px, 1vw, 18px); background: #1E232B; border-radius: 9px; overflow: hidden; }
+.tv-dep .t i { display: block; height: 100%; background: linear-gradient(90deg, #FFD21F, #2BD576); }
+.tv-dep b { text-align: right; font-size: clamp(18px, 1.4vw, 26px); }
+.tv-li { display: flex; flex-direction: column; gap: 8px; margin-bottom: clamp(16px, 1.6vw, 28px); }
+.tv-li div { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: clamp(14px, 1.1vw, 20px); background: #13161B; border-radius: 8px; padding: clamp(8px, .7vw, 12px) 16px; border-left: 5px solid var(--c); }
+.tv-li em { font-style: normal; color: #8A93A2; font-size: .85em; margin-left: 6px; }
+.tv-li b { font-size: clamp(18px, 1.3vw, 24px); color: var(--c); white-space: nowrap; }
+.tv-none { color: #5F6876; font-size: clamp(14px, 1.1vw, 20px); padding: 6px 0 18px; }
+.tv-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; color: #5F6876; font-size: clamp(12px, .9vw, 16px); border-top: 1px solid #262B34; padding-top: 14px; }
+.tv-foot div { display: flex; gap: 8px; }
+.tv-foot button { font: inherit; font-size: 13px; color: #B8C0CC; background: #13161B; border: 1px solid #262B34; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.tv-foot button:hover { color: #fff; border-color: #5F6876; }
+
+@media (max-width: 900px) { .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } .slist { max-height: 360px; overflow-y: auto; }
+  .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tgrid .tcard:last-child { grid-column: 1 / -1; }
+  .tv { grid-template-columns: 1fr; grid-template-rows: none; } }
 @media (max-width: 600px) {
   .ms { grid-template-columns: auto minmax(0, 1fr); }
   .ms-side { grid-column: 1 / -1; justify-content: flex-end; }
@@ -379,17 +443,28 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   .gauges { gap: 8px; }
   .issue { grid-template-columns: minmax(0, 1fr); }
   .issue-side { align-items: flex-start; flex-direction: row; }
-  .ident h1 { font-size: 28px; }
-  .pit-num { font-size: 32px; }
 }
 @media (max-width: 600px) {
   /* phones: 16px fields stop iOS from zooming in, bigger touch targets, full-screen dialogs with the buttons always in reach */
   input, select, textarea, .field, label.f input, label.f select, label.f textarea { font-size: 16px; }
   .btn { min-height: 40px; }
   .btn.sm { min-height: 34px; padding: 6px 10px; }
-  .top-in { padding-block: 12px 0; gap: 10px 14px; }
-  .pit { padding: 6px 12px; }
-  .tab { padding: 12px 12px; }
+  .top-in { padding-block: 8px 0; gap: 8px 10px; }
+  .ident h1 { font-size: 19px; }
+  .pit { padding: 3px 12px; }
+  .pit-num { font-size: 19px; }
+  .pit-label, .pit-date, .pit-next { display: none; }
+  .me input { width: 96px; }
+  .tabs { padding: 6px 0 8px; }
+  .tab { padding: 8px 12px; }
+  .tabs-end { display: none; }
+  .today-h h2 { font-size: 21px; }
+  .today-dept { margin-left: 0; width: 100%; }
+  .today-dept select { flex: 1; }
+  .tcard { padding: 12px 14px; }
+  .tcard b { font-size: 26px; }
+  .trow { grid-template-columns: 56px minmax(0, 1fr) 56px; padding: 11px 14px; }
+  .towner { display: none; }
   main { padding-block: 14px 88px; }
   .view { gap: 18px; }
   .gauge { padding: 10px 12px; gap: 6px; }
@@ -418,8 +493,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 <header class="top">
   <div class="wrap top-in">
     <div class="ident">
-      <span class="eyebrow">FSK 차량 제작 현황</span>
-      <h1 id="carName">우리 팀 차량</h1>
+      <h1 id="carName" title="FSK 차량 제작 현황">우리 팀 차량</h1>
     </div>
     <div class="pit unset" id="pit">
       <span class="pit-label">대회까지</span>
@@ -428,21 +502,24 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
       <button class="pit-next" id="pitNext" type="button" hidden></button>
     </div>
     <div class="top-side">
-      <div class="me" aria-label="내 정보">
-        <span>나</span>
-        <select class="field" id="meDept" aria-label="내 부서"></select>
-        <input class="field" id="meName" maxlength="20" placeholder="이름" aria-label="내 이름">
+      <div class="viewsw" role="group" aria-label="화면 전환">
+        <button type="button" data-view="normal" aria-pressed="true">일반</button>
+        <button type="button" data-view="tv" aria-pressed="false" title="작업실 모니터용 읽기 전용 화면">TV</button>
       </div>
-      <button class="btn sm" id="btnSettings" type="button">차량 설정</button>
+      <div class="me" aria-label="내 이름">
+        <input class="field" id="meName" maxlength="20" placeholder="내 이름" aria-label="내 이름">
+      </div>
     </div>
     <nav class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tab-parts" data-tab="parts" aria-selected="true">부품 현황</button>
+      <button class="tab" role="tab" id="tab-today" data-tab="today" aria-selected="true">오늘</button>
+      <button class="tab" role="tab" id="tab-parts" data-tab="parts" aria-selected="false">부품 현황</button>
       <button class="tab" role="tab" id="tab-sessions" data-tab="sessions" aria-selected="false">테스트 세션</button>
       <button class="tab" role="tab" id="tab-trend" data-tab="trend" aria-selected="false">추이 분석</button>
       <button class="tab" role="tab" id="tab-issues" data-tab="issues" aria-selected="false">이슈<span class="badge" id="issueBadge" hidden></span></button>
       <button class="tab" role="tab" id="tab-schedule" data-tab="schedule" aria-selected="false">일정</button>
       <button class="tab" role="tab" id="tab-expense" data-tab="expense" aria-selected="false">사비 정산<span class="badge" id="expBadge" hidden></span></button>
       <button class="tab" role="tab" id="tab-history" data-tab="history" aria-selected="false">변경 이력</button>
+      <button class="btn ghost sm tabs-end" id="btnSettings" type="button">⚙ 차량 설정</button>
     </nav>
   </div>
 </header>
@@ -450,8 +527,18 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 <main class="wrap">
   <div id="banner" class="banner" hidden></div>
 
+  <!-- today -->
+  <section id="view-today" class="view">
+    <div class="today-h">
+      <h2>오늘</h2><span class="dim" id="todayDate"></span>
+      <label class="today-dept">내 부서<select class="field" id="meDept" aria-label="내 부서"></select></label>
+    </div>
+    <div class="tgrid" id="todayCards"></div>
+    <div class="tlist" id="todayMine"></div>
+  </section>
+
   <!-- parts -->
-  <section id="view-parts" class="view">
+  <section id="view-parts" class="view" hidden>
     <section class="gauges" aria-label="요약">
       <div class="gauge">
         <span class="g-label">제작 진행률</span>
@@ -831,6 +918,8 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   </form>
 </dialog>
 
+<div class="tv" id="tv" role="region" aria-label="공방 TV 화면" hidden></div>
+
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -1048,7 +1137,9 @@ window.FSKExpenseRules = (() => {
   let db = null, assets = null, userNs = null;
   let colP, cfgRef, ckRef, colS, colL, colC, colK, colM, colH, colPeople, colExp, colRev, rolesRef;
   const state = {
-    phase: "loading", canWrite: true, canManageTeam: false, tab: "parts", uid: "", isOwner: false,
+    phase: "loading", canWrite: true, canManageTeam: false, tab: "today", uid: "", isOwner: false,
+    // 일반 / TV: ?view=tv in the address (for a kiosk bookmark) wins over the last choice on this device
+    view: (() => { try { const v = new URLSearchParams(location.search).get("view"); if (v === "tv" || v === "normal") return v; } catch {} return store.get("fsk.view") === "tv" ? "tv" : "normal"; })(),
     roles: null, rolesLoaded: false, people: [], expenseDocs: [], reviewDocs: [], xDraft: null, acctCache: {},
     parts: [], cfg: {}, ckCfg: null, sessions: [], logs: [], comments: [], checks: [], milestones: [], history: [],
     sel: null, editPart: null, editSession: null, editLog: null, editMs: null, ckOpen: true,
@@ -1185,7 +1276,7 @@ window.FSKExpenseRules = (() => {
     if (phase === "offline") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "팀 저장소에 연결할 수 없어요. claude.ai에 로그인한 상태로 이 페이지를 열어 주세요."; }
     else if (phase === "error") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "데이터를 불러오지 못했어요. 페이지를 새로고침해 주세요."; }
     else if (live() && !canWrite) { banner.hidden = false; banner.textContent = "보기 전용으로 열려 있어요. 수정하려면 소유자에게 편집자로 초대해 달라고 요청하세요."; }
-    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = window.FSK_SELF_HOSTED ? "오른쪽 위에서 내 부서를 골라 주세요. 새 기록과 부품의 기본 부서로 쓰여요." : "오른쪽 위에서 내 부서와 이름을 입력해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
+    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = window.FSK_SELF_HOSTED ? "'오늘' 탭에서 내 부서를 골라 주세요. 새 기록과 부품의 기본 부서로 쓰이고, 우리 부서 할 일이 보여요." : "오른쪽 위에 이름을, '오늘' 탭에서 내 부서를 정해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
     else banner.hidden = true;
 
     const ids = sessionIds();
@@ -1194,12 +1285,112 @@ window.FSKExpenseRules = (() => {
     const waiting = isManager() ? liveSubs().filter((s) => ["pending", "fix"].includes(statusOf(s)) || isChanged(s)).length : 0;
     $("expBadge").hidden = !waiting; $("expBadge").textContent = waiting;
 
-    ["parts", "sessions", "trend", "issues", "schedule", "expense", "history"].forEach((t) => {
+    ["today", "parts", "sessions", "trend", "issues", "schedule", "expense", "history"].forEach((t) => {
       $("view-" + t).hidden = state.tab !== t;
       $("tab-" + t).setAttribute("aria-selected", String(state.tab === t));
     });
-    ({ parts: renderParts, sessions: renderSessions, trend: renderTrend, issues: renderIssues, schedule: renderSchedule, expense: renderExpense, history: renderHistory })[state.tab]();
+    ({ today: renderToday, parts: renderParts, sessions: renderSessions, trend: renderTrend, issues: renderIssues, schedule: renderSchedule, expense: renderExpense, history: renderHistory })[state.tab]();
+    const tv = state.view === "tv";
+    document.querySelectorAll(".viewsw [data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
+    document.body.classList.toggle("tv-on", tv);
+    $("tv").hidden = !tv;
+    if (tv) renderTV();
   }
+
+  // ---------- 오늘 ----------
+  const byDue = (a, b) => String(a.due || "9999").localeCompare(String(b.due || "9999"));
+  const partNames = (l) => l.length ? esc(l.slice(0, 2).map((p) => p.name || "(이름 없음)").join(", ")) + (l.length > 2 ? ` 외 ${l.length - 2}개` : "") : "없어요";
+  function todayFacts() {
+    const t = todayStr(), open = state.parts.filter((p) => p.stage !== "done" && p.due);
+    const ids = sessionIds();
+    return {
+      late: open.filter((p) => p.due < t).sort(byDue),
+      soon: open.filter((p) => p.due >= t && daysUntil(p.due) <= 3).sort(byDue),
+      issues: state.logs.filter((l) => openIssue(l, ids)).sort((a, b) => (b.status === "bad") - (a.status === "bad")),
+      ms: state.milestones.filter((m) => !m.done && m.date && m.date >= t).sort((a, b) => a.date.localeCompare(b.date)),
+      last: sortedSessions(-1)[0] || null
+    };
+  }
+  function renderToday() {
+    $("todayDate").textContent = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+    if (!live()) {
+      $("todayCards").innerHTML = "";
+      $("todayMine").innerHTML = `<div class="tlist-h"><p class="dim">${state.phase === "loading" ? "불러오는 중…" : "저장소에 연결되면 오늘 챙길 것이 여기에 모여요."}</p></div>`;
+      return;
+    }
+    const { late, soon, issues, ms, last } = todayFacts(), cp = last ? checkProgress(last) : null;
+    const bad = issues.filter((l) => l.status === "bad").length;
+    const card = (k, color, label, value, body, extra = "") => `<button type="button" class="tcard" data-today="${k}" style="--c:${color}"><span>${label}</span><b class="num">${value}</b>${extra}<em>${body}</em></button>`;
+    $("todayCards").innerHTML =
+      // a zero is good news: green instead of the warning colour
+      card("late", late.length ? "var(--bad)" : "var(--ok)", "마감 지난 부품", late.length, partNames(late))
+      + card("soon", soon.length ? "var(--warn)" : "var(--ok)", "3일 안 마감", soon.length, partNames(soon))
+      + card("issues", issues.length ? "var(--bad)" : "var(--ok)", "미해결 이슈", issues.length, issues.length ? `문제 ${bad} · 주의 ${issues.length - bad} · ${esc([...new Set(issues.map((l) => DEPT[l.dept]?.l || ""))].filter(Boolean).slice(0, 3).join(", "))}` : "없어요")
+      + card("schedule", "var(--accent)", "다음 일정", ms[0] ? dLabel(daysUntil(ms[0].date)) : "–", ms[0] ? esc(ms[0].title) + (ms[1] ? ` · 그다음 ${esc(ms[1].title)} ${dLabel(daysUntil(ms[1].date))}` : "") : "남은 일정이 없어요")
+      + card("check", "var(--ok)", last ? `출주 전 점검 · ${esc(last.event || "주행")}` : "출주 전 점검", cp ? `${cp.n}/${cp.total}` : "–",
+        cp ? (cp.total && cp.n === cp.total ? `${esc(fmtShort(last.date))} 세션 · 출주 준비 완료` : `${esc(fmtShort(last.date))} 세션 · ${cp.total - cp.n}개 남았어요 →`) : "테스트 세션을 만들면 보여요",
+        cp ? `<div class="track"><span class="fill ok" style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></span></div>` : "");
+    const dk = DEPT[state.me.dept] ? state.me.dept : "";
+    if (!dk) { $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일</h3></div><p class="hint" style="padding:0 16px 14px">위에서 '내 부서'를 고르면 우리 부서의 남은 부품이 마감 순서로 보여요.</p>`; return; }
+    const list = state.parts.filter((p) => deptOf(p) === dk && p.stage !== "done").sort(byDue), me = (state.me.name || "").trim();
+    const row = (p) => {
+      const n = p.due ? daysUntil(p.due) : null;
+      return `<button type="button" class="trow" data-part="${esc(p.id)}"><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span><span>${esc(p.name || "(이름 없음)")}${me && (p.owner || "").trim() === me ? '<span class="tme">내 담당</span>' : ""}</span><span class="towner">${esc(p.owner || "–")}</span><span class="tdue ${n === null ? "none" : n < 0 ? "late" : n <= 3 ? "soon" : ""}">${n === null ? "마감 없음" : dLabel(n)}</span></button>`;
+    };
+    $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일 · ${DEPT[dk].l}</h3>${list.length > 8 ? `<button class="btn ghost sm" type="button" data-today="dept">남은 부품 ${list.length}개 모두 보기 →</button>` : ""}</div>`
+      + (list.length ? list.slice(0, 8).map(row).join("") : `<p class="hint" style="padding:0 16px 14px">남은 부품이 없어요. 모두 완료됐어요.</p>`);
+  }
+  function openFromToday(k) {
+    const { last } = todayFacts();
+    if (k === "late" || k === "soon" || k === "dept") {
+      $("fdept").value = k === "dept" && DEPT[state.me.dept] ? state.me.dept : "all";
+      $("fst").value = k === "late" ? "late" : "open"; $("fsort").value = "due"; $("fq").value = "";
+      state.tab = "parts";
+    } else if (k === "issues") { $("iState").value = "open"; $("iDept").value = ""; state.tab = "issues"; }
+    else if (k === "schedule") state.tab = "schedule";
+    else if (k === "check") { if (last) state.sel = last.id; state.tab = "sessions"; state.ckOpen = true; }
+    render(); window.scrollTo({ top: 0 });
+  }
+  document.addEventListener("click", (e) => { const c = e.target.closest("[data-today]"); if (c) openFromToday(c.dataset.today); });
+
+  // ---------- TV (workshop screen) ----------
+  function setView(v) {
+    state.view = v === "tv" ? "tv" : "normal"; store.set("fsk.view", state.view);
+    if (state.view === "normal" && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    render();
+  }
+  function renderTV() {
+    const c = state.cfg, foot = `<div class="tv-foot"><span>읽기 전용 화면 · 팀원이 바꾼 내용은 바로 반영돼요 · ${new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준</span><div><button type="button" data-fullscreen>전체 화면</button><button type="button" data-view="normal">일반 화면으로 (Esc)</button></div></div>`;
+    if (!live()) { $("tv").innerHTML = `<div><h4>FSK 피트보드</h4><div class="tv-sub">${state.phase === "loading" ? "불러오는 중…" : "저장소에 연결할 수 없어요."}</div></div>${foot}`; return; }
+    const parts = state.parts, total = parts.length, done = parts.filter((p) => p.stage === "done").length;
+    let massG = 0, cost = 0;
+    parts.forEach((p) => { const q = qtyOf(p); massG += (num(p.unitMass) || 0) * q; cost += (num(p.unitCost) || 0) * q; });
+    const budget = num(c.budget), target = num(c.targetMass), d = c.compDate ? daysUntil(c.compDate) : null;
+    const { late, soon, issues, ms, last } = todayFacts(), cp = last && last.date === todayStr() ? checkProgress(last) : null;
+    const due = late.concat(soon).slice(0, 5), costPct = budget ? Math.round((cost / budget) * 100) : null;
+    $("tv").innerHTML = `<div>
+        <h4>FSK · 대회까지</h4><div class="tv-car">${esc(c.carName || "우리 팀 차량")}</div>
+        <div class="tv-dday${d === null ? " unset" : ""}">${d === null ? "날짜 미정" : d > 0 ? "D-" + d : d === 0 ? "D-DAY" : "대회 종료"}</div>
+        <div class="tv-sub">${c.compDate ? esc(fmtDate(c.compDate)) + " 대회" : "차량 설정에서 대회 날짜를 정해요"}</div>
+        <div class="tv-block"><h4>다가오는 일정</h4>${ms.length ? ms.slice(0, 4).map((m) => `<div class="tv-ms"><span>${esc(m.title)}</span><b>${dLabel(daysUntil(m.date))}</b></div>`).join("") : '<div class="tv-none">남은 일정이 없어요</div>'}</div>
+        ${cp ? `<div class="tv-block"><h4>오늘 출주 전 점검 · ${esc(last.event || "주행")}</h4><div class="tv-dep"><span>${cp.n}/${cp.total}</span><div class="t"><i style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></i></div><b>${cp.total ? Math.round((cp.n / cp.total) * 100) : 0}%</b></div></div>` : ""}
+      </div>
+      <div><h4>제작 현황</h4>
+        <div class="tv-big"><div><b>${total ? Math.round((done / total) * 100) : 0}%</b><span>${total}개 중 ${done}개 완료</span></div>
+          <div><b>${kg(massG)}</b><span>kg${target ? ` / 목표 ${target.toLocaleString("ko-KR")}kg` : ""}</span></div>
+          <div><b style="color:${costPct !== null && costPct > 100 ? "#FF5252" : "#F3F5F8"}">${costPct === null ? wonShort(cost).v : costPct + "%"}</b><span>${costPct === null ? wonShort(cost).u + " 부품 비용" : "예산 사용"}</span></div></div>
+        <h4>부서별 완료</h4>${DEPTS.map((x) => { const l = parts.filter((p) => deptOf(p) === x.k), v = l.length ? Math.round((l.filter((p) => p.stage === "done").length / l.length) * 100) : 0; return `<div class="tv-dep"><span>${x.l}</span><div class="t"><i style="width:${Math.max(v, 1)}%"></i></div><b>${l.length ? v + "%" : "–"}</b></div>`; }).join("")}
+      </div>
+      <div><h4>마감 지남 · 3일 안 마감</h4><div class="tv-li">${due.length ? due.map((p) => { const n = daysUntil(p.due); return `<div style="--c:${n < 0 ? "#FF5252" : "#FF9F1C"}"><span>${esc(p.name || "(이름 없음)")}<em>${DEPT[deptOf(p)].l}${p.owner ? " · " + esc(p.owner) : ""}</em></span><b>${dLabel(n)}</b></div>`; }).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
+        <h4>미해결 테스트 이슈</h4><div class="tv-li">${issues.length ? issues.slice(0, 4).map((l) => `<div style="--c:${l.status === "bad" ? "#FF5252" : "#FF9F1C"}"><span>${esc(DEPT[l.dept]?.l || "")}<em>${esc(String(l.analysis || l.observation || l.action || "").slice(0, 40))}</em></span><b>${l.status === "bad" ? "문제" : "주의"}</b></div>`).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
+      </div>${foot}`;
+  }
+  document.addEventListener("click", (e) => {
+    const v = e.target.closest("[data-view]"); if (v) { setView(v.dataset.view); return; }
+    if (e.target.closest("[data-fullscreen]")) { const el = document.documentElement; (el.requestFullscreen ? el.requestFullscreen() : Promise.reject()).catch(() => toast("이 화면에서는 전체 화면을 쓸 수 없어요. 브라우저의 전체 화면(F11)을 써 주세요.")); }
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.view === "tv" && !document.querySelector("dialog[open]")) setView("normal"); });
+  setInterval(() => { if (state.view === "tv") renderTV(); else if (state.tab === "today") renderToday(); }, 60000);
 
   // ---------- attachments view ----------
   function attView(list) {

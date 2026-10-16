@@ -12,6 +12,7 @@ import { createAuth, checkPasswordRule, checkUsername, verifyPassword, hashPassw
 import { writeTarGz, readTarGz } from "./archive.js";
 import { analyzeExport, remapRows } from "./migrate.js";
 import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
+import { contentMatches, cleanName } from "./filetype.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -498,8 +499,10 @@ route("POST", "/api/assets", async (ctx) => {
   if (ctx.user.role !== "developer" && assetUsage.get(ctx.user.id).bytes > MAX_USER_ASSETS) return send(ctx.res, 507, { code: "quota_or_state", message: "내가 올린 파일이 2GB를 넘었어요. 안 쓰는 첨부를 지운 뒤 다시 올려 주세요." });
   const buf = await readBody(ctx.req, type === "image/svg+xml" ? 2 * 1024 * 1024 : MAX_ASSET);
   if (!buf.length) return send(ctx.res, 400, { code: "invalid_request", message: "빈 파일이에요." });
+  if (!contentMatches(type, buf)) return send(ctx.res, 415, { code: "unsupported_type", message: "파일 내용이 확장자와 맞지 않아요. 원래 형식 그대로 저장한 파일을 올려 주세요." });
   let fileName = String(ctx.req.headers["x-file-name"] || "");
   try { fileName = decodeURIComponent(fileName); } catch {}
+  fileName = cleanName(fileName);
   const id = crypto.randomBytes(16).toString("hex");
   writeFileSync(assetPath(id), buf, { mode: 0o600 });
   assetIns.run(id, type, buf.length, ctx.user.id, fileName.slice(0, 200), new Date().toISOString());

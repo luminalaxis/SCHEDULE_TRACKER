@@ -157,6 +157,7 @@ server/auth.js              계정, scrypt 비밀번호, 세션 쿠키
 server/notify.js            알림: 개인 알림함, 마감·일정 확인, 팀 채널 웹훅
 server/archive.js           전체 백업용 .tar.gz 쓰기·읽기 (스트리밍)
 server/migrate.js           claude.ai 데이터의 계정 id를 서버 계정으로 바꾸기
+server/filetype.js          업로드 파일 내용이 형식과 맞는지 확인, 파일명 정리
 server/cli.js               명령줄 관리 도구 (비밀번호 초기화, 계정 생성, 백업·복원)
 server/public/fsk-runtime.js  페이지의 window.claude.use(...) 를 이 서버로 연결하는 런타임 + 오프라인 캐시·저장 대기열 + 알림
 server/public/sw.js         서비스 워커 (인터넷 없이 열기), manifest.webmanifest·icons/ (앱 설치)
@@ -177,6 +178,7 @@ SECURITY.md                 보안 검토 결과와 남은 위험
 - 로그인 실패 제한: IP당 15분 10회, 계정당 15분 30회. 가입 신청은 IP당 한 시간 10회. 실패도 감사 로그에 기록
 - 페이지 CSP: 요청마다 새 nonce가 붙은 스크립트만 실행. 첨부 파일은 로그인한 사람에게만, 샌드박스 헤더로 제공
 - 사비 내역서 원본·영수증은 제출자·총무·개발자만, 제출한 내역서는 제출자가 고칠 수 없음
+- 업로드는 허용한 형식만, 파일 내용이 형식과 맞아야 받음 (확장자만 바꾼 실행 파일 거절). 파일은 확장자 없는 무작위 id로 저장하고 형식 추측 금지(`nosniff`)·실행 금지(CSP `sandbox`)로 제공. 사비 원본은 항상 `.xlsx` 이름으로 내려받음
 - 권한은 `artifact.config.json` 규칙 + 계정 역할로 서버에서 검사
 - 데이터 폴더 700, DB·백업·첨부 파일 600 권한
 

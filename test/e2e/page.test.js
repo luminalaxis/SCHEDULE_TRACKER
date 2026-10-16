@@ -62,8 +62,8 @@ test("phone: layout fits, checklist works offline and syncs back", { skip, timeo
 
   await ctx.setOffline(true);
   await page.locator('input[data-ck="battery1"]').check();
-  await page.waitForSelector(".acct-sync:not([hidden])");
-  assert.match(await page.textContent(".acct-sync"), /오프라인 · 저장 대기 \d/);
+  // the badge shows "오프라인" as soon as the network drops, then the count once the change is queued
+  assert.ok(await until(async () => /오프라인 · 저장 대기 \d/.test(await page.textContent(".acct-sync"))), await page.textContent(".acct-sync"));
   assert.equal((await serverDoc("checks/s1--battery1")).exists, false, "nothing reached the server yet");
   await shot(page, "phone-offline-checklist");
   // opening the board with no signal: page from the service worker, data from this device

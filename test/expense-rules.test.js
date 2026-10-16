@@ -93,6 +93,16 @@ test("file name and fallbacks", () => {
   assert.equal(check(workbook({ listSheet: false })).level, "ok", "built-in lists when the hidden sheet is missing");
 });
 
+test("download names always end in .xlsx", () => {
+  assert.equal(R.xlsxFileName("개인사비사용내역서_홍길동_1015.xlsx"), "개인사비사용내역서_홍길동_1015.xlsx");
+  assert.equal(R.xlsxFileName("정산.exe"), "정산.exe.xlsx");
+  assert.equal(R.xlsxFileName("매크로.XLSM"), "매크로.XLSM.xlsx");
+  assert.equal(R.xlsxFileName("invoice\u202Exslx.exe"), "invoicexslx.exe.xlsx", "right-to-left override is removed");
+  assert.equal(R.xlsxFileName("../../a/b:c.xlsx"), "_.._a_b_c.xlsx");
+  assert.equal(R.xlsxFileName(""), "사비내역서.xlsx");
+  assert.equal(R.xlsxFileName("..."), "사비내역서.xlsx");
+});
+
 test("helpers", () => {
   assert.equal(R.excelDate(44927), "2023-01-01");
   assert.equal(R.excelDate("2026.3.5"), "2026-03-05");

@@ -934,7 +934,14 @@ window.FSKExpenseRules = (() => {
     }
     return done();
   }
-  return Object.freeze({ checkStatement, maskAccount, excelDate, toNum, receiptSlot, BANKS });
+  // Name for saving a statement: the submitter chose it, so it always ends in .xlsx (never .exe / .xlsm) and loses
+  // control and right-to-left override characters that make "x\u202Exslx.exe" look like "xexe.xlsx".
+  const cleanName = (s) => String(s || "").replace(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").trim();
+  function xlsxFileName(name) {
+    const base = cleanName(name).replace(/[\\/:*?"<>|]/g, "_").replace(/\.xlsx$/i, "").replace(/^[.\s]+|[.\s]+$/g, "").slice(0, 120);
+    return (base || "사비내역서") + ".xlsx";
+  }
+  return Object.freeze({ checkStatement, maskAccount, excelDate, toNum, receiptSlot, BANKS, cleanName, xlsxFileName });
 })();
 </script>
 <script>
@@ -1065,6 +1072,7 @@ window.FSKExpenseRules = (() => {
     if (code === "quota_exceeded") return "저장 공간이 가득 찼어요. 쓰지 않는 항목을 지운 뒤 다시 시도하세요.";
     if (code === "resource_exhausted") return "요청이 너무 많아요. 잠시 후 다시 시도하세요.";
     if (code === "too_large") return "파일이 너무 커요. 20MB 이하로 줄여 주세요.";
+    if (code === "unsupported_type" && window.FSK_SELF_HOSTED && e.message) return e.message;
     if (code === "unsupported_type") return "지원하지 않는 파일 형식이에요. PNG, JPG, PDF, CSV, TXT, MP4 등을 올려 주세요.";
     if (code === "quota_or_state") return "첨부 파일 저장 공간이 가득 찼어요. 쓰지 않는 첨부를 지운 뒤 다시 시도하세요.";
     if (code === "rate_limited") return "요청이 너무 많아요. 잠시 후 다시 시도하세요.";
@@ -2121,7 +2129,7 @@ window.FSKExpenseRules = (() => {
   });
 
   // ---------- 사비 정산 ----------
-  const { checkStatement, maskAccount } = window.FSKExpenseRules;
+  const { checkStatement, maskAccount, cleanName, xlsxFileName } = window.FSKExpenseRules;
   const EXP_ST = { pending: "검토 대기", fix: "보완 요청", approved: "승인 · 지급 대기", paid: "지급 완료", rejected: "반려" };
   const LEVEL_LABEL = { ok: "양식 통과", warn: "확인 필요", bad: "양식 불일치" };
   const RNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -2392,7 +2400,7 @@ window.FSKExpenseRules = (() => {
     const receipts = hideFiles ? [] : (e.receipts || []).map((x) => ({ slot: x.slot, src: "/_blob/" + encodeURIComponent(x.asset), href: "/_blob/" + encodeURIComponent(x.asset) }));
     $("expDetail").innerHTML = `
       <div class="dhead-top"><div><h3>${esc(e.applicant || s.by || "이름 없음")} · ${won(e.total || 0)}</h3>
-        <span class="hint">${esc(fmtWhen(s.submittedAt))} 제출 · ${esc(s.by || "이름 미입력")}${DEPT[s.byDept] ? ` (${DEPT[s.byDept].l})` : ""} · ${esc(e.fileName || "")}</span></div>${payPill(st, true)}</div>
+        <span class="hint">${esc(fmtWhen(s.submittedAt))} 제출 · ${esc(s.by || "이름 미입력")}${DEPT[s.byDept] ? ` (${DEPT[s.byDept].l})` : ""} · ${esc(cleanName(e.fileName))}</span></div>${payPill(st, true)}</div>
       ${r && r.deleted ? `<p class="banner bad" style="margin:0">삭제된 내역서예요 (${esc(r.deletedBy || "이름 미입력")}, ${esc(fmtWhen(r.deletedAt))}). 목록과 합계에서 빠져 있어요.</p>` : ""}
       ${isChanged(s) ? '<p class="banner bad" style="margin:0">총무가 검토한 뒤 제출 내용이 바뀌었어요. 다시 확인해 주세요.</p>' : ""}
       ${e.overridden ? `<p class="banner" style="margin:0">총무가 올린 수정본(${esc(e.replacedBy || "")}, ${esc(fmtWhen(e.replacedAt))}) 기준으로 보여요.</p>` : ""}
@@ -2470,7 +2478,7 @@ window.FSKExpenseRules = (() => {
       let dl = null;
       try { dl = await window.claude.use("downloads"); } catch {}
       if (!dl) { toast("이 화면에서는 파일을 내려받을 수 없어요."); return; }
-      try { await dl.save({ filename: effective(s).fileName || "사비내역서.xlsx", data: await loadOriginal(s) }); }
+      try { await dl.save({ filename: xlsxFileName(effective(s).fileName), data: await loadOriginal(s) }); }
       catch (err) { if (!(err && err.code === "declined")) toast("원본 파일을 내려받지 못했어요."); }
       return;
     }

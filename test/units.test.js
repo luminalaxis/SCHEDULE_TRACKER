@@ -6,6 +6,22 @@ import { analyzeExport, remapRows } from "../server/migrate.js";
 import { checkWebhookUrl, webhookBody } from "../server/notify.js";
 import { writeTarGz, readTarGz } from "../server/archive.js";
 import { stableJson, runQuery } from "../server/store.js";
+import { contentMatches, cleanName } from "../server/filetype.js";
+
+test("upload content matches its type", () => {
+  const b = (x) => Buffer.isBuffer(x) ? x : Buffer.from(x, "latin1");
+  assert.ok(contentMatches("image/png", Buffer.from("89504e470d0a1a0a0000", "hex")));
+  assert.ok(contentMatches("image/webp", b("RIFF\x10\x00\x00\x00WEBPVP8 ")));
+  assert.ok(!contentMatches("image/webp", b("RIFF\x10\x00\x00\x00AVI LIST")));
+  assert.ok(contentMatches("video/mp4", b("\x00\x00\x00\x18ftypmp42")));
+  assert.ok(contentMatches("application/pdf", b("\r\n%PDF-1.4")), "header within the first KiB");
+  assert.ok(!contentMatches("application/pdf", b("\x7fELF\x02\x01")));
+  assert.ok(contentMatches("text/csv", Buffer.from([0xc0, 0xcc, 0xb8, 0xa7, 0x2c, 0x31])), "CP949 text from Korean Excel");
+  assert.ok(contentMatches("text/plain", Buffer.from("\ufeff메모", "utf8")));
+  assert.ok(!contentMatches("text/plain", b("\x7fELF\x02")) && !contentMatches("text/plain", b("ab\x00cd")));
+  assert.ok(!contentMatches("application/x-msdownload", b("MZ")), "unknown types never match");
+  assert.equal(cleanName(" a\u202Eb\u0007c\u2066.png "), "abc.png");
+});
 
 test("remapRows rewrites paths, keys and id references only", () => {
   const rows = [

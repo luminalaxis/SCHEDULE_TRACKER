@@ -217,6 +217,25 @@ test("bad query input is a 400, not a server error", async () => {
   assert.equal(odd.status, 200, "a malformed file name header is kept as typed");
 });
 
+test("uploads must contain what their type says", async () => {
+  const up = (type, body, name = "") => a.post("/api/assets", Buffer.from(body), { "content-type": type, "x-file-name": encodeURIComponent(name) });
+  const exe = Buffer.concat([Buffer.from("MZ\x90\x00\x03\x00\x00\x00", "latin1"), Buffer.alloc(64)]);
+  for (const [type, body, why] of [
+    ["application/pdf", exe, "an .exe renamed to .pdf"], ["image/png", "<html><script>alert(1)</script>", "HTML posing as a PNG"],
+    ["image/jpeg", "GIF89a....", "a GIF labelled JPEG"], ["text/plain", exe, "an .exe renamed to .txt"],
+    ["text/csv", Buffer.from("504b0304140000", "hex"), "a zip renamed to .csv"], ["image/svg+xml", "<html><body>no svg</body></html>", "not an SVG"],
+    ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "PK", "a truncated xlsx"]
+  ]) {
+    const r = await up(type, body);
+    assert.equal(r.status, 415, why); assert.match(r.json.message, /파일 내용이 확장자와 맞지 않아요/);
+  }
+  for (const [type, body] of [["application/pdf", "%PDF-1.7\n..."], ["text/csv", "이름,금액\nMZ세대,1000\n"], ["text/plain", Buffer.from([0xff, 0xfe, 0x41, 0x00])], ["image/svg+xml", '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>'], ["image/gif", "GIF89a\x01\x00"]])
+    assert.equal((await up(type, body)).status, 200, type);
+  const named = await up("image/png", PNG, "invoice\u202Egnp.exe");
+  const row = (await dev.get("/api/admin/assets")).json.assets.find((x) => x.id === named.json.id);
+  assert.equal(row.name, "invoicegnp.exe", "right-to-left override characters are stripped from stored names");
+});
+
 test("CLI restore keeps 직책 and brings back attachment files", () => {
   const target = mkdtempSync(join(tmpdir(), "fsk-cli-"));
   try {

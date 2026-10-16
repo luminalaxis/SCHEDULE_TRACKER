@@ -51,8 +51,10 @@ test("phone: layout fits, checklist works offline and syncs back", { skip, timeo
   await page.reload(); // now controlled by the service worker, which keeps a copy of the page
   await page.waitForSelector(".acct-bar");
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(await overflow() <= 0, "no sideways scrolling on the 오늘 tab");
+  await shot(page, "phone-today");
+  await page.click("#tab-parts");
   assert.ok(await overflow() <= 0, "no sideways scrolling on the parts tab");
-  await shot(page, "phone-parts");
   await page.click("#tab-sessions");
   await page.waitForSelector('input[data-ck="battery1"]');
   assert.ok(await overflow() <= 0, "no sideways scrolling on the sessions tab");
@@ -120,6 +122,7 @@ test("desktop and admin console screens", { skip, timeout: 90000 }, async () => 
   const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
   const page = await signIn(ctx, "dev", "password1");
   await page.goto("/");
+  await page.click("#tab-parts");
   await page.waitForSelector("#btnTemplate:visible");
   await page.click("#btnTemplate");
   await page.waitForSelector("#partsList:not([hidden])");
@@ -134,5 +137,47 @@ test("desktop and admin console screens", { skip, timeout: 90000 }, async () => 
   await page.goto("/admin#overview");
   await page.waitForSelector("#alerts .alert");
   assert.match(await page.textContent("#alerts"), /외부 복사가 설정되지 않았어요/);
+  await ctx.close();
+});
+
+test("오늘 first screen, and switching to the TV screen and back", { skip, timeout: 90000 }, async () => {
+  // parts with deadlines around today for the dev's department
+  const d = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+  await dev.post("/api/db/set", { path: "parts/late1", data: { name: "지연된 업라이트", dept: "chassis", stage: "machining", owner: "김개발", due: d(-2), qty: 1 } });
+  await dev.post("/api/db/set", { path: "parts/soon1", data: { name: "곧 마감 브래킷", dept: "chassis", stage: "order", owner: "이에이", due: d(2), qty: 1 } });
+  await dev.post("/api/db/set", { path: "logs/bad1", data: { sessionId: "s1", dept: "battery", status: "bad", observation: "셀 온도 과열", actionDone: false } });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const page = await signIn(ctx, "dev", "password1");
+  await page.goto("/");
+  await page.waitForSelector("#view-today:not([hidden]) .tcard");
+  assert.equal(await page.locator(".tcard").count(), 5);
+  assert.match(await page.textContent('[data-today="late"]'), /지연된 업라이트/);
+  assert.match(await page.textContent('[data-today="issues"]'), /문제 1/);
+  await page.selectOption("#meDept", "chassis");
+  await page.waitForSelector('.trow[data-part="late1"]');
+  assert.match(await page.textContent('.trow[data-part="late1"]'), /D\+2/);
+  assert.match(await page.textContent('.trow[data-part="late1"]'), /내 담당/, "parts I own are marked");
+  await shot(page, "desktop-today");
+  await page.click('[data-today="late"]');
+  assert.equal(await page.getAttribute("#tab-parts", "aria-selected"), "true");
+  assert.equal(await page.inputValue("#fst"), "late", "the card opens the parts list filtered to overdue parts");
+
+  await page.click('.viewsw [data-view="tv"]');
+  await page.waitForSelector("#tv:not([hidden]) .tv-dday");
+  assert.match(await page.textContent("#tv"), /지연된 업라이트/);
+  assert.match(await page.textContent("#tv"), /셀 온도 과열/);
+  await shot(page, "tv");
+  await page.reload();
+  await page.waitForSelector("#tv:not([hidden]) .tv-dday");
+  assert.ok(true, "the TV choice survives a reload (for the workshop monitor)");
+  await dev.post("/api/db/update", { path: "parts/late1", data: { stage: "done" } });
+  await page.waitForFunction(() => !document.getElementById("tv").textContent.includes("지연된 업라이트"));
+  await page.keyboard.press("Escape");
+  await page.waitForSelector("#tv", { state: "hidden" });
+  assert.equal(await page.getAttribute('.viewsw [data-view="normal"]', "aria-pressed"), "true");
+  await page.goto("/?view=tv");
+  await page.waitForSelector("#tv:not([hidden])");
+  await page.click('#tv [data-view="normal"]');
+  await page.waitForSelector("#tv", { state: "hidden" });
   await ctx.close();
 });

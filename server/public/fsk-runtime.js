@@ -420,7 +420,7 @@
       .acct-item time{grid-row:1;grid-column:2;color:var(--muted);font-size:11px;white-space:nowrap}
       .acct-empty{padding:16px 12px;color:var(--muted);font-size:13px;margin:0}
       @media (max-width:900px){.acct-pop{left:0;right:auto}}
-      @media (max-width:600px){.acct-pop{position:fixed;left:12px;right:12px;top:auto;width:auto;margin-top:6px}}
+      @media (max-width:600px){.acct-pop{position:fixed;left:12px;right:12px;top:auto;width:auto;margin-top:6px}.acct-bar>b,.acct-bar .acct-role,.acct-bar a{display:none}}
     </style><b></b><span class="acct-role"></span>
       <button type="button" class="acct-bell" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>알림<span class="acct-count" hidden></span></button>
       <span class="acct-sync" hidden></span>
@@ -444,7 +444,8 @@
     bar.querySelector("[data-logout]").addEventListener("click", (e) => logout(e.currentTarget));
     side.prepend(bar);
     const nameInput = document.getElementById("meName");
-    if (nameInput) { nameInput.value = ME.name; nameInput.readOnly = true; nameInput.title = "계정 이름이에요. 관리 창에서 바꿀 수 있어요."; }
+    // the account name is shown in the bar above; the page's own name field is only for claude.ai
+    if (nameInput) { nameInput.value = ME.name; nameInput.readOnly = true; const box = nameInput.closest(".me"); if (box) box.hidden = true; }
     const deptSel = document.getElementById("meDept");
     if (deptSel) deptSel.addEventListener("change", () => api("POST", "/api/me/profile", { dept: deptSel.value }).catch(() => {}));
     renderBell(); syncUi(); loadNotes(); stream();

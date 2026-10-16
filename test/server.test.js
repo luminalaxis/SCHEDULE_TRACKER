@@ -158,7 +158,7 @@ test("assets: upload, serve, permissions", async () => {
   assert.equal(blob.status, 200); assert.equal(blob.headers.get("content-type"), "image/png");
   assert.equal((await fetch(BASE + up.json.url)).status, 401, "blobs need a session");
   assert.equal((await mem.req("POST", "/api/assets", Buffer.from("x"), { "content-type": "application/x-msdownload" })).status, 415);
-  const xlsx = await mem.req("POST", "/api/assets", Buffer.from("PK"), { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const xlsx = await mem.req("POST", "/api/assets", Buffer.from("504b030414000000", "hex"), { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   assert.equal(xlsx.status, 200, "xlsx is accepted on the self-hosted server");
 });
 

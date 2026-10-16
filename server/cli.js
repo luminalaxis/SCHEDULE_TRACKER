@@ -3,12 +3,13 @@
 //   node server/cli.js create-user <username> <developer|member|team_lead|vice_lead|part_lead> [이름] [부서]
 //   node server/cli.js reset-password <username>
 //   node server/cli.js backup
-//   node server/cli.js restore <backup.json> [--force]
-import { readFileSync } from "node:fs";
+//   node server/cli.js restore <backup.json | fsk-full-….tar.gz> [--force]
+import { readFileSync, createReadStream, existsSync, renameSync, mkdtempSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openStore, createDocs } from "./store.js";
 import { createAuth, tempPassword, checkUsername } from "./auth.js";
+import { readTarGz } from "./archive.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = process.env.DATA_DIR || join(ROOT, "data");
@@ -51,14 +52,26 @@ switch (cmd) {
   }
   case "restore": {
     const file = args[0]; if (!file) die("백업 파일 경로를 적어 주세요.");
-    const json = JSON.parse(readFileSync(file, "utf8"));
-    if (json.format !== "fsk-backup") die("피트보드 백업 파일이 아니에요.");
-    if ((auth.count() || docs.all().length) && !args.includes("--force")) die("데이터가 이미 있어요. 덮어쓰려면 --force 를 붙이세요 (계정·데이터·설정을 모두 백업 시점으로 바꿔요).");
+    const full = /\.(tar\.gz|tgz)$/i.test(file);
+    let json, tmp = null;
+    if (full) {
+      // full backup: backup.json plus the attachment files
+      tmp = mkdtempSync(join(dataDir, "restore-"));
+      const out = await readTarGz(createReadStream(file), (name) => name === "backup.json" ? "json" : /^assets\/[a-f0-9]{32}$/.test(name) ? join(tmp, name.slice(7)) : null);
+      if (!out.json) { rmSync(tmp, { recursive: true, force: true }); die("backup.json 이 없는 파일이에요."); }
+      json = JSON.parse(out.json.toString("utf8"));
+    } else json = JSON.parse(readFileSync(file, "utf8"));
+    if (json.format !== "fsk-backup") { if (tmp) rmSync(tmp, { recursive: true, force: true }); die("피트보드 백업 파일이 아니에요."); }
+    if ((auth.count() || docs.all().length) && !args.includes("--force")) { if (tmp) rmSync(tmp, { recursive: true, force: true }); die("데이터가 이미 있어요. 덮어쓰려면 --force 를 붙이세요 (계정·데이터·설정을 모두 백업 시점으로 바꿔요)."); }
     db.exec("BEGIN");
     try {
-      db.exec("DELETE FROM sessions; DELETE FROM users;");
-      const ins = db.prepare("INSERT INTO users (id, username, name, dept, role, status, pw_hash, must_change_pw, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-      for (const u of json.users || []) ins.run(u.id, u.username, u.name, u.dept || "", u.role, u.status, u.pw_hash, u.must_change_pw || 0, u.created_at, u.last_login || null);
+      db.exec("DELETE FROM sessions; DELETE FROM notifications; DELETE FROM users;");
+      // v1.0 backups have no position column: old treasurers become 부팀장, like the server's own migration
+      const ins = db.prepare("INSERT INTO users (id, username, name, dept, role, position, status, pw_hash, must_change_pw, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      for (const u of json.users || []) {
+        const role = u.role === "developer" ? "developer" : "member", position = u.position !== undefined ? u.position || "" : u.role === "treasurer" ? "vice_lead" : "";
+        ins.run(u.id, u.username, u.name, u.dept || "", role, position, u.status, u.pw_hash, u.must_change_pw || 0, u.created_at, u.last_login || null);
+      }
       const set = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
       for (const [k, v] of Object.entries(json.settings || {})) set.run(k, JSON.stringify(v));
       const a = db.prepare("INSERT OR REPLACE INTO assets (id, content_type, size, uploader, name, created_at) VALUES (?, ?, ?, ?, ?, ?)");
@@ -66,8 +79,16 @@ switch (cmd) {
       db.exec("COMMIT");
     } catch (e) { db.exec("ROLLBACK"); throw e; }
     docs.replaceAll(json.docs || []);
-    audit("backup.restore", file, `full restore (cli) · ${json.docs?.length || 0} docs · ${json.users?.length || 0} users`);
-    console.log(`복원했어요: 문서 ${json.docs?.length || 0}개, 계정 ${json.users?.length || 0}개. 첨부 파일은 data/assets 폴더를 따로 복사해 넣어야 해요.`);
+    let files = 0;
+    if (tmp) {
+      for (const x of json.assets || []) {
+        const from = join(tmp, String(x.id)), to = join(dataDir, "assets", String(x.id));
+        if (/^[a-f0-9]{32}$/.test(String(x.id)) && existsSync(from) && !existsSync(to)) { renameSync(from, to); files++; }
+      }
+      rmSync(tmp, { recursive: true, force: true });
+    }
+    audit("backup.restore", file, `full restore (cli) · ${json.docs?.length || 0} docs · ${json.users?.length || 0} users${tmp ? ` · 파일 ${files}개` : ""}`);
+    console.log(`복원했어요: 문서 ${json.docs?.length || 0}개, 계정 ${json.users?.length || 0}개${tmp ? `, 첨부 파일 ${files}개` : ". 첨부 파일은 data/assets 폴더를 따로 복사해 넣어야 해요 (전체 백업 .tar.gz 로 복원하면 함께 들어가요)"}.`);
     break;
   }
   default:
@@ -76,6 +97,6 @@ switch (cmd) {
   node server/cli.js create-user <아이디> <developer|member|team_lead|vice_lead|part_lead> [이름] [부서]
   node server/cli.js reset-password <아이디>
   node server/cli.js backup
-  node server/cli.js restore <백업.json> [--force]`);
+  node server/cli.js restore <백업.json | fsk-full-….tar.gz> [--force]`);
 }
 db.close();

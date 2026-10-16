@@ -55,6 +55,7 @@ main { padding-block: 22px 72px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 7px 12px; border-radius: var(--r); cursor: pointer; font-weight: 500; white-space: nowrap; }
 .btn:hover { border-color: var(--muted); }
+a.btn { text-decoration: none; color: inherit; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.sm { padding: 3px 9px; font-size: 12px; }
 .btn.danger { color: var(--bad); }
@@ -112,6 +113,8 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
 .dlg h3 { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: var(--r); font-size: 13px; max-width: calc(100vw - 32px); z-index: 10; }
 .hint { font-size: 12px; color: var(--muted); }
+.status-line { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; }
+.map-row select { min-width: 180px; }
 @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 520px) { .tiles, .grid2 { grid-template-columns: minmax(0, 1fr); } }
 </style>
@@ -170,9 +173,27 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
 
   <!-- backups -->
   <section class="panel" id="p-backups" hidden>
-    <div class="sec-head"><h2>백업</h2><div class="toolbar"><input class="field" id="bNote" placeholder="메모 (선택)" maxlength="100" aria-label="백업 메모"><button class="btn primary" type="button" id="btnBackup">지금 백업</button></div></div>
-    <p class="hint">백업 파일에는 모든 데이터 문서, 계정(비밀번호는 암호화된 상태), 설정, 첨부 파일 목록이 들어가요. 첨부 파일 자체는 <span class="mono">data/assets</span> 폴더에 있으니 서버 백업 때 폴더째 함께 복사하세요.</p>
+    <div class="sec-head"><h2>백업</h2><div class="toolbar"><input class="field" id="bNote" placeholder="메모 (선택)" maxlength="100" aria-label="백업 메모"><button class="btn primary" type="button" id="btnBackup">지금 백업</button><a class="btn" href="/api/admin/backups-full" download id="btnFull">전체 백업 내려받기 (첨부 파일 포함)</a></div></div>
+    <p class="hint">아래 목록의 백업(JSON)에는 모든 데이터 문서, 계정(비밀번호는 암호화된 상태), 설정, 첨부 파일 목록이 들어가요. 첨부 파일까지 한 파일로 받으려면 <b>전체 백업 내려받기</b>(.tar.gz)를 쓰세요. 결제 정보와 계정이 들어 있으니 안전한 곳에만 보관하세요.</p>
     <div class="scroll"><table><thead><tr><th>파일</th><th>종류</th><th class="r">크기</th><th>만든 시각</th><th>관리</th></tr></thead><tbody id="backupBody"></tbody></table></div>
+    <div class="card">
+      <h3>외부 복사 (USB 드라이브 · 네트워크 폴더)</h3>
+      <p class="hint">매일 자동 백업이 끝나면 백업 파일과 첨부 파일을 이 폴더로 복사해요. 복사본에서는 지우지 않으니 서버 데이터가 지워져도 남아 있어요. 라즈베리파이에 꽂은 USB 드라이브 경로를 적으세요.</p>
+      <div class="toolbar"><input class="field mono" id="mirrorDir" placeholder="/media/pi/BACKUP/fsk" style="flex:1 1 260px" aria-label="외부 복사 폴더"><button class="btn" type="button" id="btnMirrorSave">저장</button><button class="btn primary" type="button" id="btnMirrorRun">지금 복사</button></div>
+      <div class="status-line" id="mirrorStatus"></div>
+    </div>
+    <div class="card">
+      <h3>전체 백업으로 복원</h3>
+      <p class="hint"><b>전체 백업 내려받기</b>로 받은 .tar.gz 파일에서 데이터 문서와 첨부 파일을 되살려요. 계정과 설정은 바뀌지 않아요 (계정까지 되돌리려면 서버에서 <span class="mono">npm run admin -- restore 파일.tar.gz --force</span>). 복원 직전 상태는 자동으로 백업돼요.</p>
+      <div class="toolbar"><input type="file" id="fullFile" accept=".gz,.tgz,application/gzip"><select class="field" id="fullMode" aria-label="복원 방식"><option value="merge">합치기 (같은 경로만 덮어쓰기)</option><option value="replace">전체 교체 (기존 데이터 삭제)</option></select><button class="btn danger" type="button" id="btnFullRestore" disabled>복원</button></div>
+      <span class="hint" id="fullMsg"></span>
+    </div>
+    <div class="card">
+      <h3>claude.ai 피트보드에서 옮기기</h3>
+      <p class="hint">claude.ai에서 쓰던 피트보드 데이터를 이 서버로 옮겨요. ① claude.ai에서 Claude에게 "피트보드 Artifact 데이터를 내보내 줘"라고 요청해 JSON을 받아요. ② 팀원들이 이 서버에 먼저 가입해요. ③ 파일을 고르면 사비 정산·총무 기록·점검 체크에 남은 claude.ai 계정이 나와요. 각 사람을 이 서버 계정과 짝지은 뒤 가져오면 그 사람의 기록이 새 계정으로 옮겨져요.</p>
+      <div class="toolbar"><input type="file" id="migFile" accept=".json,application/json"><button class="btn" type="button" id="btnMigAnalyze" disabled>계정 확인</button></div>
+      <div id="migBox"></div>
+    </div>
     <div class="card">
       <h3>데이터 가져오기</h3>
       <p class="hint">백업 파일이나 claude.ai 피트보드에서 내보낸 JSON(<span class="mono">{ docs: [{ path, data }] }</span>)을 가져와요. 가져오기 직전 상태는 자동으로 백업돼요. 계정은 바뀌지 않아요.</p>
@@ -190,7 +211,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
 
   <!-- audit -->
   <section class="panel" id="p-audit" hidden>
-    <div class="sec-head"><h2>감사 로그</h2><div class="toolbar"><select class="field" id="aFilter" aria-label="종류"><option value="">모든 기록</option><option value="login">로그인</option><option value="signup">가입</option><option value="user.">사용자 관리</option><option value="role.">역할 변경</option><option value="data.">데이터 직접 수정</option><option value="backup.">백업·복원</option><option value="asset.">첨부 파일</option><option value="settings.">설정</option><option value="password">비밀번호</option></select></div></div>
+    <div class="sec-head"><h2>감사 로그</h2><div class="toolbar"><select class="field" id="aFilter" aria-label="종류"><option value="">모든 기록</option><option value="login">로그인</option><option value="signup">가입</option><option value="user.">사용자 관리</option><option value="role.">역할 변경</option><option value="data.">데이터 직접 수정</option><option value="backup.">백업·복원</option><option value="asset.">첨부 파일</option><option value="settings.">설정</option><option value="password">비밀번호</option><option value="expense.">사비 정산</option></select></div></div>
     <p class="hint">서버가 직접 남기는 기록이라 페이지의 변경 이력과 달리 고칠 수 없어요. 로그인 실패, 권한 변경, 데이터 직접 수정이 모두 남아요.</p>
     <div class="scroll"><table><thead><tr><th>시각</th><th>사람</th><th>동작</th><th>대상</th><th>내용</th><th>IP</th></tr></thead><tbody id="auditBody"></tbody></table></div>
   </section>
@@ -220,6 +241,13 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
         <label class="check"><input type="checkbox" id="sAllowSubmit"> 팀원이 사비 내역서를 직접 제출할 수 있게 하기</label>
         <p class="hint">끄면 총무(부팀장)와 개발자만 내역서를 등록할 수 있어요.</p>
         <div class="toolbar"><button class="btn primary" type="submit">저장</button></div>
+      </form>
+      <form class="card" id="formNotify" style="grid-column:1 / -1">
+        <h3>알림</h3>
+        <p class="hint">팀원 각자에게는 페이지 오른쪽 위 <b>알림</b>으로 와요: 사비 정산 처리 결과(제출자), 새 내역서(총무), 내 기록에 달린 의견, 담당 부품 마감(D-3·당일·지남), 일정 D-7·D-1·당일. 아래에 Discord·Slack 채널 웹훅을 넣으면 팀 전체 소식도 채널로 보내요. 돈과 관련된 개인 알림은 채널로 보내지 않아요.</p>
+        <label class="f">팀 채널 웹훅 주소 (Discord: 채널 설정 → 연동 → 웹후크 / Slack: Incoming Webhook)<input id="whUrl" type="url" placeholder="https://discord.com/api/webhooks/..." autocomplete="off" spellcheck="false"></label>
+        <div class="toolbar" id="whKinds"></div>
+        <div class="toolbar"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="btnWhTest">테스트 보내기</button><button class="btn" type="button" id="btnNotifyRun">지금 마감·일정 알림 확인</button><span class="hint" id="whStatus"></span></div>
       </form>
       <form class="card" id="formPw">
         <h3>내 비밀번호 바꾸기</h3>
@@ -266,7 +294,9 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   const ACTION = { login: "로그인", "login.fail": "로그인 실패", logout: "로그아웃", signup: "가입", "password.change": "비밀번호 변경", "profile.name": "이름 변경",
     "user.create": "계정 생성", "user.update": "계정 변경", "user.approve": "가입 승인", "user.reset_password": "비밀번호 초기화", "user.force_logout": "강제 로그아웃", "user.delete": "계정 삭제",
     "role.change": "역할 변경", "settings.update": "설정 변경", "data.edit": "데이터 수정", "data.create": "데이터 생성", "data.delete": "데이터 삭제", "data.import": "데이터 가져오기",
-    "backup.create": "백업", "backup.download": "백업 내려받기", "backup.restore": "백업 복원", "backup.delete": "백업 삭제", "asset.delete": "파일 삭제", "asset.cleanup": "파일 정리" };
+    "backup.create": "백업", "backup.download": "백업 내려받기", "backup.restore": "백업 복원", "backup.delete": "백업 삭제", "asset.delete": "파일 삭제", "asset.cleanup": "파일 정리",
+    "backup.full": "전체 백업 내려받기", "backup.restore_full": "전체 백업 복원", "backup.mirror": "외부 복사", "notify.webhook_test": "웹훅 테스트",
+    "expense.review": "사비 정산 처리", "expense.delete": "사비 내역서 삭제", "expense.restore": "사비 내역서 복구", "expense.replace": "사비 수정본 교체" };
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const bytes = (n) => n >= 1073741824 ? (n / 1073741824).toFixed(1) + "GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n >= 1024 ? Math.round(n / 1024) + "KB" : (n || 0) + "B";
@@ -327,6 +357,10 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     if (s.disk && s.disk.free / s.disk.total < 0.1) al.push(["bad", `디스크 남은 공간이 ${bytes(s.disk.free)}뿐이에요. 오래된 백업이나 안 쓰는 첨부 파일을 정리하세요.`, ""]);
     if (!s.cookieSecure) al.push(["info", "지금 HTTPS가 아닌 주소로 접속 중이에요. 외부에 공개할 때는 Cloudflare Tunnel 같은 HTTPS 경로를 쓰고 TRUST_PROXY=1로 실행하세요.", ""]);
     if (!s.settings.autoBackup) al.push(["warn", "자동 백업이 꺼져 있어요.", '<button class="btn sm" type="button" data-go="settings">설정</button>']);
+    const ml = s.settings.mirrorLast;
+    if (!s.settings.mirrorDir) al.push(["info", "외부 복사가 설정되지 않았어요. 라즈베리파이가 고장 나면 데이터가 함께 사라질 수 있어요. USB 드라이브로 복사하도록 정해 두세요.", '<button class="btn sm" type="button" data-go="backups">설정하기</button>']);
+    else if (ml && !ml.ok) al.push(["bad", `외부 복사에 실패했어요 (${ago(ml.at)}): ${ml.message}`, '<button class="btn sm" type="button" data-go="backups">확인</button>']);
+    else if (!ml || Date.now() - new Date(ml.at) > 2 * 86400000) al.push(["warn", ml ? `마지막 외부 복사가 ${ago(ml.at)}이에요.` : "아직 외부 복사를 한 번도 하지 않았어요.", '<button class="btn sm" type="button" data-go="backups">지금 복사</button>']);
     $("alerts").innerHTML = al.map(([k, t, b]) => `<div class="alert ${k}"><span>${esc(t)}</span>${b}</div>`).join("");
     $("pendingBadge").hidden = !s.users.pending; $("pendingBadge").textContent = s.users.pending;
   };
@@ -460,8 +494,17 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   $("edPath").addEventListener("input", () => { if (state.doc && !state.doc.version) state.doc.path = $("edPath").textContent.trim(); });
 
   // ---------- backups ----------
+  function renderMirror(st) {
+    const ml = st.mirrorLast;
+    $("mirrorDir").value = st.mirrorDir || "";
+    $("btnMirrorRun").disabled = !st.mirrorDir;
+    $("mirrorStatus").innerHTML = !st.mirrorDir ? '<span class="pill none">꺼짐</span><span class="hint">폴더를 정하면 매일 자동 백업 뒤에 복사해요.</span>'
+      : !ml ? '<span class="pill warn">아직 안 함</span>'
+      : `<span class="pill ${ml.ok ? "ok" : "bad"}">${ml.ok ? "성공" : "실패"}</span><span>${esc(when(ml.at))} · ${esc(ml.message)}${ml.ok && ml.bytes ? ` (${bytes(ml.bytes)})` : ""}</span>`;
+  }
   loaders.backups = async () => {
     try { state.backups = (await api("GET", "/api/admin/backups")).backups; } catch (e) { return fail(e); }
+    api("GET", "/api/admin/settings").then(renderMirror).catch(() => {});
     const kind = (n) => n.endsWith("-auto.json") ? '<span class="pill acc">자동</span>' : n.endsWith("-pre-restore.json") ? '<span class="pill warn">복원 직전</span>' : '<span class="pill none">수동</span>';
     $("backupBody").innerHTML = state.backups.map((b) => `<tr><td class="mono">${esc(b.name)}</td><td>${kind(b.name)}</td><td class="r num">${bytes(b.bytes)}</td><td>${esc(when(b.createdAt))}</td>
       <td><a class="btn sm" href="/api/admin/backups/${encodeURIComponent(b.name)}" download>내려받기</a> <button class="btn sm danger" type="button" data-restore="${esc(b.name)}">이 시점으로 복원</button> <button class="btn sm danger" type="button" data-delbackup="${esc(b.name)}">삭제</button></td></tr>`).join("") || `<tr><td colspan="5" class="dim">아직 백업이 없어요.</td></tr>`;
@@ -477,6 +520,61 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     if (rs) { if (!arm(rs, "지금 데이터를 이 백업으로 바꿔요. 한 번 더")) return; try { const r = await api("POST", `/api/admin/backups/${encodeURIComponent(rs.dataset.restore)}/restore`, { mode: "replace" }); toast(`문서 ${r.restored}개로 복원했어요. 직전 상태는 ${r.safety}`); } catch (er) { fail(er); } return loaders.backups(); }
     const db = e.target.closest("[data-delbackup]");
     if (db) { if (!arm(db, "삭제할까요?")) return; try { await api("DELETE", `/api/admin/backups/${encodeURIComponent(db.dataset.delbackup)}`); toast("백업을 삭제했어요"); } catch (er) { fail(er); } loaders.backups(); }
+  });
+  $("btnMirrorSave").addEventListener("click", async () => {
+    try { renderMirror(await api("POST", "/api/admin/settings", { mirrorDir: $("mirrorDir").value.trim() })); toast($("mirrorDir").value.trim() ? "외부 복사 폴더를 저장했어요" : "외부 복사를 껐어요"); } catch (er) { fail(er); }
+  });
+  $("btnMirrorRun").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true; $("mirrorStatus").innerHTML = '<span class="hint">복사하는 중… 처음에는 오래 걸릴 수 있어요.</span>';
+    try { const r = await api("POST", "/api/admin/mirror", {}); toast(r.ok ? r.message : "외부 복사에 실패했어요"); } catch (er) { fail(er); }
+    b.disabled = false; api("GET", "/api/admin/settings").then(renderMirror).catch(() => {});
+  });
+  $("fullFile").addEventListener("change", () => { $("btnFullRestore").disabled = !$("fullFile").files.length; $("fullMsg").textContent = ""; });
+  $("btnFullRestore").addEventListener("click", async (e) => {
+    const f = $("fullFile").files[0], b = e.currentTarget; if (!f) return;
+    const mode = $("fullMode").value;
+    if (!arm(b, mode === "replace" ? "기존 데이터를 모두 바꿔요. 한 번 더" : "복원할까요? 한 번 더")) return;
+    b.disabled = true; $("fullMsg").textContent = "올리고 복원하는 중…";
+    try {
+      const r = await fetch(`/api/admin/restore-full?mode=${mode}`, { method: "POST", credentials: "same-origin", headers: { "x-fsk": "1", "content-type": "application/gzip" }, body: f });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw j;
+      $("fullMsg").textContent = `문서 ${j.restored}개, 첨부 파일 ${j.files}개를 되살렸어요. 직전 상태 백업: ${j.safety}`; toast("복원했어요"); loaders.backups();
+    } catch (er) { $("fullMsg").textContent = er.message || "복원하지 못했어요."; }
+    finally { b.disabled = false; }
+  });
+
+  // claude.ai → this server: match each claude.ai account to an account here, then import
+  let mig = null;
+  $("migFile").addEventListener("change", () => { $("btnMigAnalyze").disabled = !$("migFile").files.length; $("migBox").innerHTML = ""; mig = null; });
+  $("btnMigAnalyze").addEventListener("click", async () => {
+    const f = $("migFile").files[0]; if (!f) return;
+    let text;
+    try { text = await f.text(); JSON.parse(text); } catch { $("migBox").innerHTML = '<p class="hint">JSON 파일이 아니에요.</p>'; return; }
+    try { mig = { text, info: await api("POST", "/api/admin/import/analyze", undefined, text) }; } catch (er) { $("migBox").innerHTML = `<p class="hint">${esc(er.message || "파일을 읽을 수 없어요.")}</p>`; return; }
+    const { info } = mig, cols = Object.entries(info.collections).map(([c, n]) => `${COLL[c] || c} ${n}`).join(" · ");
+    const userOpts = (sel) => `<option value="">그대로 두기 (연결 안 함)</option>` + info.users.map((u) => `<option value="${esc(u.id)}"${u.id === sel ? " selected" : ""}>${esc(u.name)} (${esc(u.username)}${u.dept ? " · " + esc(DEPT[u.dept] || u.dept) : ""})</option>`).join("");
+    const rows = info.ids.filter((x) => !x.known);
+    $("migBox").innerHTML = `<p class="hint">문서 ${info.docs}개 · ${esc(cols)}</p>`
+      + (rows.length ? `<div class="scroll"><table><thead><tr><th>claude.ai 계정</th><th>남아 있는 곳</th><th>이 서버 계정</th></tr></thead><tbody>${rows.map((x) => `<tr class="map-row"><td><b>${esc(x.name || "이름 모름")}</b><br><span class="dim mono" style="font-size:11px">${esc(x.id.slice(0, 18))}${x.id.length > 18 ? "…" : ""}</span></td><td class="wrap">${esc(x.where.join(", "))}${x.subs ? ` · 내역서 ${x.subs}건` : ""}</td><td><select class="field" data-map="${esc(x.id)}" aria-label="${esc(x.name || x.id)}의 서버 계정">${userOpts(x.suggestion)}</select></td></tr>`).join("")}</tbody></table></div>
+        <p class="hint">이름이 같은 계정은 미리 골라 뒀어요. 짝짓지 않은 사람의 사비 정산 기록은 옛 계정 id로 남아서 그 사람이 직접 볼 수 없어요. 같은 계정을 두 사람에게 고르지 마세요.</p>`
+        : '<p class="hint">옮길 claude.ai 계정이 없어요.</p>')
+      + `<div class="toolbar"><select class="field" id="migMode" aria-label="가져오기 방식"><option value="merge">합치기 (같은 경로만 덮어쓰기)</option><option value="replace">전체 교체 (기존 데이터 삭제)</option></select><button class="btn danger" type="button" id="btnMigImport">가져오기</button><span class="hint" id="migMsg"></span></div>`;
+  });
+  $("migBox").addEventListener("click", async (e) => {
+    const b = e.target.closest("#btnMigImport"); if (!b || !mig) return;
+    const idMap = {};
+    $("migBox").querySelectorAll("[data-map]").forEach((s) => { if (s.value) idMap[s.dataset.map] = s.value; });
+    const targets = Object.values(idMap);
+    if (new Set(targets).size !== targets.length) { $("migMsg").textContent = "같은 서버 계정을 두 사람에게 골랐어요."; return; }
+    const mode = $("migMode").value;
+    if (!arm(b, mode === "replace" ? "기존 데이터를 모두 바꿔요. 한 번 더" : `계정 ${targets.length}개를 연결해 가져와요. 한 번 더`)) return;
+    b.disabled = true;
+    try {
+      const data = JSON.parse(mig.text), body = JSON.stringify({ docs: Array.isArray(data) ? data : data.docs, idMap });
+      const r = await api("POST", `/api/admin/import?mode=${mode}`, undefined, body);
+      $("migMsg").textContent = `문서 ${r.imported}개를 가져왔어요 (계정 ${r.mapped}개 연결). 직전 상태 백업: ${r.safety}`; toast("가져왔어요"); loaders.backups();
+    } catch (er) { $("migMsg").textContent = er.message || "가져오지 못했어요."; b.disabled = false; }
   });
   $("impFile").addEventListener("change", () => { $("btnImport").disabled = !$("impFile").files.length; $("impMsg").textContent = ""; });
   $("btnImport").addEventListener("click", async (e) => {
@@ -523,7 +621,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   loaders.audit = async () => {
     let rows;
     try { rows = (await api("GET", `/api/admin/audit?limit=500&action=${encodeURIComponent($("aFilter").value)}`)).entries; } catch (e) { return fail(e); }
-    const cls = (a) => a === "login.fail" || a.endsWith(".delete") || a === "backup.restore" || a === "data.import" ? "bad" : a.startsWith("user.") || a.startsWith("role.") || a.startsWith("data.") ? "warn" : "none";
+    const cls = (a) => a === "login.fail" || a.endsWith(".delete") || a.startsWith("backup.restore") || a === "data.import" ? "bad" : a.startsWith("user.") || a.startsWith("role.") || a.startsWith("data.") || a.startsWith("expense.") ? "warn" : "none";
     $("auditBody").innerHTML = rows.map((r) => `<tr><td class="num">${esc(when(r.at))}</td><td>${esc(r.actor_name || (r.actor ? r.actor : "–"))}</td><td><span class="pill ${cls(r.action)}">${esc(ACTION[r.action] || r.action)}</span></td><td class="mono" style="font-size:12px">${esc(r.target || "")}</td><td class="wrap" style="font-size:12px">${esc(r.detail || "")}</td><td class="mono dim" style="font-size:12px">${esc(r.ip || "")}</td></tr>`).join("") || `<tr><td colspan="6" class="dim">기록이 없어요.</td></tr>`;
   };
   $("aFilter").addEventListener("change", loaders.audit);
@@ -535,7 +633,24 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     try { s = await api("GET", "/api/admin/settings"); } catch (e) { return fail(e); }
     document.querySelectorAll('input[name="sm"]').forEach((r) => (r.checked = r.value === s.signupMode));
     $("inviteCode").textContent = s.inviteCode; $("sAuto").checked = !!s.autoBackup; $("sAllowSubmit").checked = s.allowMemberSubmit !== false; $("sHour").value = String(s.backupHour); $("sKeep").value = s.backupKeep;
+    $("whUrl").value = s.webhookUrl || "";
+    $("whKinds").innerHTML = Object.entries(s.webhookKindLabels || {}).map(([k, l]) => `<label class="check"><input type="checkbox" name="whk" value="${esc(k)}"${(s.webhookKinds || []).includes(k) ? " checked" : ""}> ${esc(l)}</label>`).join("");
+    const wl = s.webhookLast;
+    $("whStatus").textContent = !s.webhookUrl ? "채널 알림 꺼짐" : wl ? `마지막 전송 ${when(wl.at)} · ${wl.ok ? "성공" : "실패"} (${wl.status})` : "아직 보낸 적 없음";
   };
+  $("formNotify").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const kinds = [...document.querySelectorAll('input[name="whk"]:checked')].map((x) => x.value);
+    try { await api("POST", "/api/admin/settings", { webhookUrl: $("whUrl").value.trim(), webhookKinds: kinds }); toast("알림 설정을 저장했어요"); loaders.settings(); } catch (er) { fail(er); }
+  });
+  $("btnWhTest").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try { const r = await api("POST", "/api/admin/webhook-test", { url: $("whUrl").value.trim() }); toast(r.ok ? "테스트 메시지를 보냈어요. 채널을 확인하세요." : `보내지 못했어요 (${r.status})`); } catch (er) { fail(er); }
+    b.disabled = false;
+  });
+  $("btnNotifyRun").addEventListener("click", async () => {
+    try { const r = await api("POST", "/api/admin/notify-run", {}); toast(r.sent ? `알림 ${r.sent}개를 보냈어요` : "새로 보낼 마감·일정 알림이 없어요"); } catch (er) { fail(er); }
+  });
   $("formSignup").addEventListener("submit", async (e) => {
     e.preventDefault();
     const v = (document.querySelector('input[name="sm"]:checked') || {}).value;

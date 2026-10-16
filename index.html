@@ -375,12 +375,43 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   .ms-side { grid-column: 1 / -1; justify-content: flex-end; }
 }
 @media (max-width: 520px) {
-  .gauges, .grid2, .grid3, .depts { grid-template-columns: minmax(0, 1fr); }
+  .grid2, .grid3, .depts { grid-template-columns: minmax(0, 1fr); }
+  .gauges { gap: 8px; }
   .issue { grid-template-columns: minmax(0, 1fr); }
   .issue-side { align-items: flex-start; flex-direction: row; }
   .ident h1 { font-size: 28px; }
   .pit-num { font-size: 32px; }
 }
+@media (max-width: 600px) {
+  /* phones: 16px fields stop iOS from zooming in, bigger touch targets, full-screen dialogs with the buttons always in reach */
+  input, select, textarea, .field, label.f input, label.f select, label.f textarea { font-size: 16px; }
+  .btn { min-height: 40px; }
+  .btn.sm { min-height: 34px; padding: 6px 10px; }
+  .top-in { padding-block: 12px 0; gap: 10px 14px; }
+  .pit { padding: 6px 12px; }
+  .tab { padding: 12px 12px; }
+  main { padding-block: 14px 88px; }
+  .view { gap: 18px; }
+  .gauge { padding: 10px 12px; gap: 6px; }
+  .g-value { font-size: 26px; }
+  .g-sub { font-size: 11px; }
+  .ckgrid { grid-template-columns: minmax(0, 1fr); padding-inline: 12px; }
+  .ckitem { padding: 9px 0; font-size: 15px; border-bottom: 1px solid var(--grid); }
+  .ckitem:last-child { border-bottom: 0; }
+  .ckitem input { width: 22px; height: 22px; margin-top: 0; }
+  .ck > summary { padding: 12px; }
+  .action input, .issue-side input, .ms-side input, .check input { width: 20px; height: 20px; }
+  .cform .btn { min-height: 40px; }
+  #partsList th:nth-child(4), #partsList td:nth-child(4), #partsList th:nth-child(5), #partsList td:nth-child(5) { display: none; }
+  dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+  .dlg { padding: 16px 16px 0; min-height: 100%; }
+  .dlg h3 { font-size: 22px; }
+  .dlg-foot { position: sticky; bottom: 0; z-index: 1; background: var(--surface); border-top: 1px solid var(--line); margin: 0 -16px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: auto; }
+  .dlg-foot .right { flex: 1; justify-content: flex-end; }
+  .seg label { padding: 8px 14px; }
+  .toast { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (pointer: coarse) { .ckitem input, .action input { width: 22px; height: 22px; } }
 @media (prefers-reduced-motion: no-preference) { .track > span { transition: width .4s ease; } }
 </style>
 
@@ -802,7 +833,110 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+// 사비 내역서 양식 규칙: pure functions with no DOM access, used by the page below and by test/expense-rules.test.js.
+window.FSKExpenseRules = (() => {
+  const EXP_HEADER = ["번호", "팀명", "날짜", "구분", "사용목적", "제품명", "구매(가공)처-링크포함", "단가", "수량", "합계"];
+  const EXP_COLS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
+  const DEFAULT_TEAMS = ["배터리", "파워트레인", "프레임", "회로", "에어로", "기타"];
+  const DEFAULT_CATS = ["엔진&구동시스템", "조향시스템", "현가시스템", "제동시스템", "프레임&바디", "전장시스템", "휠&타이어", "기타"];
+  const BANKS = ["신한", "국민", "KB", "우리", "하나", "농협", "NH", "기업", "IBK", "카카오", "토스", "케이뱅크", "새마을", "우체국", "수협", "SC", "제일", "씨티", "대구", "iM", "부산", "경남", "광주", "전북", "제주", "신협", "산업"];
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayStr = () => ymd(new Date());
+  const won = (n) => Math.round(n).toLocaleString("ko-KR") + "원";
+  function maskAccount(a) {
+    if (!a) return "";
+    const bank = BANKS.find((b) => a.toUpperCase().includes(b.toUpperCase())) || "", d = a.replace(/\D/g, "");
+    return d ? `${bank ? bank + " " : ""}${"•".repeat(Math.max(0, d.length - 4))}${d.slice(-4)}` : "";
+  }
+  const normH = (s) => String(s ?? "").replace(/\s+/g, "");
+  const cellStr = (c) => c && c.v !== null && c.v !== undefined ? String(c.v).trim() : "";
+  const toNum = (v) => { if (typeof v === "number") return v; if (typeof v !== "string") return null; const s = v.replace(/[,원\s₩]/g, ""); return s !== "" && isFinite(Number(s)) ? Number(s) : null; };
+  function excelDate(v) {
+    const ok = (y, m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
+    if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000).toISOString().slice(0, 10);
+    if (typeof v === "string") {
+      const s = v.trim();
+      let m = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*일?\.?$/); if (m) return ok(m[1], +m[2], +m[3]);
+      m = s.match(/^(\d{1,2})\s*[/.월]\s*(\d{1,2})\s*일?$/); if (m) return ok(new Date().getFullYear(), +m[1], +m[2]);
+    }
+    return null;
+  }
+  const receiptSlot = (col, row) => { const block = col < 10 ? 0 : col < 19 ? 1 : col < 28 ? 2 : 3; return Math.min(10, block * 3 + Math.min(2, Math.max(0, Math.floor((row - 2) / 12))) + 1); };
+
+  // Checks a statement against the club form (내역서 B2:K13, 영수증 sheet, hidden list sheet).
+  function checkStatement(wbk, fileName, today = todayStr()) {
+    const E = [], W = [], I = [];
+    const res = { errors: E, warns: W, infos: I, items: [], total: 0, account: "", receipts: [], applicant: "", totalRow: 13 };
+    const done = () => { res.level = E.length ? "bad" : W.length ? "warn" : "ok"; return res; };
+    const fm = String(fileName).replace(/\.xlsx$/i, "").match(/^개인\s*사비\s*사용\s*내역서\s*[_\-\s]\s*([^_\-\s]+)\s*[_\-\s]\s*(.+)$/);
+    if (fm) res.applicant = fm[1]; else W.push("파일명이 '개인사비사용내역서_이름_날짜' 형식이 아니에요.");
+    const sheet = wbk.sheets.find((s) => normH(s.name) === "내역서"), rsheet = wbk.sheets.find((s) => normH(s.name) === "영수증");
+    if (!sheet) { E.push("'내역서' 시트가 없어요. 동아리 사비 내역서 양식 파일인지 확인해 주세요."); return done(); }
+    if (!rsheet) E.push("'영수증' 시트가 없어요. 시트를 지우거나 이름을 바꾸지 마세요.");
+    const g = (ref) => sheet.cells[ref];
+    const badHead = EXP_HEADER.filter((h, i) => normH(cellStr(g(EXP_COLS[i] + "2"))) !== normH(h));
+    if (badHead.length) E.push(`2행 머리글이 양식과 달라요 (${badHead.join(", ")}). 열을 추가·삭제하지 말고 원본 양식을 써 주세요.`);
+    const hid = wbk.sheets.find((s) => s !== sheet && s !== rsheet && (s.state !== "visible" || s.name === "."));
+    const listCol = (col) => { const out = []; if (hid) for (let r = 1; r <= 60; r++) { const v = cellStr(hid.cells[col + r]); if (v) out.push(v); } return out; };
+    let cats = listCol("B"), teams = listCol("D");
+    if (cats.length < 3) cats = DEFAULT_CATS;
+    if (teams.length < 3) teams = DEFAULT_TEAMS;
+    let totalRow = 0;
+    for (let r = 3; r <= 80; r++) if (normH(cellStr(g("J" + r))) === "총합계") { totalRow = r; break; }
+    if (!totalRow) { E.push("'총 합계' 칸(J13)을 찾을 수 없어요. 양식의 아래쪽 칸을 지우지 마세요."); totalRow = 13; }
+    else if (totalRow !== 13) W.push(`항목 행 수가 양식과 달라요 (총 합계가 ${totalRow}행에 있음). 행을 추가·삭제했는지 확인해 주세요.`);
+    res.totalRow = totalRow;
+    const groups = new Set();
+    let formulaLost = 0;
+    for (let r = 3; r < totalRow; r++) {
+      if (!["C", "D", "E", "F", "G", "H", "I", "J"].some((c) => cellStr(g(c + r)))) continue;
+      const no = cellStr(g("B" + r)) || String(r - 2), label = `${no}번 (${r}행)`;
+      const [team, dateRaw, cat, purpose, product, vendor] = ["C", "D", "E", "F", "G", "H"].map((c) => cellStr(g(c + r)));
+      const missing = [["팀명", team], ["날짜", dateRaw], ["구분", cat], ["사용목적", purpose], ["제품명", product], ["구매처", vendor], ["단가", cellStr(g("I" + r))], ["수량", cellStr(g("J" + r))]].filter((x) => !x[1]).map((x) => x[0]);
+      if (missing.length) E.push(`${label}: ${missing.join(", ")} 칸이 비어 있어요.`);
+      if (team && !teams.includes(team)) E.push(`${label} C${r}: 팀명 '${team}'은(는) 목록(${teams.join(", ")})에 없어요.`);
+      if (cat && !cats.includes(cat)) E.push(`${label} E${r}: 구분 '${cat}'은(는) 목록에 없어요. 칸의 화살표를 눌러 목록에서 고르세요.`);
+      const date = dateRaw ? excelDate(g("D" + r).v) : null;
+      if (dateRaw && !date) E.push(`${label} D${r}: 날짜 '${dateRaw}'를 읽을 수 없어요. 10/30처럼 월/일로 입력하세요.`);
+      else if (date && date > today) W.push(`${label}: 날짜(${date})가 오늘 이후예요.`);
+      const price = toNum(g("I" + r)?.v), qty = toNum(g("J" + r)?.v), tot = toNum(g("K" + r)?.v);
+      if (cellStr(g("I" + r)) && (price === null || price <= 0)) E.push(`${label} I${r}: 단가가 숫자가 아니에요.`);
+      if (cellStr(g("J" + r)) && (qty === null || qty <= 0)) E.push(`${label} J${r}: 수량이 숫자가 아니에요.`);
+      else if (qty !== null && !Number.isInteger(qty)) W.push(`${label}: 수량이 정수가 아니에요 (${qty}).`);
+      const calc = price !== null && qty !== null ? Math.round(price * qty) : null;
+      if (calc !== null && tot !== null && Math.abs(calc - tot) > 1) E.push(`${label} K${r}: 합계 ${won(tot)}이 단가×수량 ${won(calc)}과 달라요.`);
+      if (calc !== null && tot === null) W.push(`${label} K${r}: 합계 칸이 비어 있어 단가×수량으로 계산했어요.`);
+      if (g("K" + r) && !g("K" + r).f && tot !== null) formulaLost++;
+      if (/배송|택배|운송/.test(product + purpose) && cat && cat !== "기타") W.push(`${label}: 배송비는 구분을 '기타'로 적어야 해요.`);
+      if (vendor && !/(https?:\/\/|www\.|\.(com|kr|net|co|shop|store)\b|스마트스토어|쿠팡|\(|\d+\s*[-–]\s*\d+|[시군구로길동]\s*\d)/i.test(vendor)) W.push(`${label} H${r}: 구매처에 링크나 주소가 없어요.`);
+      groups.add(`${date || dateRaw}|${vendor}`);
+      res.items.push({ no, team, date: date || dateRaw, cat, purpose, product, vendor, price, qty, total: calc ?? tot ?? 0 });
+    }
+    if (!res.items.length) E.push("작성된 사용 내역이 없어요.");
+    if (formulaLost) I.push(`합계 칸 ${formulaLost}개의 수식이 숫자로 바뀌어 있어요. 값은 단가×수량과 비교해 확인했어요.`);
+    res.total = res.items.reduce((a, it) => a + (it.total || 0), 0);
+    const fileTotal = toNum(g("K" + totalRow)?.v);
+    if (fileTotal !== null && Math.abs(fileTotal - res.total) > 1) E.push(`K${totalRow}: 총 합계 ${won(fileTotal)}이 항목 합계 ${won(res.total)}과 달라요.`);
+    const acct = cellStr(g("H" + totalRow));
+    res.account = acct;
+    if (!acct) E.push(`H${totalRow}: 계좌번호가 비어 있어요. 은행명과 계좌번호를 적어 주세요.`);
+    else {
+      const digits = acct.replace(/\D/g, "").length;
+      if (digits < 10 || digits > 16) E.push(`H${totalRow}: 계좌번호 자릿수가 이상해요 (${digits}자리).`);
+      if (!BANKS.some((b) => acct.toUpperCase().includes(b.toUpperCase()))) W.push(`H${totalRow}: 계좌번호에 은행 이름이 없어요.`);
+    }
+    if (rsheet) {
+      res.receipts = rsheet.images.map((im) => ({ ...im, slot: receiptSlot(im.col, im.row) })).sort((a, b) => a.slot - b.slot);
+      if (!res.receipts.length) E.push("'영수증' 시트에 영수증 사진이 없어요.");
+      else if (res.receipts.length < groups.size) W.push(`영수증 사진은 ${res.receipts.length}장인데 구매 건(날짜·구매처 기준)은 ${groups.size}건이에요. 빠진 영수증이 없는지 확인해 주세요.`);
+    }
+    return done();
+  }
+  return Object.freeze({ checkStatement, maskAccount, excelDate, toNum, receiptSlot, BANKS });
+})();
+</script>
 <script>
 (() => {
   // ---------- domain ----------
@@ -926,6 +1060,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   }
   function explain(e) {
     const code = e && e.code;
+    if ((code === "locked" || code === "forbidden" || code === "quota_or_state") && e.message) return e.message;
     if (code === "invalid_argument") { state.canWrite = false; render(); return "수정 권한이 없어요. 소유자에게 편집자로 초대해 달라고 요청하세요."; }
     if (code === "quota_exceeded") return "저장 공간이 가득 찼어요. 쓰지 않는 항목을 지운 뒤 다시 시도하세요.";
     if (code === "resource_exhausted") return "요청이 너무 많아요. 잠시 후 다시 시도하세요.";
@@ -1986,11 +2121,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   });
 
   // ---------- 사비 정산 ----------
-  const EXP_HEADER = ["번호", "팀명", "날짜", "구분", "사용목적", "제품명", "구매(가공)처-링크포함", "단가", "수량", "합계"];
-  const EXP_COLS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
-  const DEFAULT_TEAMS = ["배터리", "파워트레인", "프레임", "회로", "에어로", "기타"];
-  const DEFAULT_CATS = ["엔진&구동시스템", "조향시스템", "현가시스템", "제동시스템", "프레임&바디", "전장시스템", "휠&타이어", "기타"];
-  const BANKS = ["신한", "국민", "KB", "우리", "하나", "농협", "NH", "기업", "IBK", "카카오", "토스", "케이뱅크", "새마을", "우체국", "수협", "SC", "제일", "씨티", "대구", "iM", "부산", "경남", "광주", "전북", "제주", "신협", "산업"];
+  const { checkStatement, maskAccount } = window.FSKExpenseRules;
   const EXP_ST = { pending: "검토 대기", fix: "보완 요청", approved: "승인 · 지급 대기", paid: "지급 완료", rejected: "반려" };
   const LEVEL_LABEL = { ok: "양식 통과", warn: "확인 필요", bad: "양식 불일치" };
   const RNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -2037,11 +2168,6 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
   function toB64(bytes) { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
   function fromB64(str) { const bin = atob(str); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
   async function sha256(buf) { try { const h = await crypto.subtle.digest("SHA-256", buf); return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join(""); } catch { return `size-${buf.byteLength}`; } }
-  function maskAccount(a) {
-    if (!a) return "";
-    const bank = BANKS.find((b) => a.toUpperCase().includes(b.toUpperCase())) || "", d = a.replace(/\D/g, "");
-    return d ? `${bank ? bank + " " : ""}${"•".repeat(Math.max(0, d.length - 4))}${d.slice(-4)}` : "";
-  }
 
   // xlsx reader (works for Excel and Hancell files: namespace-agnostic lookups)
   const byTag = (node, name) => Array.from(node.getElementsByTagNameNS("*", name));
@@ -2098,90 +2224,6 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
     return { zip, sheets };
   }
 
-  const normH = (s) => String(s ?? "").replace(/\s+/g, "");
-  const cellStr = (c) => c && c.v !== null && c.v !== undefined ? String(c.v).trim() : "";
-  const toNum = (v) => { if (typeof v === "number") return v; if (typeof v !== "string") return null; const s = v.replace(/[,원\s₩]/g, ""); return s !== "" && isFinite(Number(s)) ? Number(s) : null; };
-  function excelDate(v) {
-    const ok = (y, m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
-    if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000).toISOString().slice(0, 10);
-    if (typeof v === "string") {
-      const s = v.trim();
-      let m = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*일?\.?$/); if (m) return ok(m[1], +m[2], +m[3]);
-      m = s.match(/^(\d{1,2})\s*[/.월]\s*(\d{1,2})\s*일?$/); if (m) return ok(new Date().getFullYear(), +m[1], +m[2]);
-    }
-    return null;
-  }
-  const receiptSlot = (col, row) => { const block = col < 10 ? 0 : col < 19 ? 1 : col < 28 ? 2 : 3; return Math.min(10, block * 3 + Math.min(2, Math.max(0, Math.floor((row - 2) / 12))) + 1); };
-
-  // Checks a statement against the club form (내역서 B2:K13, 영수증 sheet, hidden list sheet).
-  function checkStatement(wbk, fileName) {
-    const E = [], W = [], I = [];
-    const res = { errors: E, warns: W, infos: I, items: [], total: 0, account: "", receipts: [], applicant: "", totalRow: 13 };
-    const done = () => { res.level = E.length ? "bad" : W.length ? "warn" : "ok"; return res; };
-    const fm = String(fileName).replace(/\.xlsx$/i, "").match(/^개인\s*사비\s*사용\s*내역서\s*[_\-\s]\s*([^_\-\s]+)\s*[_\-\s]\s*(.+)$/);
-    if (fm) res.applicant = fm[1]; else W.push("파일명이 '개인사비사용내역서_이름_날짜' 형식이 아니에요.");
-    const sheet = wbk.sheets.find((s) => normH(s.name) === "내역서"), rsheet = wbk.sheets.find((s) => normH(s.name) === "영수증");
-    if (!sheet) { E.push("'내역서' 시트가 없어요. 동아리 사비 내역서 양식 파일인지 확인해 주세요."); return done(); }
-    if (!rsheet) E.push("'영수증' 시트가 없어요. 시트를 지우거나 이름을 바꾸지 마세요.");
-    const g = (ref) => sheet.cells[ref];
-    const badHead = EXP_HEADER.filter((h, i) => normH(cellStr(g(EXP_COLS[i] + "2"))) !== normH(h));
-    if (badHead.length) E.push(`2행 머리글이 양식과 달라요 (${badHead.join(", ")}). 열을 추가·삭제하지 말고 원본 양식을 써 주세요.`);
-    const hid = wbk.sheets.find((s) => s !== sheet && s !== rsheet && (s.state !== "visible" || s.name === "."));
-    const listCol = (col) => { const out = []; if (hid) for (let r = 1; r <= 60; r++) { const v = cellStr(hid.cells[col + r]); if (v) out.push(v); } return out; };
-    let cats = listCol("B"), teams = listCol("D");
-    if (cats.length < 3) cats = DEFAULT_CATS;
-    if (teams.length < 3) teams = DEFAULT_TEAMS;
-    let totalRow = 0;
-    for (let r = 3; r <= 80; r++) if (normH(cellStr(g("J" + r))) === "총합계") { totalRow = r; break; }
-    if (!totalRow) { E.push("'총 합계' 칸(J13)을 찾을 수 없어요. 양식의 아래쪽 칸을 지우지 마세요."); totalRow = 13; }
-    else if (totalRow !== 13) W.push(`항목 행 수가 양식과 달라요 (총 합계가 ${totalRow}행에 있음). 행을 추가·삭제했는지 확인해 주세요.`);
-    res.totalRow = totalRow;
-    const groups = new Set();
-    let formulaLost = 0;
-    for (let r = 3; r < totalRow; r++) {
-      if (!["C", "D", "E", "F", "G", "H", "I", "J"].some((c) => cellStr(g(c + r)))) continue;
-      const no = cellStr(g("B" + r)) || String(r - 2), label = `${no}번 (${r}행)`;
-      const [team, dateRaw, cat, purpose, product, vendor] = ["C", "D", "E", "F", "G", "H"].map((c) => cellStr(g(c + r)));
-      const missing = [["팀명", team], ["날짜", dateRaw], ["구분", cat], ["사용목적", purpose], ["제품명", product], ["구매처", vendor], ["단가", cellStr(g("I" + r))], ["수량", cellStr(g("J" + r))]].filter((x) => !x[1]).map((x) => x[0]);
-      if (missing.length) E.push(`${label}: ${missing.join(", ")} 칸이 비어 있어요.`);
-      if (team && !teams.includes(team)) E.push(`${label} C${r}: 팀명 '${team}'은(는) 목록(${teams.join(", ")})에 없어요.`);
-      if (cat && !cats.includes(cat)) E.push(`${label} E${r}: 구분 '${cat}'은(는) 목록에 없어요. 칸의 화살표를 눌러 목록에서 고르세요.`);
-      const date = dateRaw ? excelDate(g("D" + r).v) : null;
-      if (dateRaw && !date) E.push(`${label} D${r}: 날짜 '${dateRaw}'를 읽을 수 없어요. 10/30처럼 월/일로 입력하세요.`);
-      else if (date && date > todayStr()) W.push(`${label}: 날짜(${date})가 오늘 이후예요.`);
-      const price = toNum(g("I" + r)?.v), qty = toNum(g("J" + r)?.v), tot = toNum(g("K" + r)?.v);
-      if (cellStr(g("I" + r)) && (price === null || price <= 0)) E.push(`${label} I${r}: 단가가 숫자가 아니에요.`);
-      if (cellStr(g("J" + r)) && (qty === null || qty <= 0)) E.push(`${label} J${r}: 수량이 숫자가 아니에요.`);
-      else if (qty !== null && !Number.isInteger(qty)) W.push(`${label}: 수량이 정수가 아니에요 (${qty}).`);
-      const calc = price !== null && qty !== null ? Math.round(price * qty) : null;
-      if (calc !== null && tot !== null && Math.abs(calc - tot) > 1) E.push(`${label} K${r}: 합계 ${won(tot)}이 단가×수량 ${won(calc)}과 달라요.`);
-      if (calc !== null && tot === null) W.push(`${label} K${r}: 합계 칸이 비어 있어 단가×수량으로 계산했어요.`);
-      if (g("K" + r) && !g("K" + r).f && tot !== null) formulaLost++;
-      if (/배송|택배|운송/.test(product + purpose) && cat && cat !== "기타") W.push(`${label}: 배송비는 구분을 '기타'로 적어야 해요.`);
-      if (vendor && !/(https?:\/\/|www\.|\.(com|kr|net|co|shop|store)\b|스마트스토어|쿠팡|\(|\d+\s*[-–]\s*\d+|[시군구로길동]\s*\d)/i.test(vendor)) W.push(`${label} H${r}: 구매처에 링크나 주소가 없어요.`);
-      groups.add(`${date || dateRaw}|${vendor}`);
-      res.items.push({ no, team, date: date || dateRaw, cat, purpose, product, vendor, price, qty, total: calc ?? tot ?? 0 });
-    }
-    if (!res.items.length) E.push("작성된 사용 내역이 없어요.");
-    if (formulaLost) I.push(`합계 칸 ${formulaLost}개의 수식이 숫자로 바뀌어 있어요. 값은 단가×수량과 비교해 확인했어요.`);
-    res.total = res.items.reduce((a, it) => a + (it.total || 0), 0);
-    const fileTotal = toNum(g("K" + totalRow)?.v);
-    if (fileTotal !== null && Math.abs(fileTotal - res.total) > 1) E.push(`K${totalRow}: 총 합계 ${won(fileTotal)}이 항목 합계 ${won(res.total)}과 달라요.`);
-    const acct = cellStr(g("H" + totalRow));
-    res.account = acct;
-    if (!acct) E.push(`H${totalRow}: 계좌번호가 비어 있어요. 은행명과 계좌번호를 적어 주세요.`);
-    else {
-      const digits = acct.replace(/\D/g, "").length;
-      if (digits < 10 || digits > 16) E.push(`H${totalRow}: 계좌번호 자릿수가 이상해요 (${digits}자리).`);
-      if (!BANKS.some((b) => acct.toUpperCase().includes(b.toUpperCase()))) W.push(`H${totalRow}: 계좌번호에 은행 이름이 없어요.`);
-    }
-    if (rsheet) {
-      res.receipts = rsheet.images.map((im) => ({ ...im, slot: receiptSlot(im.col, im.row) })).sort((a, b) => a.slot - b.slot);
-      if (!res.receipts.length) E.push("'영수증' 시트에 영수증 사진이 없어요.");
-      else if (res.receipts.length < groups.size) W.push(`영수증 사진은 ${res.receipts.length}장인데 구매 건(날짜·구매처 기준)은 ${groups.size}건이에요. 빠진 영수증이 없는지 확인해 주세요.`);
-    }
-    return done();
-  }
   async function receiptBlobs(wbk, res) {
     const out = [];
     for (const r of res.receipts) {
@@ -2345,7 +2387,9 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
     if (!s) { $("expDetail").innerHTML = `<p>이 내역서를 찾을 수 없어요.</p><div class="dlg-foot"><div class="right"><button class="btn" type="button" data-xclose>닫기</button></div></div>`; return; }
     const keep = $("xNote") ? { note: $("xNote").value, paidAt: $("xPaidAt").value, amt: $("xPaidAmt").value, st: (document.querySelector('input[name="xst"]:checked') || {}).value } : null;
     const e = effective(s), r = reviewOf(s.key), st = statusOf(s), mgr = isManager(), acct = state.acctCache[s.key];
-    const receipts = (e.receipts || []).map((x) => ({ slot: x.slot, src: "/_blob/" + encodeURIComponent(x.asset), href: "/_blob/" + encodeURIComponent(x.asset) }));
+    // the self-hosted server only lets the submitter and 총무 open receipt photos and the original file
+    const hideFiles = !!window.FSK_SELF_HOSTED && !mgr && s.ownerUid !== state.uid;
+    const receipts = hideFiles ? [] : (e.receipts || []).map((x) => ({ slot: x.slot, src: "/_blob/" + encodeURIComponent(x.asset), href: "/_blob/" + encodeURIComponent(x.asset) }));
     $("expDetail").innerHTML = `
       <div class="dhead-top"><div><h3>${esc(e.applicant || s.by || "이름 없음")} · ${won(e.total || 0)}</h3>
         <span class="hint">${esc(fmtWhen(s.submittedAt))} 제출 · ${esc(s.by || "이름 미입력")}${DEPT[s.byDept] ? ` (${DEPT[s.byDept].l})` : ""} · ${esc(e.fileName || "")}</span></div>${payPill(st, true)}</div>
@@ -2356,6 +2400,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
       ${r && r.paidAt && st === "paid" ? `<p class="hint">지급일 ${esc(fmtDate(r.paidAt))}${num(r.paidAmount) !== null ? ` · 지급액 ${won(num(r.paidAmount))}` : ""}</p>` : ""}
       <div class="txt"><span>입금 계좌</span><div class="acct">${acct ? `<b>${esc(acct)}</b><button class="btn ghost sm" type="button" data-xcopy>복사</button>` : `<span>${esc(e.accountMasked || "–")}</span>${mgr ? '<button class="btn ghost sm" type="button" data-xacct>전체 번호 보기</button>' : ""}`}</div></div>
       ${statementView({ ...(e.check || {}), items: e.items || [], total: e.total }, receipts)}
+      ${hideFiles && (e.receipts || []).length ? `<p class="hint">영수증 사진 ${(e.receipts || []).length}장은 제출자와 총무만 볼 수 있어요.</p>` : ""}
       ${mgr ? actionPanel(r, e, st) : ""}
       ${r && (r.log || []).length ? `<div class="txt"><span>처리 기록</span><div class="xlog">${r.log.slice().reverse().map((l) => `<div><span class="mono">${esc(fmtWhen(l.at))}</span> · ${esc(l.by || "이름 미입력")} · ${esc(l.text)}</div>`).join("")}</div></div>` : ""}
       <div class="dlg-foot"><div class="toolbar">${mgr || s.ownerUid === state.uid ? '<button class="btn" type="button" data-xdl>원본 파일 내려받기</button>' : '<span class="hint">원본 파일은 제출자와 총무만 내려받을 수 있어요.</span>'}

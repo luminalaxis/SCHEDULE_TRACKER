@@ -79,7 +79,12 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const next = (() => { const n = new URLSearchParams(location.search).get("next"); return n && n.startsWith("/") && !n.startsWith("//") ? n : "/"; })();
+  // only paths on this site: "/\evil.com" and "//evil.com" would leave it
+  const next = (() => {
+    const n = new URLSearchParams(location.search).get("next");
+    if (!n || !/^\/(?![/\\])/.test(n)) return "/";
+    try { const u = new URL(n, location.origin); return u.origin === location.origin ? u.pathname + u.search + u.hash : "/"; } catch { return "/"; }
+  })();
   const post = async (url, body) => {
     const r = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json", "x-fsk": "1" }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));

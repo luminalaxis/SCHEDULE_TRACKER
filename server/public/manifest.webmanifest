@@ -1,0 +1,17 @@
+{
+  "name": "FSK 피트보드",
+  "short_name": "피트보드",
+  "description": "FSK 차량 제작동아리 팀 현황판",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EDF0F3",
+  "theme_color": "#131A24",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

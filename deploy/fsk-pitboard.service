@@ -15,6 +15,8 @@ Environment=PORT=8080
 # Listen only on the Pi itself; Cloudflare Tunnel (or Tailscale) carries outside traffic in.
 Environment=HOST=127.0.0.1
 Environment=DATA_DIR=/home/pi/fsk-data
+# Local time for notifications (quiet before 08:00) and the daily backup hour.
+Environment=TZ=Asia/Seoul
 # Trust the tunnel's forwarded headers (real client IP, https). Only safe while HOST=127.0.0.1.
 Environment=TRUST_PROXY=1
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/server.js
@@ -23,6 +25,8 @@ RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=/home/pi/fsk-data
+# Off-site copy folder (관리 창 → 백업·복원 → 외부 복사). Uncomment and match the folder you set there:
+# ReadWritePaths=/media/pi/BACKUP
 PrivateTmp=true
 
 [Install]

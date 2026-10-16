@@ -1,6 +1,6 @@
 // SQLite-backed document store with the same path grammar and access rules as the claude.ai Artifact db.
 import { DatabaseSync } from "node:sqlite";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 
 // Organization: 개발자 (developer) > 임원진 (executive: 팀장·부팀장·파트장) > 팀원 (member).
@@ -25,6 +25,9 @@ export function splitPath(path, kind) {
   return segs;
 }
 
+// JSON with object keys sorted, so two equal documents compare equal whatever their key order.
+export const stableJson = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x);
+
 export function deepMerge(base, patch) {
   const out = { ...base };
   for (const [k, v] of Object.entries(patch)) {
@@ -34,9 +37,10 @@ export function deepMerge(base, patch) {
 }
 
 export function openStore(dataDir) {
-  mkdirSync(join(dataDir, "assets"), { recursive: true });
-  mkdirSync(join(dataDir, "backups"), { recursive: true });
+  // The data folder holds payment details and password hashes: keep it private to the server's user.
+  for (const d of [dataDir, join(dataDir, "assets"), join(dataDir, "backups")]) { mkdirSync(d, { recursive: true, mode: 0o700 }); try { chmodSync(d, 0o700); } catch {} }
   const db = new DatabaseSync(join(dataDir, "fsk.db"));
+  try { chmodSync(join(dataDir, "fsk.db"), 0o600); } catch {}
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -63,6 +67,13 @@ export function openStore(dataDir) {
     );
     CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      at TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT, link TEXT, read_at TEXT, dedupe TEXT,
+      UNIQUE (user_id, dedupe)
+    );
+    CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_id, id);
+    CREATE TABLE IF NOT EXISTS notify_log (dedupe TEXT PRIMARY KEY, at TEXT NOT NULL);
   `);
   // v1.0 → v1.1: roles became developer/member + position. Old treasurers become 부팀장, old viewers become members.
   if (!db.prepare("PRAGMA table_info(users)").all().some((c) => c.name === "position")) {
@@ -70,22 +81,24 @@ export function openStore(dataDir) {
     db.exec("UPDATE users SET role = 'member', position = 'vice_lead' WHERE role = 'treasurer'");
     db.exec("UPDATE users SET role = 'member' WHERE role NOT IN ('developer', 'member')");
   }
+  // v1.1 → v1.2: remember who created each document (notifications go to a log's author, not its last editor).
+  if (!db.prepare("PRAGMA table_info(docs)").all().some((c) => c.name === "created_by")) db.exec("ALTER TABLE docs ADD COLUMN created_by TEXT");
   return db;
 }
 
 export function createDocs(db) {
   const q = {
-    get: db.prepare("SELECT path, data, version, updated_at, updated_by FROM docs WHERE path = ?"),
-    list: db.prepare("SELECT path, data, version, updated_at, updated_by FROM docs WHERE collection = ?"),
-    upsert: db.prepare(`INSERT INTO docs (path, collection, data, version, updated_at, updated_by) VALUES (?, ?, ?, 1, ?, ?)
+    get: db.prepare("SELECT path, data, version, updated_at, updated_by, created_by FROM docs WHERE path = ?"),
+    list: db.prepare("SELECT path, data, version, updated_at, updated_by, created_by FROM docs WHERE collection = ?"),
+    upsert: db.prepare(`INSERT INTO docs (path, collection, data, version, updated_at, updated_by, created_by) VALUES (?, ?, ?, 1, ?, ?, ?)
       ON CONFLICT(path) DO UPDATE SET data = excluded.data, version = docs.version + 1, updated_at = excluded.updated_at, updated_by = excluded.updated_by`),
     del: db.prepare("DELETE FROM docs WHERE path = ?"),
-    all: db.prepare("SELECT path, collection, data, version, updated_at, updated_by FROM docs ORDER BY path"),
+    all: db.prepare("SELECT path, collection, data, version, updated_at, updated_by, created_by FROM docs ORDER BY path"),
     counts: db.prepare("SELECT collection, COUNT(*) AS n, SUM(LENGTH(data)) AS bytes, MAX(updated_at) AS last FROM docs GROUP BY collection ORDER BY collection"),
     wipe: db.prepare("DELETE FROM docs"),
-    restoreRow: db.prepare("INSERT OR REPLACE INTO docs (path, collection, data, version, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?)")
+    restoreRow: db.prepare("INSERT OR REPLACE INTO docs (path, collection, data, version, updated_at, updated_by, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)")
   };
-  const row = (r) => r && { path: r.path, id: r.path.split("/").pop(), data: JSON.parse(r.data), version: r.version, updatedAt: r.updated_at, updatedBy: r.updated_by };
+  const row = (r) => r && { path: r.path, id: r.path.split("/").pop(), data: JSON.parse(r.data), version: r.version, updatedAt: r.updated_at, updatedBy: r.updated_by, createdBy: r.created_by || r.updated_by };
   const collectionOf = (path) => path.split("/").slice(0, -1).join("/");
   return {
     collectionOf,
@@ -96,7 +109,7 @@ export function createDocs(db) {
       if (!data || typeof data !== "object" || Array.isArray(data)) throw new StoreError("invalid_argument", "document body must be an object");
       const json = JSON.stringify(data);
       if (Buffer.byteLength(json) > MAX_DOC_BYTES) throw new StoreError("invalid_argument", "document is over 256 KiB");
-      q.upsert.run(path, collectionOf(path), json, new Date().toISOString(), by || null);
+      q.upsert.run(path, collectionOf(path), json, new Date().toISOString(), by || null, by || null);
       return row(q.get.get(path));
     },
     update(path, patch, by) {
@@ -124,7 +137,7 @@ export function createDocs(db) {
     restoreOne(r) {
       splitPath(r.path, "doc");
       if (!r.data || typeof r.data !== "object" || Array.isArray(r.data)) throw new StoreError("invalid_argument", `bad document at ${r.path}`);
-      q.restoreRow.run(r.path, collectionOf(r.path), JSON.stringify(r.data), Number(r.version) || 1, r.updatedAt || new Date().toISOString(), r.updatedBy || "import");
+      q.restoreRow.run(r.path, collectionOf(r.path), JSON.stringify(r.data), Number(r.version) || 1, r.updatedAt || new Date().toISOString(), r.updatedBy || "import", r.createdBy || r.updatedBy || "import");
     }
   };
 }
@@ -159,6 +172,8 @@ export function createRules(rules) {
 
 // Query evaluation for where/orderBy/limit, matching the Artifact db operators.
 export function runQuery(docs, { where = [], orderBy = null, limit = null } = {}) {
+  if (!Array.isArray(where) || where.some((w) => !Array.isArray(w) || w.length !== 3 || typeof w[0] !== "string")) throw new StoreError("invalid_argument", "where must be a list of [field, op, value]");
+  if (orderBy !== null && (typeof orderBy !== "object" || Array.isArray(orderBy))) throw new StoreError("invalid_argument", "orderBy must be { field, dir }");
   const cmp = (a, b) => (a === b ? 0 : a === undefined || a === null ? 1 : b === undefined || b === null ? -1 : a < b ? -1 : 1);
   let out = docs.filter((d) => where.every(([f, op, v]) => {
     const x = d.data[f];

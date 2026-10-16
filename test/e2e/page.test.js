@@ -6,7 +6,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { startServer, Client, member } from "../helpers/server.js";
+import { startServer, Client, member, dayOffset } from "../helpers/server.js";
 import { statementXlsx } from "../helpers/xlsx.js";
 
 let pw = null;
@@ -53,9 +53,13 @@ test("phone: layout fits, checklist works offline and syncs back", { skip, timeo
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(await overflow() <= 0, "no sideways scrolling on the 오늘 tab");
   await shot(page, "phone-today");
-  await page.click("#tab-parts");
+  assert.ok(await page.locator(".bnav").isVisible(), "phones get the bottom tab bar");
+  assert.ok(await page.locator("nav.tabs").isHidden(), "instead of the scrolling tab row");
+  assert.ok(await page.locator(".tclear").isVisible(), "the all-clear cards fold into one line on phones");
+  assert.equal(await page.locator(".tcard:visible").count(), 2);
+  await page.click('.bnav [data-btab="parts"]');
   assert.ok(await overflow() <= 0, "no sideways scrolling on the parts tab");
-  await page.click("#tab-sessions");
+  await page.click('.bnav [data-btab="sessions"]');
   await page.waitForSelector('input[data-ck="battery1"]');
   assert.ok(await overflow() <= 0, "no sideways scrolling on the sessions tab");
   const box = await page.locator('input[data-ck="battery1"]').boundingBox();
@@ -71,7 +75,7 @@ test("phone: layout fits, checklist works offline and syncs back", { skip, timeo
   // opening the board with no signal: page from the service worker, data from this device
   await page.reload();
   await page.waitForSelector(".acct-bar");
-  await page.click("#tab-sessions");
+  await page.click('.bnav [data-btab="sessions"]');
   await page.waitForSelector('input[data-ck="battery1"]');
   assert.equal(await page.isChecked('input[data-ck="battery1"]'), true, "the queued check survives a reload");
   assert.match(await page.textContent(".acct-sync"), /저장 대기/);
@@ -86,7 +90,8 @@ test("phone: layout fits, checklist works offline and syncs back", { skip, timeo
 test("phone: 사비 내역서 submission, 총무 approval arrives under the bell", { skip, timeout: 90000 }, async () => {
   const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const page = await signIn(ctx, "aaa", "password-aaa");
-  await page.click("#tab-expense");
+  await page.click("#bnavMore");
+  await page.click('#bmore [data-btab="expense"]');
   await page.click("#btnExpNew");
   const { buffer, total } = statementXlsx({ items: [
     { team: "프레임", date: 46300, cat: "현가시스템", purpose: "업라이트 가공", product: "알루미늄 7075 봉재", vendor: "https://smartstore.naver.com/metal", price: 30000, qty: 2 },
@@ -179,5 +184,86 @@ test("오늘 first screen, and switching to the TV screen and back", { skip, tim
   await page.waitForSelector("#tv:not([hidden])");
   await page.click('#tv [data-view="normal"]');
   await page.waitForSelector("#tv", { state: "hidden" });
+  await ctx.close();
+});
+
+test("addresses, the back button and undoing a delete", { skip, timeout: 90000 }, async () => {
+  await dev.post("/api/db/set", { path: "parts/link1", data: { name: "링크 테스트 브래킷", dept: "aero", stage: "design", qty: 1, attachments: [] } });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const page = await signIn(ctx, "dev", "password1");
+  const hash = () => page.evaluate(() => location.hash);
+  await page.click("#tab-parts");
+  assert.equal(await hash(), "#parts");
+  await page.click("#tab-schedule");
+  assert.equal(await hash(), "#schedule");
+  await page.goBack();
+  await page.waitForFunction(() => document.getElementById("tab-parts").getAttribute("aria-selected") === "true");
+  assert.equal(await hash(), "#parts", "back goes to the previous tab");
+
+  await page.goto("/#parts/link1");
+  await page.waitForSelector("#dlgPart[open]");
+  assert.equal(await page.inputValue("#pName"), "링크 테스트 브래킷", "a part address opens that part");
+  assert.ok(await page.locator("#btnPartLink").isVisible(), "with a button to copy its link");
+  await page.click("#btnDelPart"); await page.click("#btnDelPart");
+  assert.ok(await until(async () => !(await serverDoc("parts/link1")).exists), "deleted");
+  assert.ok(await until(async () => (await hash()) === "#parts"), "closing the part puts the address back");
+  await page.click("#toast button");
+  assert.ok(await until(async () => (await serverDoc("parts/link1")).exists), "되돌리기 puts it back");
+  assert.equal((await serverDoc("parts/link1")).data.name, "링크 테스트 브래킷");
+
+  await page.goto("/#sessions/s1");
+  await page.waitForSelector('.sitem[data-sid="s1"][aria-current="true"]');
+  assert.ok(await page.locator('#sessDetail [data-copylink="#sessions/s1"]').isVisible());
+  await ctx.close();
+});
+
+test("bulk edit, CSV import, blank 질량 and the calendar", { skip, timeout: 90000 }, async () => {
+  await dev.post("/api/db/set", { path: "parts/bulk1", data: { name: "일괄 테스트 A", dept: "chassis", stage: "design", qty: 1, owner: "", attachments: [] } });
+  await dev.post("/api/db/set", { path: "parts/bulk2", data: { name: "일괄 테스트 B", dept: "chassis", stage: "order", qty: 1, owner: "", due: dayOffset(0), attachments: [] } });
+  await dev.post("/api/db/set", { path: "milestones/today1", data: { title: "달력 확인 일정", date: dayOffset(0), kind: "기타", dept: "" } });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const page = await signIn(ctx, "dev", "password1");
+  await page.click("#tab-parts");
+  await page.waitForSelector("#partsList:not([hidden])");
+  assert.equal(await page.textContent("#gMass"), "미입력", "no 질량 entered is not shown as 0 kg");
+  assert.match(await page.textContent("#gMassSub"), /입력한 부품이 없어요/);
+
+  await page.fill("#fq", "일괄 테스트");
+  await page.waitForFunction(() => document.querySelectorAll("#partBody input[data-pick]").length === 2);
+  await page.check("#pickAll");
+  assert.match(await page.textContent("#bulkCount"), /2개 선택/);
+  await page.selectOption("#bStage", "assembly");
+  await page.fill("#bOwner", "박조립");
+  await shot(page, "desktop-bulk");
+  await page.click("#bApply");
+  assert.ok(await until(async () => (await serverDoc("parts/bulk1")).data.stage === "assembly" && (await serverDoc("parts/bulk2")).data.owner === "박조립"), "both parts changed");
+  await page.waitForSelector("#bulkBar", { state: "hidden" }); // selection clears after applying
+  await page.click("#toast button");
+  assert.ok(await until(async () => (await serverDoc("parts/bulk1")).data.stage === "design" && (await serverDoc("parts/bulk2")).data.stage === "order"), "되돌리기 restores each part");
+
+  await page.fill("#fq", "");
+  await page.click("#btnImport");
+  const csv = "\uFEFF부품명,부서,부품번호,수량,개당 질량(g)\n일괄 테스트 A,프레임·현가,,5,1200\n가져온 노즈콘,에어로,AE-9,1,\n";
+  await page.setInputFiles("#impFile", { name: "bom.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.waitForSelector("#impResult .imp-sum");
+  assert.match(await page.textContent("#impResult"), /새 부품\s*1개/);
+  assert.match(await page.textContent("#impResult"), /고칠 부품\s*1개/);
+  await shot(page, "desktop-import");
+  await page.click("#btnImpGo");
+  await page.waitForSelector("#dlgImport", { state: "hidden" });
+  assert.ok(await until(async () => (await serverDoc("parts/bulk1")).data.qty === 5), "the matching part was updated");
+  assert.equal((await serverDoc("parts/bulk1")).data.unitMass, 1200);
+  const all = (await dev.post("/api/db/query", { collection: "parts" })).json.docs;
+  assert.ok(all.some((d) => d.data.partNo === "AE-9" && d.data.dept === "aero" && d.data.name === "가져온 노즈콘"), "the new part was added");
+
+  await page.click("#tab-schedule");
+  await page.click('[data-msview="cal"]');
+  await page.waitForSelector(".cal-day.today");
+  assert.match(await page.textContent(".cal-day.today"), /달력 확인 일정/);
+  assert.match(await page.textContent(".cal-day.today"), /일괄 테스트 B/, "part deadlines show next to milestones");
+  assert.match(await page.textContent(".cal-list"), /달력 확인 일정/, "the chosen day is listed below");
+  await shot(page, "desktop-calendar", true);
+  await page.click('.cal-day.today [data-part="bulk2"]');
+  await page.waitForSelector("#dlgPart[open]");
   await ctx.close();
 });

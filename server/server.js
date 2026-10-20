@@ -13,6 +13,7 @@ import { writeTarGz, readTarGz } from "./archive.js";
 import { analyzeExport, remapRows } from "./migrate.js";
 import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
 import { contentMatches, cleanName } from "./filetype.js";
+import { DEPARTMENTS, DEPTS, deptLabel, DEPTS_PLACEHOLDER } from "./depts.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -26,7 +27,6 @@ const CONFIG = {
   // Extra hosts allowed for the team webhook besides Discord and Slack (e.g. a self-hosted Mattermost). Set on the server only.
   webhookHosts: String(process.env.WEBHOOK_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean)
 };
-const DEPTS = ["battery", "circuit", "chassis", "aero", "powertrain"];
 const ASSET_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml", "video/mp4", "video/webm", "application/pdf",
   "text/csv", "text/markdown", "application/json", "text/plain", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
 const MAX_ASSET = 20 * 1024 * 1024;
@@ -64,6 +64,12 @@ function broadcast(path, doc) {
 }
 function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) c.res.end(); }
 function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) c.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
+// A name or department change reaches that person's open pages at once, and the page's people list.
+function profileChanged(u) {
+  for (const c of clients) if (c.user.id === u.id) c.user = { ...c.user, name: u.name, dept: u.dept };
+  pushTo(u.id, "profile", { name: u.name, dept: u.dept || "" });
+  syncPerson(u);
+}
 
 const notifier = createNotifier({ db, docs, auth, setting, setSetting, push: (uid, n) => pushTo(uid, "notify", n), audit: (ctx, a, t, d) => audit(ctx, a, t, d), extraHosts: CONFIG.webhookHosts });
 
@@ -200,7 +206,7 @@ function restoreDocs(ctx, rows, mode) {
   const safety = createBackup("pre-restore", ctx, `${mode} 전 자동 보관`);
   if (mode === "replace") docs.replaceAll(rows); else docs.mergeAll(rows);
   privateCache = null;
-  syncRoles();
+  syncRoles(); syncPeople();
   for (const c of clients) c.res.write("event: reload\ndata: {}\n\n");
   return safety;
 }
@@ -296,11 +302,53 @@ function canSeeAsset(user, a) {
   return !viewers || isManager(user) || a.uploader === user.id || viewers.has(user.id);
 }
 
+// 변경 이력 is the team's record of who changed what, so the server writes who made each entry, and only
+// developers may change or remove an entry afterwards. Old entries are pruned by the server (pruneHistory).
+const HISTORY_DAYS = 90;
+function stampHistory(ctx, prev, next) {
+  if (ctx.user.role !== "developer" && (prev || next === null)) throw new StoreError("locked", "변경 이력은 고치거나 지울 수 없어요.", 403);
+  if (prev || next === null) return next;
+  // keep the page's own time (a change made offline is sent later), unless it is not a time or lies in the future
+  const t = Date.parse(next.at), at = Number.isFinite(t) && t <= Date.now() + 5 * 60000 ? new Date(t).toISOString() : new Date().toISOString();
+  return { ...next, at, by: ctx.user.name, uid: ctx.user.id, dept: ctx.user.dept || "" };
+}
+function pruneHistory() {
+  const cutoff = new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString();
+  for (const d of docs.list("history")) if (String(d.data.at || "") < cutoff) { docs.remove(d.path); broadcast(d.path, null); }
+}
+// people/<id> is the page's list of names (part owners are picked from it): on this server it holds every active
+// account with the account's own name and department; disabled or deleted accounts stay listed as active: false.
+function syncPerson(u) {
+  const path = "people/" + u.id, cur = docs.get(path)?.data, active = u.status === "active";
+  if (!cur && !active) return;
+  if (cur && cur.name === u.name && (cur.dept || "") === (u.dept || "") && (cur.active !== false) === active) return;
+  const { active: _, ...rest } = cur || {};
+  broadcast(path, docs.set(path, { ...rest, name: u.name, dept: u.dept || "", ...(active ? {} : { active: false }) }, "system"));
+}
+const syncPeople = () => auth.list().forEach(syncPerson);
+
+// 부품 잠금: a locked part can only be changed by those who manage its department — its 파트장, 팀장, 부팀장 and
+// developers. They lock and unlock it; the server records who locked it.
+const managesDept = (u, dept) => u.role === "developer" || u.position === "team_lead" || u.position === "vice_lead" || (u.position === "part_lead" && !!dept && u.dept === dept);
+function guardPart(ctx, prev, next) {
+  const was = !!(prev && prev.locked), will = !!(next && next.locked);
+  if (!was && !will) return next;
+  const refuse = () => { throw new StoreError("locked", "잠긴 부품이에요. 그 부서 파트장이나 팀장·부팀장만 고치거나 잠금을 풀 수 있어요.", 403); };
+  if (was && !managesDept(ctx.user, prev.dept)) refuse();
+  if (next && (will || was) && !managesDept(ctx.user, next.dept)) refuse();
+  if (!will) return next;
+  return { ...next, locked: was ? prev.locked : { uid: ctx.user.id, by: ctx.user.name, at: new Date().toISOString() } };
+}
+
+// Returns what is actually stored: the page's data, with history and people entries stamped from the account.
 // Submitted 사비 내역서 entries are final for the submitter: they can add new ones but not change or remove
 // what was submitted (총무 replaces a file with a 수정본 instead). Developers keep full control (완전 삭제).
 function guardWrite(ctx, path, prev, next) {
   const segs = path.split("/");
-  if (segs[0] !== "expenses" || segs.length !== 2 || ctx.user.role === "developer") return;
+  if (segs.length === 2 && segs[0] === "history") return stampHistory(ctx, prev, next);
+  if (segs.length === 2 && segs[0] === "people" && next && segs[1] === ctx.user.id) return { ...next, name: ctx.user.name, dept: ctx.user.dept || "" };
+  if (segs.length === 2 && segs[0] === "parts") return guardPart(ctx, prev, next);
+  if (segs[0] !== "expenses" || segs.length !== 2 || ctx.user.role === "developer") return next;
   const before = (prev && prev.subs) || {}, after = next && next.subs && typeof next.subs === "object" && !Array.isArray(next.subs) ? next.subs : {};
   for (const [id, sub] of Object.entries(before)) {
     if (!(id in after) || stableJson(after[id]) !== stableJson(sub))
@@ -313,6 +361,7 @@ function guardWrite(ctx, path, prev, next) {
       if (!row || row.uploader !== ctx.user.id) throw new StoreError("forbidden", "내가 올린 파일만 내역서에 넣을 수 있어요.", 403);
     }
   }
+  return next;
 }
 function afterWrite(ctx, path, prevData, d) {
   broadcast(path, d);
@@ -322,7 +371,7 @@ function afterWrite(ctx, path, prevData, d) {
 }
 function commitWrite(ctx, path, next) {
   const prev = docs.get(path);
-  guardWrite(ctx, path, prev ? prev.data : null, next);
+  next = guardWrite(ctx, path, prev ? prev.data : null, next);
   const d = next === null ? (docs.remove(path), null) : docs.set(path, next, ctx.user.id);
   afterWrite(ctx, path, prev ? prev.data : null, d);
   return d;
@@ -340,11 +389,13 @@ route("GET", "/", (ctx) => {
   if (ctx.user.must_change_pw) return redirect(ctx.res, "/login?change=1");
   sendHtml(ctx.res, renderPage(ctx.user));
 }, { auth: "none" });
-route("GET", "/login", (ctx) => sendHtml(ctx.res, staticFile("login.html").toString()), { auth: "none" });
+// login.html and admin.html get the department list from depts.js
+const withDepts = (html) => html.replace(DEPTS_PLACEHOLDER, safeJson(DEPARTMENTS));
+route("GET", "/login", (ctx) => sendHtml(ctx.res, withDepts(staticFile("login.html").toString())), { auth: "none" });
 route("GET", "/admin", (ctx) => {
   if (!ctx.user) return redirect(ctx.res, "/login?next=/admin");
   if (ctx.user.role !== "developer") return redirect(ctx.res, "/");
-  sendHtml(ctx.res, staticFile("admin.html").toString());
+  sendHtml(ctx.res, withDepts(staticFile("admin.html").toString()));
 }, { auth: "none" });
 route("GET", "/fsk-runtime.js", (ctx) => sendStatic(ctx.res, "fsk-runtime.js", "text/javascript; charset=utf-8"), { auth: "none" });
 // installable app (PWA): manifest, service worker (offline start), icons, and a local copy of JSZip
@@ -401,7 +452,8 @@ route("POST", "/api/auth/signup", async (ctx) => {
   if (!first) bump(signups, ctx.ip, SIGNUP_WINDOW);
   audit({ user: u, ip: ctx.ip }, "signup", username, `${role} · ${status}`);
   if (first) syncRoles();
-  if (status === "pending") notifier.notify(auth.activeDevelopers(), { kind: "signup", title: "가입 승인 요청", body: `${name} (${username})${dept ? " · " + ({ battery: "배터리", circuit: "회로", chassis: "프레임·현가", aero: "에어로", powertrain: "파워트레인" })[dept] : ""}`, link: { href: "/admin#users" } });
+  syncPerson(u);
+  if (status === "pending") notifier.notify(auth.activeDevelopers(), { kind: "signup", title: "가입 승인 요청", body: `${name} (${username})${dept ? " · " + deptLabel(dept) : ""}`, link: { href: "/admin#users" } });
   if (status === "active") { const s = auth.startSession(u.id, ctx.ip, ctx.req.headers["user-agent"]); setSessionCookie(ctx.req, ctx.res, s.token, s.maxAge); }
   send(ctx.res, 200, { status, role });
 }, { auth: "none" });
@@ -426,10 +478,14 @@ route("POST", "/api/me/profile", async (ctx) => {
   const b = await readJson(ctx.req);
   const name = b.name === undefined ? ctx.user.name : String(b.name).trim(), dept = b.dept === undefined ? ctx.user.dept : (DEPTS.includes(b.dept) ? b.dept : "");
   if (!name || name.length > 20) return send(ctx.res, 400, { code: "invalid_argument", message: "이름을 1~20자로 적어 주세요." });
-  // the department is fixed at sign-up; after that only a developer changes it (their own here, anyone's in /admin)
+  // name and department are set at sign-up; after that only a developer changes them (their own here, anyone's in /admin):
+  // the name is what history, checks and logs show, so a 팀원 cannot take on someone else's
+  if (name !== ctx.user.name && ctx.user.role !== "developer") return send(ctx.res, 403, { code: "permission_denied", message: "이름은 개발자만 바꿀 수 있어요. 개발자에게 요청하세요." });
   if (dept !== ctx.user.dept && ctx.user.role !== "developer") return send(ctx.res, 403, { code: "permission_denied", message: "부서는 개발자만 바꿀 수 있어요. 개발자에게 요청하세요." });
   auth.update(ctx.user.id, { name, dept });
   if (name !== ctx.user.name) audit(ctx, "profile.name", ctx.user.username, `${ctx.user.name} → ${name}`);
+  if (dept !== ctx.user.dept) audit(ctx, "profile.dept", ctx.user.username, `${deptLabel(ctx.user.dept) || "-"} → ${deptLabel(dept) || "-"}`);
+  profileChanged(auth.byId(ctx.user.id));
   send(ctx.res, 200, { ok: true });
 });
 route("GET", "/api/users/public", (ctx) => send(ctx.res, 200, { users: auth.list().filter((u) => u.status === "active").map((u) => ({ id: u.id, name: u.name, dept: u.dept, role: u.role })) }));
@@ -580,11 +636,14 @@ route("POST", "/api/admin/users", async (ctx) => {
   const role = b.role === "developer" ? "developer" : "member", position = b.position || "", dept = DEPTS.includes(b.dept) ? b.dept : "";
   const err = checkUsername(username) || (!name || name.length > 20 ? "이름을 1~20자로 적어 주세요." : null);
   if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
+  // same rule as sign-up: only a developer account may be made without a department
+  if (role !== "developer" && !dept) return send(ctx.res, 400, { code: "invalid_argument", message: "부서를 골라 주세요. 부서 없이 만들 수 있는 건 개발자 계정뿐이에요." });
   checkPosition(position, dept);
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
   const pw = tempPassword();
   const u = auth.create({ username, name, dept, role, position, status: "active", password: pw, mustChange: true });
   const moved = handOver(ctx, u.id, position, dept);
+  syncPerson(u);
   audit(ctx, "user.create", username, auth.publicUser(u).title);
   syncRoles();
   send(ctx.res, 200, { user: auth.publicUser(u), tempPassword: pw, handedOver: moved });
@@ -606,6 +665,7 @@ route("POST", "/api/admin/users/:id", async (ctx) => {
     status !== u.status && `상태 ${u.status} → ${status}`, name !== u.name && `이름 ${u.name} → ${name}`, dept !== u.dept && `부서 ${u.dept || "-"} → ${dept || "-"}`].filter(Boolean);
   if (changes.length) audit(ctx, status !== u.status && u.status === "pending" && status === "active" ? "user.approve" : "user.update", u.username, changes.join(", "));
   if (status !== "active") auth.endAllSessions(u.id);
+  if (name !== u.name || dept !== u.dept) profileChanged(auth.byId(u.id)); else syncPerson(auth.byId(u.id));
   if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id); syncRoles(); }
   send(ctx.res, 200, { user: auth.publicUser(auth.byId(u.id)), handedOver: moved });
 }, { auth: "developer" });
@@ -625,7 +685,7 @@ route("DELETE", "/api/admin/users/:id", (ctx) => {
   const u = findUser(ctx.params.id);
   if (u.id === ctx.user.id) return send(ctx.res, 400, { code: "invalid_argument", message: "자기 계정은 지울 수 없어요." });
   guardLastDeveloper(u, "deleted", "deleted");
-  dropStreams(u.id); auth.remove(u.id); syncRoles();
+  dropStreams(u.id); auth.remove(u.id); syncRoles(); syncPerson({ ...u, status: "deleted" });
   audit(ctx, "user.delete", u.username, `${u.name} · ${u.role}`);
   send(ctx.res, 200, { ok: true });
 }, { auth: "developer" });
@@ -832,15 +892,16 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  syncPeople();
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`FSK 피트보드 ${VERSION} · http://${CONFIG.host}:${CONFIG.port} · data ${CONFIG.dataDir}`);
     if (auth.count() === 0) console.log("아직 계정이 없어요. /login 에서 처음 가입하는 사람이 개발자 계정이 돼요.");
   });
-  const tick = () => { autoBackupTick(); auth.purgeSessions(); pruneLimits(); try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
+  const tick = () => { autoBackupTick(); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
   setInterval(tick, 10 * 60000);
   setTimeout(tick, 30000);
   const stop = () => { console.log("shutting down"); for (const c of clients) c.res.end(); server.close(() => { db.close(); process.exit(0); }); setTimeout(() => process.exit(0), 3000); };
   process.on("SIGTERM", stop); process.on("SIGINT", stop);
 }
 
-export { server, db, docs, auth, createBackup, CONFIG, notifier };
+export { server, db, docs, auth, createBackup, CONFIG, notifier, pruneHistory };

@@ -127,7 +127,7 @@ sudo systemctl restart fsk-pitboard
 | 개발자 비밀번호를 잊음 | `DATA_DIR=~/fsk-data npm run admin -- reset-password <아이디>` |
 | 계정 목록 확인 | `DATA_DIR=~/fsk-data npm run admin -- list-users` |
 | 새 개발자 계정 만들기 | `DATA_DIR=~/fsk-data npm run admin -- create-user <아이디> developer <이름>` |
-| 직책 있는 계정 만들기 | `... create-user <아이디> team_lead\|vice_lead\|part_lead <이름> [부서]` (파트장은 부서 필수: battery, circuit, chassis, aero, powertrain) |
+| 직책 있는 계정 만들기 | `... create-user <아이디> member\|team_lead\|vice_lead\|part_lead <이름> <부서>` (developer가 아니면 부서 필수: battery, circuit, chassis, aero, powertrain) |
 | 파이가 고장 나서 새 파이로 옮김 (전체 백업 파일이 있음) | 새 파이에 2~4단계를 한 뒤 `DATA_DIR=~/fsk-data npm run admin -- restore fsk-full-….tar.gz` (계정·데이터·설정·첨부 파일 모두 복원) |
 | 외부 복사본(USB)만 있음 | 새 파이에 2~4단계 → `mkdir -p ~/fsk-data/assets && cp /media/pi/BACKUP/fsk/assets/* ~/fsk-data/assets/` → `DATA_DIR=~/fsk-data npm run admin -- restore /media/pi/BACKUP/fsk/backups/<가장 최근>.json` |
 | 백업 JSON만 있음 | `DATA_DIR=~/fsk-data npm run admin -- restore 백업파일.json` (계정·데이터·설정 복원, 첨부 파일은 따로) |

@@ -3,13 +3,15 @@
 //
 // Per person: 사비 정산 status changes → the submitter; new 사비 내역서 → 총무 (부팀장, else developers);
 // a comment on a test log → the log's author and earlier commenters; parts due in ≤3 days, today, or overdue → the
-// part's 담당 (matched by account name, else that department's 파트장); milestones at D-7, D-1, D-day → everyone
+// part's 담당 (the account picked as 담당, else an account with that name, else that department's 파트장); milestones at D-7, D-1, D-day → everyone
 // (or that department); sign-up requests → developers.
 // Team channel (if set up): milestones, a daily overdue-parts summary, new 주의/문제 test verdicts.
 
+import { DEPARTMENTS } from "./depts.js";
+
 export const WEBHOOK_HOSTS = ["discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com", "hooks.slack.com"];
 export const WEBHOOK_KINDS = { schedule: "일정 D-7 · D-1 · 당일", parts: "마감 지난 부품 (하루 한 번 요약)", issues: "테스트 주의·문제 판정" };
-const DEPT = { battery: "배터리", circuit: "회로", chassis: "프레임·현가", aero: "에어로", powertrain: "파워트레인" };
+const DEPT = DEPARTMENTS;
 const EXP_ST = { pending: "검토 대기", fix: "보완 요청", approved: "승인 · 지급 대기", paid: "지급 완료", rejected: "반려" };
 const EXP_TITLE = { fix: "사비 정산 보완 요청", approved: "사비 정산 승인 · 지급 대기", paid: "사비 정산 지급 완료", rejected: "사비 정산 반려" };
 const LEVEL = { ok: "양식 통과", warn: "확인 필요", bad: "양식 불일치" };
@@ -178,7 +180,8 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
       const bucket = n < 0 ? "late" : n === 0 ? "today" : n <= 3 ? "soon" : null;
       if (n < 0) late.push(x); else if (n === 0) dueToday.push(x);
       if (!bucket) continue;
-      const to = named(x.owner).length ? named(x.owner) : partLeads(x.dept);
+      const picked = typeof x.ownerUid === "string" && active().some((u) => u.id === x.ownerUid) ? [x.ownerUid] : [];
+      const to = picked.length ? picked : named(x.owner).length ? named(x.owner) : partLeads(x.dept);
       sent += notify(to, {
         kind: "part.due", title: bucket === "late" ? "마감 지난 부품" : bucket === "today" ? "오늘 마감인 부품" : `부품 마감 D-${n}`,
         body: `${x.name || "(이름 없음)"} · ${DEPT[x.dept] || ""} · 마감 ${fmtDate(x.due)}`, link: { tab: "parts", part: p.id }, dedupe: `due:${p.id}:${x.due}:${bucket}`

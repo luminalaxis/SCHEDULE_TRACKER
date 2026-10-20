@@ -388,6 +388,8 @@ route("POST", "/api/auth/signup", async (ctx) => {
   if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
   const first = auth.count() === 0, mode = setting("signupMode");
+  // 팀원 must pick a department when signing up; only the very first account (the developer) may skip it.
+  if (!first && !dept) return send(ctx.res, 400, { code: "invalid_argument", message: "부서를 골라 주세요." });
   let role = "member", status = "pending";
   if (first) { role = "developer"; status = "active"; }
   else if (mode === "closed") return send(ctx.res, 403, { code: "closed", message: "지금은 가입을 받지 않아요. 개발자에게 계정을 만들어 달라고 요청하세요." });
@@ -424,6 +426,8 @@ route("POST", "/api/me/profile", async (ctx) => {
   const b = await readJson(ctx.req);
   const name = b.name === undefined ? ctx.user.name : String(b.name).trim(), dept = b.dept === undefined ? ctx.user.dept : (DEPTS.includes(b.dept) ? b.dept : "");
   if (!name || name.length > 20) return send(ctx.res, 400, { code: "invalid_argument", message: "이름을 1~20자로 적어 주세요." });
+  // the department is fixed at sign-up; after that only a developer changes it (their own here, anyone's in /admin)
+  if (dept !== ctx.user.dept && ctx.user.role !== "developer") return send(ctx.res, 403, { code: "permission_denied", message: "부서는 개발자만 바꿀 수 있어요. 개발자에게 요청하세요." });
   auth.update(ctx.user.id, { name, dept });
   if (name !== ctx.user.name) audit(ctx, "profile.name", ctx.user.username, `${ctx.user.name} → ${name}`);
   send(ctx.res, 200, { ok: true });

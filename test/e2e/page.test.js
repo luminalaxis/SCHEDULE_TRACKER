@@ -181,3 +181,28 @@ test("오늘 first screen, and switching to the TV screen and back", { skip, tim
   await page.waitForSelector("#tv", { state: "hidden" });
   await ctx.close();
 });
+
+test("sign-up needs a department, and only a developer changes it later", { skip, timeout: 90000 }, async () => {
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const login = await ctx.newPage();
+  await login.goto("/login");
+  await login.click('[data-tab="signup"]');
+  assert.equal(await login.getAttribute("#sDept", "required"), "", "the department is a required field");
+  await login.fill("#sName", "최신입"); await login.fill("#sUser", "newbie"); await login.fill("#sPw", "password-newbie");
+  await login.click("#sBtn");
+  assert.equal(await login.evaluate(() => document.getElementById("sDept").validity.valueMissing), true);
+  assert.equal(await login.isVisible("#signupForm"), true, "the form is not sent without a department");
+  await login.close();
+
+  const page = await signIn(ctx, "aaa", "password-aaa");
+  await page.goto("/");
+  await page.waitForSelector("#view-today:not([hidden])");
+  assert.equal(await page.inputValue("#meDept"), "chassis", "the account's department is shown");
+  assert.equal(await page.isDisabled("#meDept"), true, "a 팀원 can't change it");
+  await dev.post(`/api/admin/users/${a.id}`, { dept: "aero" });
+  await page.reload();
+  await page.waitForSelector("#view-today:not([hidden])");
+  assert.equal(await page.inputValue("#meDept"), "aero", "a developer's change shows up on the next load");
+  await dev.post(`/api/admin/users/${a.id}`, { dept: "chassis" });
+  await ctx.close();
+});

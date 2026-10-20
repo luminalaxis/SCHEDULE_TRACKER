@@ -62,6 +62,27 @@ test("developer approves; member can log in", async () => {
   assert.equal((await mem.req("POST", "/api/auth/login", { username: "mem", password: "wrong" })).status, 401);
 });
 
+test("later signups must pick a department", async () => {
+  const c = new Client();
+  for (const dept of [undefined, "", "nope"]) {
+    const r = await c.req("POST", "/api/auth/signup", { username: "nodept", password: "password3", name: "부서없음", dept });
+    assert.equal(r.status, 400); assert.equal(r.json.code, "invalid_argument");
+  }
+  assert.equal((await dev.req("GET", "/api/admin/users")).json.users.some((u) => u.username === "nodept"), false);
+});
+
+test("only a developer changes a department after sign-up", async () => {
+  const r = await mem.req("POST", "/api/me/profile", { dept: "battery" });
+  assert.equal(r.status, 403);
+  assert.equal((await mem.req("GET", "/api/me")).json.dept, "aero");
+  assert.equal((await mem.req("POST", "/api/me/profile", { dept: "aero" })).status, 200, "sending the same department is fine");
+  assert.equal((await dev.req("POST", `/api/admin/users/${memId}`, { dept: "battery" })).status, 200);
+  assert.equal((await mem.req("GET", "/api/me")).json.dept, "battery");
+  assert.equal((await dev.req("POST", "/api/me/profile", { dept: "circuit" })).status, 200, "a developer may change their own");
+  assert.equal((await dev.req("GET", "/api/me")).json.dept, "circuit");
+  await dev.req("POST", `/api/admin/users/${memId}`, { dept: "aero" });
+});
+
 test("mutations need the x-fsk header (CSRF guard)", async () => {
   const r = await mem.req("POST", "/api/db/set", { path: "parts/a", data: {} }, { "x-fsk": "0" });
   assert.equal(r.status, 403);

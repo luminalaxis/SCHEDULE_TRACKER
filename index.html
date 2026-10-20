@@ -94,8 +94,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 main { padding-block: 20px 72px; }
 .view { display: flex; flex-direction: column; gap: 24px; }
-.banner { padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 13px; margin-bottom: 16px; }
+.banner { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 13px; margin-bottom: 16px; }
 .banner.bad { background: var(--bad-soft); }
+.banner > span { flex: 1; min-width: 0; }
+.banner-x { flex: none; border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 18px; padding: 0 4px; border-radius: 6px; cursor: pointer; }
+.banner-x:hover { color: var(--ink); background: var(--surface); }
 
 /* departments & verdicts */
 .dmark { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
@@ -321,6 +324,14 @@ dialog::backdrop { background: rgba(8, 12, 18, .45); }
 .dlg { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
 .dlg h3 { font-family: var(--font-display); font-weight: 600; font-size: 24px; }
 .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+/* read-only part: label / value pairs instead of disabled inputs */
+.pview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; margin: 0; }
+.pview > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pview dt { font-size: 12px; color: var(--muted); }
+.pview dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.pview .full { grid-column: 1 / -1; }
+.pview .full dd { white-space: pre-wrap; }
+.pview .pv-name { font-size: 18px; font-weight: 600; }
 .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .full { grid-column: 1 / -1; }
 label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
@@ -386,6 +397,8 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .today-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .today-h h2 { font-size: 24px; font-weight: 700; }
 .today-dept { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.dept-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-weight: 600; }
+.dept-badge.none { color: var(--muted); font-weight: 500; }
 .tgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .tcard { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--card-border); border-top: 4px solid var(--c); box-shadow: var(--card-shadow); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .tcard:hover { border-color: var(--line); border-top-color: var(--c); }
@@ -441,7 +454,7 @@ body.tv-on { overflow: hidden; }
   .ms-side { grid-column: 1 / -1; justify-content: flex-end; }
 }
 @media (max-width: 520px) {
-  .grid2, .grid3, .depts { grid-template-columns: minmax(0, 1fr); }
+  .grid2, .grid3, .depts, .pview { grid-template-columns: minmax(0, 1fr); }
   .gauges { gap: 8px; }
   .issue { grid-template-columns: minmax(0, 1fr); }
   .issue-side { align-items: flex-start; flex-direction: row; }
@@ -533,7 +546,7 @@ body.tv-on { overflow: hidden; }
   <section id="view-today" class="view">
     <div class="today-h">
       <h2>오늘</h2><span class="dim" id="todayDate"></span>
-      <label class="today-dept">내 부서<select class="field" id="meDept" aria-label="내 부서"></select></label>
+      <div class="today-dept">내 부서<select class="field" id="meDept" aria-label="내 부서"></select><span class="dept-badge" id="meDeptBadge" hidden></span></div>
     </div>
     <div class="tgrid" id="todayCards"></div>
     <div class="tlist" id="todayMine"></div>
@@ -729,7 +742,9 @@ body.tv-on { overflow: hidden; }
 <dialog id="dlgPart">
   <form class="dlg" id="formPart">
     <h3 id="dlgPartTitle">부품 추가</h3>
-    <div class="grid2">
+    <p class="hint lock-note" id="pLockNote" hidden></p>
+    <dl class="pview" id="pView" hidden></dl>
+    <div class="grid2" id="pGrid">
       <label class="f full">부품명 *<input id="pName" required maxlength="80" placeholder="예: 프론트 업라이트"></label>
       <label class="f">부품 번호<input id="pNo" maxlength="40" placeholder="예: CH-F-001"></label>
       <label class="f">부서<select id="pDept"></select></label>
@@ -744,8 +759,7 @@ body.tv-on { overflow: hidden; }
       <label class="f full">메모<textarea id="pNote" maxlength="1000" placeholder="재질, 도면 링크, 특이사항"></textarea></label>
     </div>
     <label class="check" id="pLockRow" hidden><input type="checkbox" id="pLock"> 잠금 · 이 부서 파트장과 팀장·부팀장만 고칠 수 있게 해요</label>
-    <p class="hint lock-note" id="pLockNote" hidden></p>
-    <fieldset>
+    <fieldset id="pAttBox">
       <legend class="fl">첨부 파일 · 도면, 견적서, 사진</legend>
       <div class="chips" id="pAtt"></div>
       <div class="toolbar"><span class="btn sm filebtn" id="pFileBtn">파일 추가<input type="file" id="pFile" multiple accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.csv,.txt,.log,.json,.md,.mp4,.webm"></span><span class="hint">PNG·JPG·PDF·CSV·TXT·MP4 등, 파일당 20MB까지</span></div>
@@ -1293,7 +1307,11 @@ window.FSKExpenseRules = (() => {
     if (phase === "offline") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "팀 저장소에 연결할 수 없어요. claude.ai에 로그인한 상태로 이 페이지를 열어 주세요."; }
     else if (phase === "error") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "데이터를 불러오지 못했어요. 페이지를 새로고침해 주세요."; }
     else if (live() && !canWrite) { banner.hidden = false; banner.textContent = "보기 전용으로 열려 있어요. 수정하려면 소유자에게 편집자로 초대해 달라고 요청하세요."; }
-    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = window.FSK_SELF_HOSTED ? ((window.__FSK_ME?.level || 0) >= 4 ? "'오늘' 탭에서 내 부서를 골라 주세요. 새 기록과 부품의 기본 부서로 쓰이고, 우리 부서 할 일이 보여요." : "아직 부서가 정해지지 않았어요. 개발자에게 부서를 정해 달라고 요청하세요.") : "오른쪽 위에 이름을, '오늘' 탭에서 내 부서를 정해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
+    // the "who am I" hint shows on 오늘 only, where the department is chosen, and can be closed for good on this device
+    else if (live() && (!state.me.dept || !state.me.name) && state.tab === "today" && store.get("fsk.hint.me") !== "closed") {
+      const text = window.FSK_SELF_HOSTED ? (deptLocked() ? "아직 부서가 정해지지 않았어요. 개발자에게 부서를 정해 달라고 요청하세요." : "여기서 내 부서를 골라 주세요. 새 기록과 부품의 기본 부서로 쓰이고, 우리 부서 할 일이 보여요.") : "오른쪽 위에 이름을, 여기서 내 부서를 정해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요.";
+      banner.hidden = false; banner.innerHTML = `<span>${esc(text)}</span><button class="banner-x" type="button" data-banner-close aria-label="안내 닫기" title="닫기">×</button>`;
+    }
     else banner.hidden = true;
 
     const ids = sessionIds();
@@ -1328,7 +1346,19 @@ window.FSKExpenseRules = (() => {
       last: sortedSessions(-1)[0] || null
     };
   }
+  // On the self-hosted server a 팀원's department belongs to the account (only developers change it), so it is shown
+  // as a badge instead of a select that could not be used.
+  const deptLocked = () => !!window.FSK_SELF_HOSTED && (window.__FSK_ME?.level || 0) < 4;
+  function syncMeDept() {
+    const locked = deptLocked(), b = $("meDeptBadge"), dk = DEPT[state.me.dept] ? state.me.dept : "";
+    $("meDept").hidden = locked; b.hidden = !locked;
+    if (!locked) return;
+    b.className = "dept-badge" + (dk ? "" : " none");
+    b.innerHTML = dk ? `${dmark(dk)}${DEPT[dk].l}` : "정해지지 않음";
+    b.title = "부서는 개발자만 바꿀 수 있어요";
+  }
   function renderToday() {
+    syncMeDept();
     $("todayDate").textContent = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
     if (!live()) {
       $("todayCards").innerHTML = "";
@@ -1348,7 +1378,7 @@ window.FSKExpenseRules = (() => {
         cp ? (cp.total && cp.n === cp.total ? `${esc(fmtShort(last.date))} 세션 · 출주 준비 완료` : `${esc(fmtShort(last.date))} 세션 · ${cp.total - cp.n}개 남았어요 →`) : "테스트 세션을 만들면 보여요",
         cp ? `<div class="track"><span class="fill ok" style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></span></div>` : "");
     const dk = DEPT[state.me.dept] ? state.me.dept : "";
-    if (!dk) { $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일</h3></div><p class="hint" style="padding:0 16px 14px">위에서 '내 부서'를 고르면 우리 부서의 남은 부품이 마감 순서로 보여요.</p>`; return; }
+    if (!dk) { $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일</h3></div><p class="hint" style="padding:0 16px 14px">${deptLocked() ? "부서가 정해지면 우리 부서의 남은 부품이 마감 순서로 보여요. 부서는 개발자가 정해요." : "위에서 '내 부서'를 고르면 우리 부서의 남은 부품이 마감 순서로 보여요."}</p>`; return; }
     const list = state.parts.filter((p) => deptOf(p) === dk && p.stage !== "done").sort(byDue);
     const row = (p) => {
       const n = p.due ? daysUntil(p.due) : null;
@@ -1899,6 +1929,24 @@ window.FSKExpenseRules = (() => {
     return `<option value="">담당 없음</option>${extra}`
       + DEPTS.map((d) => group(d.l, people.filter((x) => x.dept === d.k))).join("") + group("부서 없음", people.filter((x) => !DEPT[x.dept]));
   }
+  // what a read-only part dialog shows (no write access, or a part locked for me): filled-in fields only
+  function partView(p) {
+    const q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost), dk = deptOf(p), n = p.due && p.stage !== "done" ? daysUntil(p.due) : null;
+    const rows = [
+      ["부품명", `<span class="pv-name">${esc(p.name || "(이름 없음)")}</span>`, true],
+      ["부서", `<span class="dname">${dmark(dk)}${DEPT[dk].l}</span>`],
+      ["부품 번호", p.partNo ? `<span class="mono">${esc(p.partNo)}</span>` : ""],
+      ["구분 · 제작 단계", `${p.make === "buy" ? "구매" : "제작"} · ${STAGE_LABEL[p.stage] || "설계"}`],
+      ["수량", `${q}개`],
+      ["질량", m === null ? "" : q > 1 ? `개당 ${fmtN(m)} g · 합계 ${kg(m * q)} kg` : `${fmtN(m)} g`],
+      ["비용", c === null ? "" : q > 1 ? `개당 ${won(c)} · 합계 ${won(c * q)}` : won(c)],
+      ["담당", esc(ownerName(p))],
+      ["마감", p.due ? `${esc(fmtDate(p.due))}${n === null ? "" : ` <span class="${n < 0 ? "late" : ""}">${dLabel(n)}</span>`}` : ""],
+      ["공급처 · 가공처", esc(p.supplier || "")],
+      ["메모", p.note ? linkify(p.note) : "", true]
+    ];
+    return rows.filter(([, v]) => v).map(([k, v, full]) => `<div${full ? ' class="full"' : ""}><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  }
   function syncPartLock() {
     $("pLockRow").hidden = !(state.canWrite && managesDept($("pDept").value));
   }
@@ -1921,6 +1969,10 @@ window.FSKExpenseRules = (() => {
     $("pLockNote").hidden = !p?.locked;
     if (p?.locked) $("pLockNote").textContent = `🔒 ${p.locked.by || "파트장"}님이 ${p.locked.at ? fmtWhen(p.locked.at) + "에 " : ""}잠근 부품이에요. ${locked ? `고칠 내용은 ${DEPT[deptOf(p)].l} 파트장이나 팀장·부팀장에게 요청하세요.` : "잠금을 풀면 팀원도 고칠 수 있어요."}`;
     resetAtt(p?.attachments); state.att.readOnly = locked; renderAtt("pAtt", "pFileBtn");
+    const ro = !!p && !cw;
+    $("pGrid").hidden = ro; $("pView").hidden = !ro;
+    $("pView").innerHTML = ro ? partView(p) : "";
+    $("pAttBox").hidden = ro && !(p.attachments || []).length;
     const linked = p ? state.logs.filter((l) => (l.partIds || []).includes(p.id)) : [];
     const sess = Object.fromEntries(state.sessions.map((s) => [s.id, s]));
     $("pLinked").hidden = !linked.length;
@@ -2238,6 +2290,7 @@ window.FSKExpenseRules = (() => {
   // ---------- events ----------
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
   $("meDept").addEventListener("change", (e) => { state.me.dept = e.target.value; store.set("fsk.me.dept", state.me.dept); render(); });
+  $("banner").addEventListener("click", (e) => { if (e.target.closest("[data-banner-close]")) { store.set("fsk.hint.me", "closed"); render(); } });
   // self-hosted server: a developer changed my name or department while this page was open
   window.addEventListener("fsk:profile", (e) => { state.me.name = e.detail.name || ""; state.me.dept = e.detail.dept || ""; $("meDept").value = state.me.dept; $("meName").value = state.me.name; render(); });
   $("meName").addEventListener("change", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); render(); });

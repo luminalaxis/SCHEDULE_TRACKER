@@ -61,12 +61,12 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 
   <form id="signupForm" hidden>
     <label>이름<input id="sName" maxlength="20" autocomplete="name" required></label>
-    <label>부서<select id="sDept"><option value="">선택 안 함</option><option value="battery">배터리</option><option value="circuit">회로</option><option value="chassis">프레임·현가</option><option value="aero">에어로</option><option value="powertrain">파워트레인</option></select></label>
+    <label>부서<select id="sDept" required><option value="">부서를 골라 주세요</option><option value="battery">배터리</option><option value="circuit">회로</option><option value="chassis">프레임·현가</option><option value="aero">에어로</option><option value="powertrain">파워트레인</option></select></label>
     <label>아이디 (영문 소문자·숫자 3~32자)<input id="sUser" autocomplete="username" autocapitalize="none" pattern="[a-z0-9._\-]{3,32}" required></label>
     <label>비밀번호 (8자 이상)<input id="sPw" type="password" autocomplete="new-password" minlength="8" required></label>
     <label id="sInviteWrap" hidden>초대 코드<input id="sInvite" autocomplete="off" autocapitalize="none"></label>
     <button class="btn" type="submit" id="sBtn">가입 신청</button>
-    <p class="hint" id="sHint">가입하면 개발자가 승인한 뒤에 쓸 수 있어요.</p>
+    <p class="hint" id="sHint">가입하면 개발자가 승인한 뒤에 쓸 수 있어요. 부서는 가입 뒤에 개발자만 바꿀 수 있으니 정확히 골라 주세요.</p>
   </form>
 
   <form id="changeForm" hidden>
@@ -101,7 +101,7 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 
   fetch("/api/auth/config", { credentials: "same-origin" }).then((r) => r.json()).then((c) => {
     $("first").hidden = !c.firstUser;
-    if (c.firstUser) { show("signup"); $("sHint").textContent = "이 계정으로 팀원 가입을 승인하고 권한을 관리해요."; $("sBtn").textContent = "개발자 계정 만들기"; return; }
+    if (c.firstUser) { show("signup"); $("sDept").required = false; $("sDept").options[0].textContent = "선택 안 함"; $("sHint").textContent = "이 계정으로 팀원 가입을 승인하고 권한을 관리해요."; $("sBtn").textContent = "개발자 계정 만들기"; return; }
     if (c.signupMode === "invite") { $("sInviteWrap").hidden = false; $("sInvite").required = true; $("sHint").textContent = "초대 코드가 맞으면 바로 쓸 수 있어요."; }
     if (c.signupMode === "closed") { document.querySelector('[data-tab="signup"]').hidden = true; }
     if (new URLSearchParams(location.search).get("change") === "1" && c.signedIn) show("change");

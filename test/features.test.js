@@ -258,6 +258,6 @@ test("login and sign-up are rate limited", async () => {
   const blocked = await x.post("/api/auth/login", { username: "dev", password: "password1" });
   assert.equal(blocked.status, 429, "even the right password waits once the address is blocked");
   let last;
-  for (let i = 0; i < 12; i++) { last = await x.post("/api/auth/signup", { username: `flood${i}`, password: "password-x", name: "flood" }); if (last.status === 429) break; }
+  for (let i = 0; i < 12; i++) { last = await x.post("/api/auth/signup", { username: `flood${i}`, password: "password-x", name: "flood", dept: "aero" }); if (last.status === 429) break; }
   assert.equal(last.status, 429);
 });

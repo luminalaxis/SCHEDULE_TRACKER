@@ -1276,7 +1276,7 @@ window.FSKExpenseRules = (() => {
     if (phase === "offline") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "팀 저장소에 연결할 수 없어요. claude.ai에 로그인한 상태로 이 페이지를 열어 주세요."; }
     else if (phase === "error") { banner.hidden = false; banner.classList.add("bad"); banner.textContent = "데이터를 불러오지 못했어요. 페이지를 새로고침해 주세요."; }
     else if (live() && !canWrite) { banner.hidden = false; banner.textContent = "보기 전용으로 열려 있어요. 수정하려면 소유자에게 편집자로 초대해 달라고 요청하세요."; }
-    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = window.FSK_SELF_HOSTED ? "'오늘' 탭에서 내 부서를 골라 주세요. 새 기록과 부품의 기본 부서로 쓰이고, 우리 부서 할 일이 보여요." : "오른쪽 위에 이름을, '오늘' 탭에서 내 부서를 정해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
+    else if (live() && (!state.me.dept || !state.me.name)) { banner.hidden = false; banner.textContent = window.FSK_SELF_HOSTED ? ((window.__FSK_ME?.level || 0) >= 4 ? "'오늘' 탭에서 내 부서를 골라 주세요. 새 기록과 부품의 기본 부서로 쓰이고, 우리 부서 할 일이 보여요." : "아직 부서가 정해지지 않았어요. 개발자에게 부서를 정해 달라고 요청하세요.") : "오른쪽 위에 이름을, '오늘' 탭에서 내 부서를 정해 주세요. 점검 체크, 기록, 변경 이력에 이 이름이 남아요. 이 브라우저에만 저장돼요."; }
     else banner.hidden = true;
 
     const ids = sessionIds();

@@ -9,7 +9,8 @@
   const level = ME.level || 0;
 
   // The page keeps "who am I" in localStorage; seed it from the signed-in account.
-  try { localStorage.setItem("fsk.me.name", ME.name || ""); if (ME.dept) localStorage.setItem("fsk.me.dept", ME.dept); } catch {}
+  // The department belongs to the account (only a developer changes it), so it always overwrites what the browser had.
+  try { localStorage.setItem("fsk.me.name", ME.name || ""); localStorage.setItem("fsk.me.dept", ME.dept || ""); } catch {}
 
   const toLogin = () => { location.href = "/login?next=" + encodeURIComponent(location.pathname); };
   const net = { offline: !navigator.onLine };
@@ -447,7 +448,9 @@
     // the account name is shown in the bar above; the page's own name field is only for claude.ai
     if (nameInput) { nameInput.value = ME.name; nameInput.readOnly = true; const box = nameInput.closest(".me"); if (box) box.hidden = true; }
     const deptSel = document.getElementById("meDept");
-    if (deptSel) deptSel.addEventListener("change", () => api("POST", "/api/me/profile", { dept: deptSel.value }).catch(() => {}));
+    // 팀원 can't change their own department: a developer does it in /admin (or here, for their own account)
+    if (deptSel && level >= 4) deptSel.addEventListener("change", () => api("POST", "/api/me/profile", { dept: deptSel.value }).catch(() => {}));
+    else if (deptSel) { deptSel.disabled = true; deptSel.title = "부서는 개발자만 바꿀 수 있어요"; }
     renderBell(); syncUi(); loadNotes(); stream();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", accountBar); else accountBar();

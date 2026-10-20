@@ -7,6 +7,16 @@ import { checkWebhookUrl, webhookBody } from "../server/notify.js";
 import { writeTarGz, readTarGz } from "../server/archive.js";
 import { stableJson, runQuery } from "../server/store.js";
 import { contentMatches, cleanName } from "../server/filetype.js";
+import { DEPARTMENTS } from "../server/depts.js";
+import { readFileSync } from "node:fs";
+
+test("the page's departments match server/depts.js", () => {
+  const src = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const block = src.slice(src.indexOf("const DEPTS = ["), src.indexOf("const DEPT = Object.fromEntries"));
+  const page = Object.fromEntries([...block.matchAll(/\{ k: "(\w+)", l: "([^"]+)", c: \d/g)].map((m) => [m[1], m[2]]));
+  assert.deepEqual(page, DEPARTMENTS, "index.html DEPTS and server/depts.js list the same departments, in the same order");
+  assert.deepEqual(Object.keys(page), Object.keys(DEPARTMENTS));
+});
 
 test("upload content matches its type", () => {
   const b = (x) => Buffer.isBuffer(x) ? x : Buffer.from(x, "latin1");

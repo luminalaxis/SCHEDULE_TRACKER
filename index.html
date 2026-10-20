@@ -108,6 +108,8 @@ main { padding-block: 20px 72px; }
 .stt.none { background: var(--surface-2); color: var(--muted); font-weight: 500; }
 .flag { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--bad); background: var(--bad-soft); border: 0; border-radius: 999px; padding: 1px 7px; cursor: pointer; white-space: nowrap; }
 .clip { margin-left: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.lock { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.lock-note { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); color: var(--ink); }
 
 /* gauges */
 .gauges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
@@ -736,11 +738,13 @@ body.tv-on { overflow: hidden; }
       <label class="f">수량<div class="unit"><input id="pQty" type="number" min="1" step="1" value="1" inputmode="numeric"><span>개</span></div></label>
       <label class="f">개당 질량<div class="unit"><input id="pMass" type="number" min="0" step="any" inputmode="decimal" placeholder="미입력"><span>g</span></div></label>
       <label class="f">개당 비용<div class="unit"><input id="pCost" type="number" min="0" step="1" inputmode="numeric" placeholder="미입력"><span>원</span></div></label>
-      <label class="f">담당자<input id="pOwner" maxlength="40" placeholder="이름"></label>
+      <label class="f">담당자<select id="pOwner"></select></label>
       <label class="f">공급처 / 가공처<input id="pSupplier" maxlength="60"></label>
       <label class="f">마감일<input id="pDue" type="date"></label>
       <label class="f full">메모<textarea id="pNote" maxlength="1000" placeholder="재질, 도면 링크, 특이사항"></textarea></label>
     </div>
+    <label class="check" id="pLockRow" hidden><input type="checkbox" id="pLock"> 잠금 · 이 부서 파트장과 팀장·부팀장만 고칠 수 있게 해요</label>
+    <p class="hint lock-note" id="pLockNote" hidden></p>
     <fieldset>
       <legend class="fl">첨부 파일 · 도면, 견적서, 사진</legend>
       <div class="chips" id="pAtt"></div>
@@ -1124,6 +1128,18 @@ window.FSKExpenseRules = (() => {
   const dLabel = (n) => n > 0 ? `D-${n}` : n === 0 ? "D-DAY" : `D+${-n}`;
   const isLate = (p) => p.due && p.stage !== "done" && p.due < todayStr();
   const deptOf = (x) => DEPT[x.dept] ? x.dept : "chassis";
+  // 담당 is picked from the people list (ownerUid, and owner keeps the name); older parts may only have a typed name
+  const personName = (uid) => { const x = state.people.find((p) => p.id === uid); return x && x.name ? x.name : ""; };
+  const ownerName = (p) => (p.ownerUid && personName(p.ownerUid)) || p.owner || "";
+  const isMine = (p) => p.ownerUid ? p.ownerUid === state.uid : !!state.me.name && (p.owner || "").trim() === state.me.name;
+  // 부품 잠금: a locked part is changed only by those who manage its department (the server enforces the same rule):
+  // its 파트장, 팀장, 부팀장 and developers. On claude.ai, where there are no positions, the owner and editors.
+  function managesDept(dk) {
+    const me = window.__FSK_ME;
+    if (me) return me.role === "developer" || me.position === "team_lead" || me.position === "vice_lead" || (me.position === "part_lead" && me.dept === dk);
+    return state.isOwner || state.canManageTeam;
+  }
+  const lockedFor = (p) => !!(p && p.locked) && !managesDept(deptOf(p));
   const dmark = (k) => DEPT[k] ? `<i class="dmark d${DEPT[k].c}" aria-hidden="true"></i>` : "";
   const verdictChip = (s) => s && VERDICT[s] ? `<span class="stt ${s}">${VERDICT[s][0]} ${VERDICT[s][1]}</span>` : `<span class="stt none">기록 없음</span>`;
   const deptOptions = DEPTS.map((d) => `<option value="${d.k}">${d.l}</option>`).join("");
@@ -1176,7 +1192,8 @@ window.FSKExpenseRules = (() => {
     colH.doc().set({ at: stamp(), by: state.me.name || "", uid: state.uid || "", dept: state.me.dept || "", type, action, target: target || "", targetId: targetId || "", detail: detail || "" }).catch(() => {});
   }
   async function pruneHistory() {
-    if (!colH || !state.canWrite) return;
+    // the self-hosted server prunes history itself, and only developers may delete entries there
+    if (!colH || !state.canWrite || window.FSK_SELF_HOSTED) return;
     const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
     try {
       const snap = await colH.where("at", "<", cutoff).limit(100).get();
@@ -1332,10 +1349,10 @@ window.FSKExpenseRules = (() => {
         cp ? `<div class="track"><span class="fill ok" style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></span></div>` : "");
     const dk = DEPT[state.me.dept] ? state.me.dept : "";
     if (!dk) { $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일</h3></div><p class="hint" style="padding:0 16px 14px">위에서 '내 부서'를 고르면 우리 부서의 남은 부품이 마감 순서로 보여요.</p>`; return; }
-    const list = state.parts.filter((p) => deptOf(p) === dk && p.stage !== "done").sort(byDue), me = (state.me.name || "").trim();
+    const list = state.parts.filter((p) => deptOf(p) === dk && p.stage !== "done").sort(byDue);
     const row = (p) => {
       const n = p.due ? daysUntil(p.due) : null;
-      return `<button type="button" class="trow" data-part="${esc(p.id)}"><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span><span>${esc(p.name || "(이름 없음)")}${me && (p.owner || "").trim() === me ? '<span class="tme">내 담당</span>' : ""}</span><span class="towner">${esc(p.owner || "–")}</span><span class="tdue ${n === null ? "none" : n < 0 ? "late" : n <= 3 ? "soon" : ""}">${n === null ? "마감 없음" : dLabel(n)}</span></button>`;
+      return `<button type="button" class="trow" data-part="${esc(p.id)}"><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span><span>${esc(p.name || "(이름 없음)")}${isMine(p) ? '<span class="tme">내 담당</span>' : ""}</span><span class="towner">${esc(ownerName(p) || "–")}</span><span class="tdue ${n === null ? "none" : n < 0 ? "late" : n <= 3 ? "soon" : ""}">${n === null ? "마감 없음" : dLabel(n)}</span></button>`;
     };
     $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일 · ${DEPT[dk].l}</h3>${list.length > 8 ? `<button class="btn ghost sm" type="button" data-today="dept">남은 부품 ${list.length}개 모두 보기 →</button>` : ""}</div>`
       + (list.length ? list.slice(0, 8).map(row).join("") : `<p class="hint" style="padding:0 16px 14px">남은 부품이 없어요. 모두 완료됐어요.</p>`);
@@ -1381,7 +1398,7 @@ window.FSKExpenseRules = (() => {
           <div><b style="color:${costPct !== null && costPct > 100 ? "#FF5252" : "#F3F5F8"}">${costPct === null ? wonShort(cost).v : costPct + "%"}</b><span>${costPct === null ? wonShort(cost).u + " 부품 비용" : "예산 사용"}</span></div></div>
         <h4>부서별 완료</h4>${DEPTS.map((x) => { const l = parts.filter((p) => deptOf(p) === x.k), v = l.length ? Math.round((l.filter((p) => p.stage === "done").length / l.length) * 100) : 0; return `<div class="tv-dep"><span>${x.l}</span><div class="t"><i style="width:${Math.max(v, 1)}%"></i></div><b>${l.length ? v + "%" : "–"}</b></div>`; }).join("")}
       </div>
-      <div><h4>마감 지남 · 3일 안 마감</h4><div class="tv-li">${due.length ? due.map((p) => { const n = daysUntil(p.due); return `<div style="--c:${n < 0 ? "#FF5252" : "#FF9F1C"}"><span>${esc(p.name || "(이름 없음)")}<em>${DEPT[deptOf(p)].l}${p.owner ? " · " + esc(p.owner) : ""}</em></span><b>${dLabel(n)}</b></div>`; }).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
+      <div><h4>마감 지남 · 3일 안 마감</h4><div class="tv-li">${due.length ? due.map((p) => { const n = daysUntil(p.due); return `<div style="--c:${n < 0 ? "#FF5252" : "#FF9F1C"}"><span>${esc(p.name || "(이름 없음)")}<em>${DEPT[deptOf(p)].l}${ownerName(p) ? " · " + esc(ownerName(p)) : ""}</em></span><b>${dLabel(n)}</b></div>`; }).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
         <h4>미해결 테스트 이슈</h4><div class="tv-li">${issues.length ? issues.slice(0, 4).map((l) => `<div style="--c:${l.status === "bad" ? "#FF5252" : "#FF9F1C"}"><span>${esc(DEPT[l.dept]?.l || "")}<em>${esc(String(l.analysis || l.observation || l.action || "").slice(0, 40))}</em></span><b>${l.status === "bad" ? "문제" : "주의"}</b></div>`).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
       </div>${foot}`;
   }
@@ -1491,7 +1508,7 @@ window.FSKExpenseRules = (() => {
       if (ft === "late" && !isLate(p)) return false;
       if (ft === "issue" && !issueMap[p.id]) return false;
       if (!["all", "open", "late", "issue"].includes(ft) && (p.stage || "design") !== ft) return false;
-      if (q && ![p.name, p.partNo, p.owner, p.supplier, p.note].some((v) => String(v || "").toLowerCase().includes(q))) return false;
+      if (q && ![p.name, p.partNo, ownerName(p), p.supplier, p.note].some((v) => String(v || "").toLowerCase().includes(q))) return false;
       return true;
     });
     const by = {
@@ -1508,14 +1525,14 @@ window.FSKExpenseRules = (() => {
       const opts = STAGES.map(([k, l]) => `<option value="${k}"${k === (p.stage || "design") ? " selected" : ""}>${l}</option>`).join("");
       const iss = issueMap[p.id], natt = (p.attachments || []).length;
       return `<tr>
-        <td><span class="dot" style="background:var(--s${si})"></span><select class="st" data-stage="${esc(p.id)}" aria-label="제작 단계"${dis}>${opts}</select></td>
-        <td class="pcell"><button class="pname" type="button" data-part="${esc(p.id)}">${esc(p.name || "(이름 없음)")}</button>${iss ? `<button class="flag" type="button" data-part="${esc(p.id)}" title="미해결 테스트 이슈">⚠ 이슈 ${iss}</button>` : ""}${natt ? `<span class="clip">첨부 ${natt}</span>` : ""}${p.partNo ? `<span class="pno">${esc(p.partNo)}</span>` : ""}</td>
+        <td><span class="dot" style="background:var(--s${si})"></span><select class="st" data-stage="${esc(p.id)}" aria-label="제작 단계"${dis || (lockedFor(p) ? " disabled" : "")}>${opts}</select></td>
+        <td class="pcell"><button class="pname" type="button" data-part="${esc(p.id)}">${esc(p.name || "(이름 없음)")}</button>${iss ? `<button class="flag" type="button" data-part="${esc(p.id)}" title="미해결 테스트 이슈">⚠ 이슈 ${iss}</button>` : ""}${natt ? `<span class="clip">첨부 ${natt}</span>` : ""}${p.locked ? `<span class="lock" title="${esc(p.locked.by || "")} 잠금">🔒 잠김</span>` : ""}${p.partNo ? `<span class="pno">${esc(p.partNo)}</span>` : ""}</td>
         <td><span class="dname">${dmark(dk)}${DEPT[dk].l}</span></td>
         <td><span class="tag ${p.make === "buy" ? "" : "make"}">${p.make === "buy" ? "구매" : "제작"}</span></td>
         <td class="r num">${q}</td>
         <td class="r num">${m === null ? '<span class="dim">–</span>' : kg(m * q) + " kg"}</td>
         <td class="r num">${c === null ? '<span class="dim">–</span>' : won(c * q)}</td>
-        <td>${p.owner ? esc(p.owner) : '<span class="dim">–</span>'}</td>
+        <td>${ownerName(p) ? esc(ownerName(p)) : '<span class="dim">–</span>'}</td>
         <td class="num ${isLate(p) ? "late" : ""}">${p.due ? esc(fmtDate(p.due)) : '<span class="dim">–</span>'}</td>
       </tr>`;
     }).join("") : `<tr><td colspan="9" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
@@ -1825,7 +1842,7 @@ window.FSKExpenseRules = (() => {
   // ---------- attachment drafts ----------
   function resetAtt(list) { state.att = { keep: (list || []).slice(), add: [], remove: [] }; }
   function renderAtt(boxId, btnId) {
-    const a = state.att, cw = state.canWrite;
+    const a = state.att, cw = state.canWrite && !a.readOnly;
     $(btnId).parentElement.hidden = !(cw && assets);
     const keep = a.keep.map((x, i) => `<span class="chip"><span>${esc(x.name)}</span><a class="dim" href="/_blob/${encodeURIComponent(x.id)}" target="_blank" rel="noopener" style="font-size:11px">열기</a>${cw && assets ? `<button type="button" data-attdel="${i}" aria-label="${esc(x.name)} 삭제">×</button>` : ""}</span>`);
     const add = a.add.map((f, i) => `<span class="chip pend"><span>${esc(f.name)} · ${fmtBytes(f.size)}</span><button type="button" data-attcancel="${i}" aria-label="취소">×</button></span>`);
@@ -1866,24 +1883,44 @@ window.FSKExpenseRules = (() => {
   });
   function rerenderAttBoxes() { if ($("dlgPart").open) renderAtt("pAtt", "pFileBtn"); if ($("dlgLog").open) renderAtt("lAtt", "lFileBtn"); }
   $("pFile").addEventListener("change", (e) => pickFiles(e.target, "pAtt", "pFileBtn"));
+  $("pDept").addEventListener("change", syncPartLock);
   $("lFile").addEventListener("change", (e) => pickFiles(e.target, "lAtt", "lFileBtn"));
 
   // ---------- part dialog ----------
   const dlgP = $("dlgPart");
+  // 담당 options: people grouped by department; a name typed before accounts were linked stays as its own option
+  function ownerOptions(p) {
+    const people = state.people.filter((x) => x.name && x.active !== false).map((x) => ({ id: x.id, name: x.name, dept: x.dept }));
+    if (state.uid && state.me.name && !people.some((x) => x.id === state.uid)) people.push({ id: state.uid, name: state.me.name, dept: state.me.dept });
+    let extra = "";
+    if (p && p.ownerUid && !people.some((x) => x.id === p.ownerUid)) extra = `<option value="u:${esc(p.ownerUid)}">${esc(ownerName(p) || "알 수 없음")} (비활성 계정)</option>`;
+    else if (p && !p.ownerUid && p.owner) extra = `<option value="n:${esc(p.owner)}">${esc(p.owner)} (계정 연결 안 됨)</option>`;
+    const group = (label, list) => list.length ? `<optgroup label="${esc(label)}">${list.sort((a, b) => a.name.localeCompare(b.name, "ko")).map((x) => `<option value="u:${esc(x.id)}">${esc(x.name)}</option>`).join("")}</optgroup>` : "";
+    return `<option value="">담당 없음</option>${extra}`
+      + DEPTS.map((d) => group(d.l, people.filter((x) => x.dept === d.k))).join("") + group("부서 없음", people.filter((x) => !DEPT[x.dept]));
+  }
+  function syncPartLock() {
+    $("pLockRow").hidden = !(state.canWrite && managesDept($("pDept").value));
+  }
   function openPart(id) {
-    const p = id ? state.parts.find((x) => x.id === id) : null, cw = state.canWrite;
+    const p = id ? state.parts.find((x) => x.id === id) : null, locked = lockedFor(p), cw = state.canWrite && !locked;
     state.editPart = p ? p.id : null;
     $("dlgPartTitle").textContent = p ? (cw ? "부품 수정" : "부품 정보") : "부품 추가";
     $("pName").value = p?.name || ""; $("pNo").value = p?.partNo || "";
     $("pDept").value = p ? deptOf(p) : ($("fdept").value !== "all" ? $("fdept").value : (DEPT[state.me.dept] ? state.me.dept : "chassis"));
     $("pMake").value = p?.make || "make"; $("pStage").value = p?.stage || "design";
     $("pQty").value = p ? qtyOf(p) : 1; $("pMass").value = num(p?.unitMass) ?? ""; $("pCost").value = num(p?.unitCost) ?? "";
-    $("pOwner").value = p ? (p.owner || "") : state.me.name; $("pSupplier").value = p?.supplier || "";
+    $("pOwner").innerHTML = ownerOptions(p);
+    $("pOwner").value = p ? (p.ownerUid ? "u:" + p.ownerUid : p.owner ? "n:" + p.owner : "") : (state.uid && state.me.name ? "u:" + state.uid : "");
+    $("pSupplier").value = p?.supplier || "";
     $("pDue").value = p?.due || ""; $("pNote").value = p?.note || "";
     resetDelete($("btnDelPart"), "삭제", !!(p && cw));
     $("btnSavePart").hidden = !cw;
     $("formPart").querySelectorAll("input,select,textarea").forEach((el) => { el.disabled = !cw; });
-    resetAtt(p?.attachments); renderAtt("pAtt", "pFileBtn");
+    $("pLock").checked = !!p?.locked; syncPartLock();
+    $("pLockNote").hidden = !p?.locked;
+    if (p?.locked) $("pLockNote").textContent = `🔒 ${p.locked.by || "파트장"}님이 ${p.locked.at ? fmtWhen(p.locked.at) + "에 " : ""}잠근 부품이에요. ${locked ? `고칠 내용은 ${DEPT[deptOf(p)].l} 파트장이나 팀장·부팀장에게 요청하세요.` : "잠금을 풀면 팀원도 고칠 수 있어요."}`;
+    resetAtt(p?.attachments); state.att.readOnly = locked; renderAtt("pAtt", "pFileBtn");
     const linked = p ? state.logs.filter((l) => (l.partIds || []).includes(p.id)) : [];
     const sess = Object.fromEntries(state.sessions.map((s) => [s.id, s]));
     $("pLinked").hidden = !linked.length;
@@ -1904,7 +1941,8 @@ window.FSKExpenseRules = (() => {
     if (qtyOf(old) !== nw.qty) ch.push(`수량 ${qtyOf(old)} → ${nw.qty}`);
     if (num(old.unitMass) !== nw.unitMass) ch.push(`질량 ${fmtN(num(old.unitMass))} → ${fmtN(nw.unitMass)}g`);
     if (num(old.unitCost) !== nw.unitCost) ch.push(`비용 ${fmtN(num(old.unitCost))} → ${fmtN(nw.unitCost)}원`);
-    if ((old.owner || "") !== nw.owner) ch.push(`담당 ${old.owner || "–"} → ${nw.owner || "–"}`);
+    if (ownerName(old) !== nw.owner) ch.push(`담당 ${ownerName(old) || "–"} → ${nw.owner || "–"}`);
+    if (!!old.locked !== !!nw.locked) ch.push(nw.locked ? "잠금" : "잠금 해제");
     if ((old.due || "") !== nw.due) ch.push(`마감 ${old.due || "–"} → ${nw.due || "–"}`);
     if ((old.supplier || "") !== nw.supplier) ch.push("공급처 변경");
     if ((old.note || "") !== nw.note) ch.push("메모 변경");
@@ -1921,7 +1959,7 @@ window.FSKExpenseRules = (() => {
   }
   $("formPart").addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!state.canWrite) { dlgP.close(); return; }
+    if (!state.canWrite || lockedFor(state.parts.find((p) => p.id === state.editPart))) { dlgP.close(); return; }
     const name = $("pName").value.trim();
     if (!name) { $("pName").focus(); return; }
     const btn = $("btnSavePart"); btn.disabled = true;
@@ -1929,10 +1967,15 @@ window.FSKExpenseRules = (() => {
       const old = state.editPart ? state.parts.find((p) => p.id === state.editPart) : null;
       if (state.att.add.length) toast("첨부 파일을 올리는 중…");
       const attachments = await commitAttachments();
+      const ov = $("pOwner").value, ownerUid = ov.startsWith("u:") ? ov.slice(2) : "";
+      const owner = ownerUid ? (personName(ownerUid) || (ownerUid === state.uid ? state.me.name : "") || (old ? ownerName(old) : "")) : ov.startsWith("n:") ? ov.slice(2) : "";
+      // only those who manage the department change the lock; the server records who locked it
+      const lock = managesDept($("pDept").value) ? $("pLock").checked : !!old?.locked;
       const body = {
         name, partNo: $("pNo").value.trim(), dept: $("pDept").value, make: $("pMake").value, stage: $("pStage").value,
         qty: Math.max(1, Math.round(Number($("pQty").value) || 1)), unitMass: num($("pMass").value), unitCost: num($("pCost").value),
-        owner: $("pOwner").value.trim(), supplier: $("pSupplier").value.trim(), due: $("pDue").value, note: $("pNote").value.trim(), attachments
+        owner, ownerUid, supplier: $("pSupplier").value.trim(), due: $("pDue").value, note: $("pNote").value.trim(), attachments,
+        locked: lock ? (old?.locked || { uid: state.uid || "", by: state.me.name || "", at: stamp() }) : null
       };
       const id = await savePart(state.editPart, body);
       await dropRemoved();
@@ -2195,6 +2238,8 @@ window.FSKExpenseRules = (() => {
   // ---------- events ----------
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
   $("meDept").addEventListener("change", (e) => { state.me.dept = e.target.value; store.set("fsk.me.dept", state.me.dept); render(); });
+  // self-hosted server: a developer changed my name or department while this page was open
+  window.addEventListener("fsk:profile", (e) => { state.me.name = e.detail.name || ""; state.me.dept = e.detail.dept || ""; $("meDept").value = state.me.dept; $("meName").value = state.me.name; render(); });
   $("meName").addEventListener("change", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); render(); });
   $("meName").addEventListener("input", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); });
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { state.tab = t.dataset.tab; render(); }));
@@ -2244,7 +2289,7 @@ window.FSKExpenseRules = (() => {
         hist("part", "단계 변경", p?.name, sel.dataset.stage, `${STAGE_LABEL[prev]} → ${STAGE_LABEL[stage]}`);
         toast(`${STAGE_LABEL[stage]} 단계로 바꿨어요`);
       } catch (err) { toast(explain(err)); render(); }
-      finally { sel.disabled = !state.canWrite; }
+      finally { sel.disabled = !state.canWrite || lockedFor(p); }
       return;
     }
     const ck = e.target.closest("input[data-ck]");
@@ -2305,7 +2350,7 @@ window.FSKExpenseRules = (() => {
     const lines = [head.join(",")].concat(sorted.map((p) => {
       const q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost);
       return [DEPT[deptOf(p)].l, p.name, p.partNo, p.make === "buy" ? "구매" : "제작", STAGE_LABEL[p.stage] || "설계", q,
-        m ?? "", m === null ? "" : m * q, c ?? "", c === null ? "" : c * q, p.supplier, p.owner, p.due, p.note].map(cell).join(",");
+        m ?? "", m === null ? "" : m * q, c ?? "", c === null ? "" : c * q, p.supplier, ownerName(p), p.due, p.note].map(cell).join(",");
     }));
     const csv = "﻿" + lines.join("\r\n");
     const filename = `${(state.cfg.carName || "차량").replace(/[\\/:*?"<>|]/g, "")}_BOM_${todayStr()}.csv`;

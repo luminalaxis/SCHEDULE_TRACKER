@@ -113,12 +113,14 @@ test("deadlines and milestones remind the right people once", async () => {
   await dev.post("/api/db/set", { path: "parts/p1", data: { name: "프론트 업라이트", owner: "에이", dept: "chassis", stage: "machining", due: dayOffset(2) } });
   await dev.post("/api/db/set", { path: "parts/p2", data: { name: "리어 윙", owner: "외부 업체", dept: "aero", stage: "design", due: dayOffset(-1) } });
   await dev.post("/api/db/set", { path: "parts/p3", data: { name: "완료된 부품", owner: "에이", dept: "chassis", stage: "done", due: dayOffset(0) } });
+  await dev.post("/api/db/set", { path: "parts/p4", data: { name: "BMS 하우징", owner: "예전 이름", ownerUid: vice.id, dept: "battery", stage: "design", due: dayOffset(1) } });
   await dev.post("/api/db/set", { path: "milestones/m1", data: { title: "설계 보고서 제출", date: dayOffset(7), kind: "서류 제출", dept: "" } });
   const first = (await dev.post("/api/admin/notify-run", {})).json;
   assert.ok(first.sent >= 6, `sent ${first.sent}`);
   const an = (await notes(a)).items;
   assert.ok(an.some((n) => n.title === "부품 마감 D-2" && n.link.part === "p1"), "the 담당 matched by name");
   assert.ok(!an.some((n) => /완료된 부품/.test(n.body)), "finished parts are skipped");
+  assert.ok((await notes(vice)).items.some((n) => n.title === "부품 마감 D-1" && n.link.part === "p4"), "the 담당 picked by account, whatever name the part shows");
   assert.ok((await notes(b)).items.some((n) => n.title === "마감 지난 부품" && /리어 윙/.test(n.body)), "no account by that name: the department's 파트장");
   for (const c of [dev, vice, a, b]) assert.ok((await notes(c)).items.some((n) => n.title === "D-7 · 설계 보고서 제출"), "team-wide milestone");
   assert.equal((await dev.post("/api/admin/notify-run", {})).json.sent, 0, "each reminder fires once");
@@ -130,6 +132,36 @@ test("deadlines and milestones remind the right people once", async () => {
   await waitFor(() => hooks.some((h) => /🔴 문제/.test(h.body.content)));
   const issue = hooks.find((h) => /🔴 문제/.test(h.body.content)).body.content;
   assert.match(issue, /윙 마운트 균열/); assert.doesNotMatch(issue, /@everyone/, "mentions in team text are defused");
+});
+
+test("locked parts are changed only by their department's 파트장, 팀장·부팀장 and developers", async () => {
+  const part = { name: "리어 윙 엔드플레이트", dept: "aero", stage: "design" };
+  assert.equal((await a.post("/api/db/set", { path: "parts/lk1", data: { ...part, locked: { uid: b.id, by: "비" } } })).status, 403, "a 팀원 cannot lock");
+  assert.equal((await a.post("/api/db/set", { path: "parts/lk1", data: part })).status, 200);
+  assert.equal((await b.post("/api/db/update", { path: "parts/lk1", data: { locked: { uid: "someone", by: "가짜", at: "2000-01-01T00:00:00Z" } } })).status, 200, "the aero 파트장 locks it");
+  const locked = (await a.get("/api/db/doc?path=parts/lk1")).json.data.locked;
+  assert.equal(locked.uid, b.id); assert.equal(locked.by, "비"); assert.notEqual(locked.at, "2000-01-01T00:00:00Z");
+  for (const r of [await a.post("/api/db/update", { path: "parts/lk1", data: { stage: "order" } }), await a.post("/api/db/set", { path: "parts/lk1", data: part }), await a.post("/api/db/delete", { path: "parts/lk1" })]) {
+    assert.equal(r.status, 403); assert.equal(r.json.code, "locked");
+  }
+  assert.equal((await b.post("/api/db/update", { path: "parts/lk1", data: { stage: "order", locked: { uid: a.id, by: "에이" } } })).status, 200);
+  assert.equal((await a.get("/api/db/doc?path=parts/lk1")).json.data.locked.by, "비", "who locked it cannot be rewritten");
+  assert.equal((await b.post("/api/db/update", { path: "parts/lk1", data: { dept: "chassis" } })).status, 403, "the aero 파트장 cannot move it to a department they don't manage");
+  assert.equal((await vice.post("/api/db/update", { path: "parts/lk1", data: { dept: "chassis" } })).status, 200, "부팀장 manages every department");
+  assert.equal((await b.post("/api/db/update", { path: "parts/lk1", data: { stage: "machining" } })).status, 403, "now it is chassis's");
+  assert.equal((await vice.post("/api/db/update", { path: "parts/lk1", data: { locked: null } })).status, 200, "unlocked");
+  assert.equal((await a.post("/api/db/update", { path: "parts/lk1", data: { stage: "machining" } })).status, 200, "anyone can change it again");
+});
+
+test("the page's people list follows the accounts", async () => {
+  const people = (await a.post("/api/db/query", { collection: "people" })).json.docs;
+  assert.ok(people.some((p) => p.id === dev.id && p.data.name === "개발자"), "the first account is listed");
+  for (const c of [vice, a, b]) assert.ok(people.some((p) => p.id === c.id && p.data.name === c.name), `${c.name} is listed`);
+  const tmp = await member(srv.base, dev, "ccc", "씨", { dept: "circuit" });
+  assert.equal((await a.get(`/api/db/doc?path=people/${tmp.id}`)).json.data.dept, "circuit", "approved accounts are added");
+  await dev.post(`/api/admin/users/${tmp.id}`, { status: "disabled" });
+  assert.equal((await a.get(`/api/db/doc?path=people/${tmp.id}`)).json.data.active, false, "disabled accounts are marked, not listed as 담당 choices");
+  await dev.req("DELETE", `/api/admin/users/${tmp.id}`);
 });
 
 test("full backup carries the attachment files and restores them", async () => {
@@ -200,6 +232,7 @@ test("pages run scripts only by nonce; app files are served", async () => {
   assert.equal(page.headers.get("cross-origin-opener-policy"), "same-origin");
   const login = await new Client(srv.base).get("/login");
   assert.match(login.headers.get("content-security-policy"), /'nonce-/);
+  assert.ok(login.text.includes('const DEPT = {"battery":"배터리"') && !login.text.includes("/*DEPARTMENTS*/"), "the server fills in the department list");
   const sw = await fetch(srv.base + "/sw.js");
   assert.equal(sw.status, 200); assert.equal(sw.headers.get("service-worker-allowed"), "/");
   assert.equal((await (await fetch(srv.base + "/manifest.webmanifest")).json()).start_url, "/");
@@ -249,6 +282,10 @@ test("CLI restore keeps 직책 and brings back attachment files", () => {
     db.close();
     assert.ok(existsSync(join(target, "assets", partAsset)));
     assert.notEqual(run("restore", join(srv.dataDir, "full.tar.gz")).status, 0, "refuses to overwrite without --force");
+    const nodept = run("create-user", "clinew", "member", "새팀원");
+    assert.notEqual(nodept.status, 0); assert.match(nodept.stderr, /부서/, "a 팀원 needs a department here too");
+    assert.equal(run("create-user", "clinew", "member", "새팀원", "aero").status, 0);
+    assert.equal(run("create-user", "clidev", "developer", "새개발자").status, 0, "developers may skip it");
   } finally { rmSync(target, { recursive: true, force: true }); }
 });
 

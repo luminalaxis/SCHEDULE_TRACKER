@@ -61,7 +61,7 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 
   <form id="signupForm" hidden>
     <label>이름<input id="sName" maxlength="20" autocomplete="name" required></label>
-    <label>부서<select id="sDept" required><option value="">부서를 골라 주세요</option><option value="battery">배터리</option><option value="circuit">회로</option><option value="chassis">프레임·현가</option><option value="aero">에어로</option><option value="powertrain">파워트레인</option></select></label>
+    <label>부서<select id="sDept" required><option value="">부서를 골라 주세요</option></select></label>
     <label>아이디 (영문 소문자·숫자 3~32자)<input id="sUser" autocomplete="username" autocapitalize="none" pattern="[a-z0-9._\-]{3,32}" required></label>
     <label>비밀번호 (8자 이상)<input id="sPw" type="password" autocomplete="new-password" minlength="8" required></label>
     <label id="sInviteWrap" hidden>초대 코드<input id="sInvite" autocomplete="off" autocapitalize="none"></label>
@@ -79,6 +79,8 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
+  const DEPT = /*DEPARTMENTS*/{}; // filled in by the server from server/depts.js
+  for (const [k, l] of Object.entries(DEPT)) $("sDept").add(new Option(l, k));
   // only paths on this site: "/\evil.com" and "//evil.com" would leave it
   const next = (() => {
     const n = new URLSearchParams(location.search).get("next");

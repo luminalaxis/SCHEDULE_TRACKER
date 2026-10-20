@@ -83,6 +83,54 @@ test("only a developer changes a department after sign-up", async () => {
   await dev.req("POST", `/api/admin/users/${memId}`, { dept: "aero" });
 });
 
+test("only a developer changes a name after sign-up", async () => {
+  const r = await mem.req("POST", "/api/me/profile", { name: "다른사람" });
+  assert.equal(r.status, 403);
+  assert.equal((await mem.req("GET", "/api/me")).json.name, "팀원");
+  assert.equal((await mem.req("POST", "/api/me/profile", { name: "팀원" })).status, 200, "sending the same name is fine");
+});
+
+test("a name or department change reaches the person's open page", async () => {
+  const ctrl = new AbortController(), res = await fetch(BASE + "/api/stream", { headers: { cookie: mem.cookie }, signal: ctrl.signal });
+  const reader = res.body.getReader();
+  let buf = "";
+  const got = (async () => { while (!buf.includes("event: profile")) { const { value, done } = await reader.read(); if (done) break; buf += new TextDecoder().decode(value); } return buf; })();
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal((await mem.req("POST", "/api/db/set", { path: `people/${memId}`, data: { name: "가짜", dept: "battery", seen: "2026-10-01T00:00:00Z" } })).status, 200);
+  const person = (await dev.req("GET", `/api/db/doc?path=people/${memId}`)).json.data;
+  assert.equal(person.name, "팀원", "the page's people list shows the account name"); assert.equal(person.dept, "aero");
+  assert.equal((await dev.req("POST", `/api/admin/users/${memId}`, { name: "김팀원", dept: "circuit" })).status, 200);
+  const text = await Promise.race([got, new Promise((r) => setTimeout(() => r("timeout"), 3000))]);
+  ctrl.abort();
+  assert.match(text, /event: profile\ndata: \{"name":"김팀원","dept":"circuit"\}/);
+  const synced = (await dev.req("GET", `/api/db/doc?path=people/${memId}`)).json.data;
+  assert.equal(synced.name, "김팀원"); assert.equal(synced.dept, "circuit"); assert.equal(synced.seen, "2026-10-01T00:00:00Z");
+  await dev.req("POST", `/api/admin/users/${memId}`, { name: "팀원", dept: "aero" });
+});
+
+test("history entries carry the real author and cannot be changed by 팀원", async () => {
+  const fake = { at: "2026-10-02T03:00:00.000Z", by: "개발자", uid: devId, dept: "battery", type: "part", action: "부품 삭제", target: "x", targetId: "x", detail: "" };
+  assert.equal((await mem.req("POST", "/api/db/set", { path: "history/h-mem", data: fake })).status, 200);
+  const h = (await dev.req("GET", "/api/db/doc?path=history/h-mem")).json.data;
+  assert.equal(h.by, "팀원"); assert.equal(h.uid, memId); assert.equal(h.dept, "aero"); assert.equal(h.at, fake.at, "the page's time is kept");
+  const future = (await mem.req("POST", "/api/db/set", { path: "history/h-future", data: { ...fake, at: "2099-01-01T00:00:00Z" } }));
+  assert.equal(future.status, 200);
+  assert.ok((await dev.req("GET", "/api/db/doc?path=history/h-future")).json.data.at < "2099", "a time in the future becomes now");
+  assert.equal((await mem.req("POST", "/api/db/set", { path: "history/h-mem", data: { ...fake, action: "바꿈" } })).status, 403);
+  assert.equal((await mem.req("POST", "/api/db/update", { path: "history/h-mem", data: { by: "개발자" } })).status, 403);
+  assert.equal((await mem.req("POST", "/api/db/delete", { path: "history/h-mem" })).status, 403);
+  assert.equal((await dev.req("POST", "/api/db/delete", { path: "history/h-future" })).status, 200, "developers can remove entries");
+  assert.equal((await dev.req("POST", "/api/db/delete", { path: "history/h-mem" })).status, 200);
+});
+
+test("only developer accounts may be created without a department", async () => {
+  const r = await dev.req("POST", "/api/admin/users", { username: "nodept2", name: "부서없음" });
+  assert.equal(r.status, 400); assert.equal(r.json.code, "invalid_argument");
+  const d = await dev.req("POST", "/api/admin/users", { username: "dev2", name: "두번째개발자", role: "developer" });
+  assert.equal(d.status, 200);
+  assert.equal((await dev.req("DELETE", `/api/admin/users/${d.json.user.id}`)).status, 200);
+});
+
 test("mutations need the x-fsk header (CSRF guard)", async () => {
   const r = await mem.req("POST", "/api/db/set", { path: "parts/a", data: {} }, { "x-fsk": "0" });
   assert.equal(r.status, 403);
@@ -129,7 +177,7 @@ test("부팀장 is the treasurer; positions are unique and hand over", async () 
   assert.equal((await mem.req("GET", "/api/me")).json.title, "부팀장 (총무)");
   assert.equal((await mem.req("POST", "/api/db/set", { path: "config/roles", data: { ownerUid: memId } })).status, 403, "부팀장 still cannot edit roles");
   // a new 부팀장 takes over; the previous one goes back to 팀원
-  const c = await dev.req("POST", "/api/admin/users", { username: "vice2", name: "새부팀장", role: "member", position: "vice_lead" });
+  const c = await dev.req("POST", "/api/admin/users", { username: "vice2", name: "새부팀장", role: "member", position: "vice_lead", dept: "battery" });
   assert.equal(c.json.handedOver[0].name, "팀원");
   roles = (await dev.req("GET", "/api/db/doc?path=config/roles")).json.data;
   assert.deepEqual(roles.treasurers, [c.json.user.id]);
@@ -184,7 +232,7 @@ test("assets: upload, serve, permissions", async () => {
 });
 
 test("accounts created by the developer must change the temp password", async () => {
-  const c = await dev.req("POST", "/api/admin/users", { username: "view", name: "새팀원" });
+  const c = await dev.req("POST", "/api/admin/users", { username: "view", name: "새팀원", dept: "circuit" });
   assert.equal(c.status, 200); assert.equal(c.json.user.tier, "member");
   const l = await view.req("POST", "/api/auth/login", { username: "view", password: c.json.tempPassword });
   assert.equal(l.json.user.mustChangePassword, true);

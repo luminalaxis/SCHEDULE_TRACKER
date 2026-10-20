@@ -155,6 +155,7 @@
       queryListeners.forEach((q) => { if (q.collection === m.collection) q.apply(m.path, data ? { id: m.path.split("/").pop(), data } : null); });
     });
     es.addEventListener("notify", (ev) => onNotify(JSON.parse(ev.data)));
+    es.addEventListener("profile", (ev) => onProfile(JSON.parse(ev.data)));
     es.addEventListener("reload", () => location.reload());
     es.addEventListener("error", () => { fetch("/api/me", { credentials: "same-origin" }).then((r) => { if (r.status === 401) toLogin(); }).catch(() => setOffline(true)); });
   }
@@ -330,6 +331,16 @@
   const namespaces = { db: dbNs, user: userNs, assets: level >= 2 ? assetsNs : null, downloads: downloadsNs };
   window.claude = Object.freeze({ use: (name) => new Promise((resolve) => setTimeout(() => resolve(namespaces[name] ?? null), 0)) });
   window.FSK_SELF_HOSTED = true;
+
+  // A developer changed this account's name or department: update the account bar and tell the page (index.html
+  // listens for "fsk:profile"), so open screens follow without a reload.
+  function onProfile(p) {
+    ME.name = p.name; ME.dept = p.dept;
+    try { localStorage.setItem("fsk.me.name", ME.name || ""); localStorage.setItem("fsk.me.dept", ME.dept || ""); } catch {}
+    const b = document.querySelector(".acct-bar > b"); if (b) b.textContent = ME.name;
+    const nameInput = document.getElementById("meName"); if (nameInput) nameInput.value = ME.name;
+    window.dispatchEvent(new CustomEvent("fsk:profile", { detail: { name: ME.name, dept: ME.dept } }));
+  }
 
   // ---------- notifications ----------
   const bell = { items: [], unread: 0 };

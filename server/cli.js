@@ -1,6 +1,6 @@
 // Command-line admin for when the web admin page is out of reach (locked out, fresh install, disaster recovery).
 //   node server/cli.js list-users
-//   node server/cli.js create-user <username> <developer|member|team_lead|vice_lead|part_lead> [이름] [부서]
+//   node server/cli.js create-user <username> <developer|member|team_lead|vice_lead|part_lead> [이름] [부서]   (부서는 developer만 생략 가능)
 //   node server/cli.js reset-password <username>
 //   node server/cli.js backup
 //   node server/cli.js restore <backup.json | fsk-full-….tar.gz> [--force]
@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { openStore, createDocs } from "./store.js";
 import { createAuth, tempPassword, checkUsername } from "./auth.js";
 import { readTarGz } from "./archive.js";
+import { DEPTS } from "./depts.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = process.env.DATA_DIR || join(ROOT, "data");
@@ -27,7 +28,9 @@ switch (cmd) {
     const KINDS = { developer: ["developer", ""], member: ["member", ""], team_lead: ["member", "team_lead"], vice_lead: ["member", "vice_lead"], part_lead: ["member", "part_lead"] };
     if (checkUsername(username || "")) die(checkUsername(username || ""));
     if (!KINDS[kind]) die(`종류는 ${Object.keys(KINDS).join(", ")} 중 하나예요.`);
-    if (kind === "part_lead" && !["battery", "circuit", "chassis", "aero", "powertrain"].includes(dept)) die("파트장은 부서(battery, circuit, chassis, aero, powertrain)를 함께 적어 주세요.");
+    // like sign-up: everyone but a developer belongs to a department
+    if (kind !== "developer" && !DEPTS.includes(dept)) die(`부서(${DEPTS.join(", ")})를 함께 적어 주세요. 부서 없이 만들 수 있는 건 developer뿐이에요.`);
+    if (dept && !DEPTS.includes(dept)) die(`부서는 ${DEPTS.join(", ")} 중 하나예요.`);
     if (auth.byUsername(username)) die("이미 있는 아이디예요.");
     const [role, position] = KINDS[kind], pw = tempPassword();
     auth.create({ username, name: name || username, dept, role, position, status: "active", password: pw, mustChange: true });
@@ -95,6 +98,7 @@ switch (cmd) {
     console.log(`사용법:
   node server/cli.js list-users
   node server/cli.js create-user <아이디> <developer|member|team_lead|vice_lead|part_lead> [이름] [부서]
+    부서: ${DEPTS.join(", ")} (developer만 생략 가능)
   node server/cli.js reset-password <아이디>
   node server/cli.js backup
   node server/cli.js restore <백업.json | fsk-full-….tar.gz> [--force]`);

@@ -206,3 +206,43 @@ test("sign-up needs a department, and only a developer changes it later", { skip
   await dev.post(`/api/admin/users/${a.id}`, { dept: "chassis" });
   await ctx.close();
 });
+
+test("담당 is picked from accounts; a locked part is read-only for 팀원; profile changes arrive live", { skip, timeout: 90000 }, async () => {
+  await dev.post("/api/db/set", { path: "parts/lockme", data: { name: "잠금 테스트 브래킷", dept: "chassis", stage: "design", qty: 1, owner: "옛 담당" } });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const page = await signIn(ctx, "aaa", "password-aaa");
+  await page.click("#tab-parts");
+  await page.click('.pname[data-part="lockme"]');
+  assert.equal(await page.inputValue("#pOwner"), "n:옛 담당", "a typed name from before stays selected");
+  assert.equal(await page.isVisible("#pLockRow"), false, "a 팀원 cannot lock");
+  await page.selectOption("#pOwner", "u:" + vice.id);
+  await page.click("#btnSavePart");
+  assert.ok(await until(async () => (await serverDoc("parts/lockme")).data.ownerUid === vice.id));
+  assert.equal((await serverDoc("parts/lockme")).data.owner, "박총무");
+
+  const vctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const vpage = await signIn(vctx, "vice", "password-vice");
+  await vpage.click("#tab-parts");
+  await vpage.click('.pname[data-part="lockme"]');
+  assert.equal(await vpage.isVisible("#pLockRow"), true, "부팀장 can lock any department's part");
+  await vpage.check("#pLock");
+  await vpage.click("#btnSavePart");
+  assert.ok(await until(async () => (await serverDoc("parts/lockme")).data.locked?.by === "박총무"));
+  assert.ok(await until(async () => (await dev.post("/api/db/query", { collection: "history" })).json.docs.some((h) => h.data.targetId === "lockme" && h.data.detail === "잠금" && h.data.by === "박총무")), "the lock is in 변경 이력");
+  await vctx.close();
+
+  await page.waitForSelector('.pname[data-part="lockme"] ~ .lock');
+  assert.equal(await page.isDisabled('select[data-stage="lockme"]'), true, "the stage can't be changed from the list");
+  await page.click('.pname[data-part="lockme"]');
+  assert.equal(await page.isVisible("#btnSavePart"), false);
+  assert.equal(await page.isDisabled("#pName"), true);
+  assert.match(await page.textContent("#pLockNote"), /박총무님이 .*잠근 부품이에요/);
+  await shot(page, "part-locked");
+  await page.keyboard.press("Escape");
+
+  await page.click("#tab-today");
+  await dev.post(`/api/admin/users/${a.id}`, { dept: "aero" });
+  assert.ok(await until(async () => (await page.inputValue("#meDept")) === "aero"), "the new department shows without a reload");
+  await dev.post(`/api/admin/users/${a.id}`, { dept: "chassis" });
+  await ctx.close();
+});

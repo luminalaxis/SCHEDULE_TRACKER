@@ -289,9 +289,9 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   const POS = { "": "팀원", part_lead: "파트장", vice_lead: "부팀장 · 총무", team_lead: "팀장" };
   const TIER = { developer: "개발자", executive: "임원진", member: "팀원" };
   const STATUS = { active: "활성", pending: "승인 대기", disabled: "비활성" };
-  const DEPT = { battery: "배터리", circuit: "회로", chassis: "프레임·현가", aero: "에어로", powertrain: "파워트레인" };
+  const DEPT = /*DEPARTMENTS*/{}; // filled in by the server from server/depts.js
   const COLL = { parts: "부품", sessions: "테스트 세션", logs: "부서 기록", comments: "의견", checks: "출주 전 점검", milestones: "일정", history: "변경 이력", config: "설정 (차량·점검·권한)", people: "사람 목록 (페이지용)", expenses: "사비 내역서", reviews: "총무 검토·지급" };
-  const ACTION = { login: "로그인", "login.fail": "로그인 실패", logout: "로그아웃", signup: "가입", "password.change": "비밀번호 변경", "profile.name": "이름 변경",
+  const ACTION = { login: "로그인", "login.fail": "로그인 실패", logout: "로그아웃", signup: "가입", "password.change": "비밀번호 변경", "profile.name": "이름 변경", "profile.dept": "부서 변경",
     "user.create": "계정 생성", "user.update": "계정 변경", "user.approve": "가입 승인", "user.reset_password": "비밀번호 초기화", "user.force_logout": "강제 로그아웃", "user.delete": "계정 삭제",
     "role.change": "역할 변경", "settings.update": "설정 변경", "data.edit": "데이터 수정", "data.create": "데이터 생성", "data.delete": "데이터 삭제", "data.import": "데이터 가져오기",
     "backup.create": "백업", "backup.download": "백업 내려받기", "backup.restore": "백업 복원", "backup.delete": "백업 삭제", "asset.delete": "파일 삭제", "asset.cleanup": "파일 정리",
@@ -432,7 +432,10 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   $("btnSecCopy").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("secValue").textContent); toast("복사했어요"); } catch { toast("직접 선택해서 복사해 주세요"); } });
   $("nuDept").innerHTML = `<option value="">없음</option>${opt(DEPT, "")}`;
   $("nuPos").innerHTML = opt(POS, "");
-  $("btnNewUser").addEventListener("click", () => { $("formUser").reset(); $("nuPos").value = ""; $("dlgUser").showModal(); });
+  // like sign-up: only a developer account may be made without a department
+  const syncNewDept = () => { $("nuDept").required = !$("nuDev").checked; $("nuDept").options[0].textContent = $("nuDev").checked ? "없음" : "부서를 골라 주세요"; };
+  $("nuDev").addEventListener("change", syncNewDept);
+  $("btnNewUser").addEventListener("click", () => { $("formUser").reset(); $("nuPos").value = ""; syncNewDept(); $("dlgUser").showModal(); });
   $("formUser").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {

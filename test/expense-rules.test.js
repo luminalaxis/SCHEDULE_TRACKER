@@ -115,3 +115,34 @@ test("helpers", () => {
   assert.equal(R.maskAccount(""), "");
   assert.equal(R.receiptSlot(1, 2), 1); assert.equal(R.receiptSlot(1, 14), 2); assert.equal(R.receiptSlot(10, 2), 4); assert.equal(R.receiptSlot(40, 40), 10);
 });
+
+// The self-hosted server runs the same rules on the stored file (server/expense-check.js), with its own small XML reader.
+test("server check reads the file the way the page does", async () => {
+  const { checkExpenseFile } = await import("../server/expense-check.js");
+  const { statementXlsx } = await import("./helpers/xlsx.js");
+  const good = statementXlsx({ items: [item(), item({ product: "에폭시 & 경화제", price: 30000, qty: 1 })] });
+  const r = await checkExpenseFile(html, good.buffer, FILE, TODAY);
+  assert.equal(r.check.level, "ok", r.check.errors.concat(r.check.warns).join(" / "));
+  assert.equal(r.total, good.total); assert.equal(r.items[1].product, "에폭시 & 경화제");
+  assert.equal(r.accountMasked, "신한 ••••••••6789"); assert.equal(r.fileSize, good.buffer.length); assert.match(r.hash, /^[0-9a-f]{64}$/);
+  const bad = await checkExpenseFile(html, statementXlsx({ items: [item({ team: "없는팀" })], receipts: 0 }).buffer, FILE, TODAY);
+  assert.equal(bad.check.level, "bad");
+  assert.ok(has(bad.check.errors, /없는팀/)); assert.ok(has(bad.check.errors, /영수증 사진이 없어요/));
+  const junk = await checkExpenseFile(html, Buffer.from("not a zip"), FILE, TODAY);
+  assert.equal(junk.check.level, "bad"); assert.match(junk.check.errors[0], /xlsx 파일을 열 수 없어요/);
+});
+
+test("server XML reader: prefixes, entities, phonetic runs, r: attributes", async () => {
+  const { parseXml } = await import("../server/expense-check.js");
+  const RNS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const doc = parseXml(`<?xml version="1.0" encoding="UTF-8"?>\r\n<!-- note --><x:sst xmlns:x="urn:main" xmlns:rel="${RNS}"><x:si><x:r><x:t xml:space="preserve"> A &amp; B&#x41;&#66;</x:t></x:r><x:rPh sb="0"><x:t>읽는법</x:t></x:rPh></x:si><x:si><x:t><![CDATA[<raw>]]></x:t></x:si><x:sheet name="내역서 &lt;1&gt;" rel:id="rId7"/></x:sst>`);
+  const si = doc.getElementsByTagNameNS("*", "si");
+  assert.equal(si.length, 2);
+  const t = si[0].getElementsByTagNameNS("*", "t");
+  assert.equal(t[0].textContent, " A & BAB"); assert.equal(t[1].parentNode.localName, "rPh");
+  assert.equal(si[1].textContent, "<raw>");
+  const sheet = doc.getElementsByTagNameNS("*", "sheet")[0];
+  assert.equal(sheet.getAttribute("name"), "내역서 <1>");
+  assert.equal(sheet.getAttributeNS(RNS, "id"), "rId7"); assert.equal(sheet.getAttribute("r:id"), null);
+  assert.equal(sheet.getAttributeNS("urn:other", "id"), null);
+});

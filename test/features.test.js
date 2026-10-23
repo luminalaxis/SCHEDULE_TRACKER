@@ -11,6 +11,7 @@ import { Readable } from "node:stream";
 import { DatabaseSync } from "node:sqlite";
 import { startServer, Client, member, dayOffset, ROOT } from "./helpers/server.js";
 import { readTarGz } from "../server/archive.js";
+import { statementXlsx } from "./helpers/xlsx.js";
 
 let srv, hook, hookPort, dev, vice, a, b;
 const hooks = [];
@@ -33,18 +34,56 @@ before(async () => {
 after(() => { srv.stop(); hook.close(); });
 
 let fileAsset, receiptAsset, partAsset;
+const ITEM = { team: "에어로", date: 46300, cat: "프레임&바디", purpose: "리어 윙 제작", product: "카본 프리프레그", vendor: "https://smartstore.naver.com/carbon", price: 50000, qty: 2 };
+const FILE_NAME = "개인사비사용내역서_에이_20261015.xlsx";
+// The page stores the original base64-wrapped as text/plain.
+const uploadStatement = async (c, opts = { items: [ITEM] }) => (await c.post("/api/assets", Buffer.from(statementXlsx(opts).buffer.toString("base64")), { "content-type": "text/plain" })).json.id;
 test("submitted 사비 entries are locked for the submitter", async () => {
-  fileAsset = (await a.post("/api/assets", Buffer.from("UEsDBA=="), { "content-type": "text/plain" })).json.id;
+  fileAsset = await uploadStatement(a);
   receiptAsset = (await a.post("/api/assets", PNG, { "content-type": "image/png" })).json.id;
-  const s1 = { id: "s1", applicant: "에이", by: "에이", total: 100000, fileAsset, receipts: [{ asset: receiptAsset, slot: 1, type: "image/png" }], check: { level: "ok" }, items: [] };
+  const s1 = { id: "s1", applicant: "에이", by: "에이", fileName: FILE_NAME, total: 100000, fileAsset, receipts: [{ asset: receiptAsset, slot: 1, type: "image/png" }], check: { level: "ok" }, items: [] };
   assert.equal((await a.post("/api/db/set", { path: `expenses/${a.id}`, data: { subs: { s1 } } })).status, 200);
   const changed = await a.post("/api/db/update", { path: `expenses/${a.id}`, data: { subs: { s1: { total: 900000 } } } });
   assert.equal(changed.status, 403); assert.equal(changed.json.code, "locked");
   assert.equal((await a.post("/api/db/set", { path: `expenses/${a.id}`, data: { subs: {} } })).status, 403, "cannot drop a submitted entry");
   assert.equal((await a.post("/api/db/delete", { path: `expenses/${a.id}` })).status, 403, "cannot delete the whole document");
-  const s2 = { id: "s2", applicant: "에이", total: 5000, fileAsset: (await a.post("/api/assets", Buffer.from("eA=="), { "content-type": "text/plain" })).json.id, receipts: [], check: { level: "warn" } };
+  const s2 = { id: "s2", applicant: "에이", fileName: FILE_NAME, total: 5000, fileAsset: await uploadStatement(a, { items: [{ ...ITEM, price: 2500 }] }), receipts: [], check: { level: "warn" } };
   assert.equal((await a.post("/api/db/update", { path: `expenses/${a.id}`, data: { subs: { s2 }, updatedAt: "x" } })).status, 200, "adding a new entry is fine");
   assert.equal((await dev.post("/api/db/update", { path: `expenses/${a.id}`, data: { subs: { s2: { note: "개발자 수정" } } } })).status, 200, "developers keep full control");
+});
+
+test("the server checks each submitted 사비 file again and stores its own result", async () => {
+  const subs = (await a.get(`/api/db/doc?path=expenses/${a.id}`)).json.data.subs;
+  assert.equal(subs.s1.total, 100000); assert.equal(subs.s1.items.length, 1, "items come from the file, not the request");
+  assert.equal(subs.s1.items[0].product, "카본 프리프레그"); assert.deepEqual(subs.s1.teams, ["에어로"]);
+  assert.equal(subs.s1.check.level, "ok"); assert.equal(subs.s1.accountMasked, "신한 ••••••••6789");
+  assert.match(subs.s1.hash, /^[0-9a-f]{64}$/); assert.equal(subs.s1.applicant, "에이", "what the submitter typed is kept");
+  assert.equal(subs.s2.check.level, "ok", "a client-side 'warn' is replaced by the server's reading");
+
+  // a forged request cannot pass off a 양식 불일치 file or a made-up total
+  const bad = { id: "s3", applicant: "에이", fileName: FILE_NAME, total: 1000, fileAsset: await uploadStatement(a, { items: [{ ...ITEM, team: "없는팀" }] }), receipts: [], check: { level: "ok" }, items: [] };
+  const refused = await a.post("/api/db/update", { path: `expenses/${a.id}`, data: { subs: { s3: bad } } });
+  assert.equal(refused.status, 422); assert.equal(refused.json.code, "forbidden"); assert.match(refused.json.message, /양식에 맞지 않아요.*없는팀/);
+  const junk = { ...bad, id: "s4", fileAsset: (await a.post("/api/assets", Buffer.from("UEsDBA=="), { "content-type": "text/plain" })).json.id };
+  assert.match((await a.post("/api/db/update", { path: `expenses/${a.id}`, data: { subs: { s4: junk } } })).json.message, /xlsx 파일을 열 수 없어요/);
+  assert.equal((await a.post("/api/db/update", { path: `expenses/${a.id}`, data: { subs: { s5: { ...bad, id: "s5", fileAsset: undefined } } } })).status, 403, "a submission needs its original");
+  assert.equal((await a.get(`/api/db/doc?path=expenses/${a.id}`)).json.data.subs.s3, undefined);
+
+  // 총무 may still register a 양식 불일치 file; it is stored with the server's findings
+  const forVice = { ...bad, id: "v1", fileAsset: await uploadStatement(vice, { items: [{ ...ITEM, team: "없는팀" }] }) };
+  assert.equal((await vice.post("/api/db/set", { path: `expenses/${vice.id}`, data: { subs: { v1: forVice } } })).status, 200);
+  const v1 = (await vice.get(`/api/db/doc?path=expenses/${vice.id}`)).json.data.subs.v1;
+  assert.equal(v1.check.level, "bad"); assert.ok(v1.check.errors.some((e) => /없는팀/.test(e)));
+
+  // a 수정본 in a review is checked too, but only when it changes (the page resends it with every review)
+  const replacement = await uploadStatement(vice, { items: [ITEM, { ...ITEM, product: "에폭시", price: 30000, qty: 1 }] });
+  const override = { fileName: FILE_NAME, fileAsset: replacement, receipts: [], items: [], total: 1, check: { level: "ok" }, replacedBy: "총무" };
+  assert.equal((await vice.post("/api/db/set", { path: `reviews/${vice.id}`, data: { items: { [`${vice.id}:v1`]: { status: "pending", override } } } })).status, 200);
+  const stored = (await vice.get(`/api/db/doc?path=reviews/${vice.id}`)).json.data.items[`${vice.id}:v1`].override;
+  assert.equal(stored.total, 130000); assert.equal(stored.items.length, 2); assert.equal(stored.replacedBy, "총무");
+  assert.equal((await vice.post("/api/db/update", { path: `reviews/${vice.id}`, data: { items: { [`${vice.id}:v1`]: { status: "approved", override: stored } } } })).status, 200);
+  const stolen = await b.post("/api/db/set", { path: `reviews/${b.id}`, data: { items: { x: { override: { ...override, fileAsset } } } } });
+  assert.equal(stolen.status, 403, "a 수정본 must be the reviewer's own upload");
 });
 
 test("사비 files are private to the submitter, 총무 and developers", async () => {

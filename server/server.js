@@ -14,6 +14,7 @@ import { analyzeExport, remapRows } from "./migrate.js";
 import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
 import { contentMatches, cleanName } from "./filetype.js";
 import { DEPARTMENTS, DEPTS, deptLabel, DEPTS_PLACEHOLDER } from "./depts.js";
+import { checkExpenseFile } from "./expense-check.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -363,6 +364,51 @@ function guardWrite(ctx, path, prev, next) {
   }
   return next;
 }
+// 사비 내역서 양식 검사, again on the server: every newly submitted original (and every 수정본 a 총무 puts in a review) is
+// opened from the stored file and checked with the page's own rules. What gets stored is the server's reading of the
+// file, so a submission saved without the page still gets a real check, and a 팀원 cannot save a 양식 불일치 file.
+// Runs before commitWrite on the incoming document or patch, replacing the checked entries in place.
+async function recheckExpenses(ctx, path, data) {
+  const segs = path.split("/");
+  if (segs.length !== 2 || (segs[0] !== "expenses" && segs[0] !== "reviews")) return;
+  const stored = docs.get(path)?.data || {};
+  if (segs[0] === "expenses" && isObject(data.subs)) {
+    for (const [id, sub] of Object.entries(data.subs)) {
+      if (!isObject(sub) || (isObject(stored.subs) && id in stored.subs)) continue;   // existing entries: guardWrite keeps them unchanged
+      const checked = await checkSubmittedFile(ctx, sub);
+      if (!checked) continue;
+      if (checked.check.level === "bad" && !isManager(ctx.user))
+        throw new StoreError("forbidden", `서버에서 다시 확인해 보니 양식에 맞지 않아요. ${checked.check.errors.slice(0, 3).join(" ")} 고친 뒤 다시 제출해 주세요.`, 422);
+      data.subs[id] = { ...sub, ...checked };
+    }
+  }
+  if (segs[0] === "reviews" && isObject(data.items)) {
+    for (const [key, it] of Object.entries(data.items)) {
+      if (!isObject(it) || !isObject(it.override)) continue;
+      if (stableJson(stored.items?.[key]?.override) === stableJson(it.override)) continue;   // the page resends the current 수정본 with every review
+      const checked = await checkSubmittedFile(ctx, it.override);
+      if (checked) { const { hash, fileSize, ...fields } = checked; it.override = { ...it.override, ...fields }; }
+    }
+  }
+}
+// Reads the original a submission or 수정본 points at and checks it. Only the uploader's own files: anything else would
+// let someone copy another person's statement into their own document. Developers may store entries without a file.
+const blobId = (a) => String(a || "").replace(/^\/_blob\//, "");
+async function checkSubmittedFile(ctx, sub) {
+  const id = blobId(sub.fileAsset), row = validAssetId(id) ? assetGet.get(id) : null;
+  if (!row || !existsSync(assetPath(id))) {
+    if (ctx.user.role === "developer") return null;
+    throw new StoreError("forbidden", "내역서 원본 파일을 찾을 수 없어요. 파일을 다시 올려 주세요.", 403);
+  }
+  if (ctx.user.role !== "developer") for (const a of expenseAssets(sub)) {
+    const r = validAssetId(blobId(a)) ? assetGet.get(blobId(a)) : null;
+    if (!r || r.uploader !== ctx.user.id) throw new StoreError("forbidden", "내가 올린 파일만 내역서에 넣을 수 있어요.", 403);
+  }
+  // The page stores the xlsx base64-wrapped as text/plain (the claude.ai asset store does not take xlsx); a raw xlsx also works.
+  const raw = await fsp.readFile(assetPath(id));
+  const buf = row.content_type === "text/plain" ? Buffer.from(raw.toString("latin1").trim(), "base64") : raw;
+  return checkExpenseFile(pageSource(), buf, cleanName(String(sub.fileName || "")));
+}
 function afterWrite(ctx, path, prevData, d) {
   broadcast(path, d);
   const col = path.split("/")[0];
@@ -506,6 +552,7 @@ route("POST", "/api/db/set", async (ctx) => {
   const { path, data } = await readJson(ctx.req, 400 * 1024);
   splitPath(path, "doc"); assertWrite(ctx, path);
   if (!isObject(data)) throw new StoreError("invalid_argument", "document body must be an object");
+  await recheckExpenses(ctx, path, data);
   const d = commitWrite(ctx, path, data);
   if (path === "config/roles") applyRolesWrite(ctx, data);
   send(ctx.res, 200, { ok: true, version: d.version });
@@ -513,9 +560,10 @@ route("POST", "/api/db/set", async (ctx) => {
 route("POST", "/api/db/update", async (ctx) => {
   const { path, data } = await readJson(ctx.req, 400 * 1024);
   splitPath(path, "doc"); assertWrite(ctx, path);
+  if (!isObject(data)) throw new StoreError("invalid_argument", "patch must be an object");
+  await recheckExpenses(ctx, path, data);
   const cur = docs.get(path);
   if (!cur) throw new StoreError("invalid_argument", "update needs an existing document");
-  if (!isObject(data)) throw new StoreError("invalid_argument", "patch must be an object");
   const d = commitWrite(ctx, path, deepMerge(cur.data, data));
   if (path === "config/roles") applyRolesWrite(ctx, d.data);
   send(ctx.res, 200, { ok: true, version: d.version });

@@ -147,6 +147,17 @@ test("comments notify the log's author and earlier commenters", async () => {
   assert.equal((await notes(b)).items.filter((x) => x.kind === "comment").length, 1, "earlier commenters hear replies");
 });
 
+test("a status or department named like an Object property is not read as a real one", async () => {
+  await a.post("/api/db/set", { path: "logs/l2", data: { sessionId: "s1", dept: "constructor", status: "ok", author: "에이" } });
+  await b.post("/api/db/set", { path: "comments/c3", data: { logId: "l2", sessionId: "s1", author: "비", text: "확인" } });
+  assert.equal((await notes(a)).items[0].title, "기록에 새 의견", "no built-in function text in the title");
+  await vice.post("/api/db/update", { path: `reviews/${vice.id}`, data: { items: { [`${vice.id}:v1`]: { status: "approved" } } } });
+  await vice.post("/api/db/update", { path: `reviews/${vice.id}`, data: { items: { [`${vice.id}:v1`]: { status: "constructor" } } } });
+  const audit = (await dev.get("/api/admin/audit?action=expense.")).json.entries;
+  assert.ok(audit.some((e) => e.action === "expense.review" && /승인 · 지급 대기 → 검토 대기/.test(e.detail)), "an unknown status counts as 검토 대기");
+  assert.ok(!audit.some((e) => /native code|function/.test(e.detail)));
+});
+
 test("webhook addresses are checked", async () => {
   for (const url of ["http://discord.com/api/webhooks/1/x", "https://evil.example/hook", "https://user:pw@discord.com/api/webhooks/1/x", "not a url"])
     assert.equal((await dev.post("/api/admin/settings", { webhookUrl: url })).status, 400, url);

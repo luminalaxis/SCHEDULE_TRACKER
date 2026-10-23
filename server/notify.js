@@ -16,6 +16,9 @@ const EXP_ST = { pending: "검토 대기", fix: "보완 요청", approved: "승�
 const EXP_TITLE = { fix: "사비 정산 보완 요청", approved: "사비 정산 승인 · 지급 대기", paid: "사비 정산 지급 완료", rejected: "사비 정산 반려" };
 const LEVEL = { ok: "양식 통과", warn: "확인 필요", bad: "양식 불일치" };
 const KEEP_DAYS = 60;
+// Lookups by a value someone wrote (a status, a department, an entry id): own keys only, so "constructor" or
+// "toString" finds nothing instead of a built-in function that ends up in the audit log or a team message.
+const own = (map, k) => (map && typeof map === "object" && typeof k === "string" && Object.hasOwn(map, k) ? map[k] : undefined);
 
 const won = (n) => Math.round(Number(n) || 0).toLocaleString("ko-KR") + "원";
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -98,7 +101,7 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
 
   function subOf(key) {
     const [owner, id] = key.split(":");
-    return { owner, sub: (docs.get("expenses/" + owner)?.data?.subs || {})[id] || null };
+    return { owner, sub: own(docs.get("expenses/" + owner)?.data?.subs, id) || null };
   }
 
   function onReviews(ctx, reviewer, prev, next) {
@@ -106,7 +109,7 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
     const before = prev?.items || {}, after = next?.items || {};
     for (const [key, it] of Object.entries(after)) {
       if (!it || typeof it !== "object") continue;
-      const old = before[key] || {}, st = EXP_ST[it.status] ? it.status : "pending", ost = EXP_ST[old.status] ? old.status : "pending";
+      const old = own(before, key) || {}, st = own(EXP_ST, it.status) ? it.status : "pending", ost = own(EXP_ST, old.status) ? old.status : "pending";
       const { owner, sub } = subOf(key);
       const who = sub ? `${sub.applicant || sub.by || "이름 없음"} · ${won(it.override?.total ?? sub.total)}` : key;
       if (st !== ost) {
@@ -125,10 +128,10 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
   function onExpenses(ctx, owner, prev, next) {
     const before = prev?.subs || {};
     for (const [id, s] of Object.entries(next?.subs || {})) {
-      if (before[id] || !s || typeof s !== "object") continue;
+      if (own(before, id) || !s || typeof s !== "object") continue;
       notify(treasurers(), {
         kind: "expense.new", title: "새 사비 내역서",
-        body: `${s.applicant || s.by || "이름 없음"} · ${won(s.total)} · ${LEVEL[s.check?.level] || ""}`,
+        body: `${s.applicant || s.by || "이름 없음"} · ${won(s.total)} · ${own(LEVEL, s.check?.level) || ""}`,
         link: { tab: "expense", exp: `${owner}:${id}` }
       }, ctx?.user?.id);
     }
@@ -141,7 +144,7 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
     const others = docs.list("comments").filter((c) => c.data.logId === next.logId).map((c) => c.createdBy);
     const sess = typeof next.sessionId === "string" ? docs.get("sessions/" + next.sessionId)?.data : null;
     notify([log.createdBy, ...others], {
-      kind: "comment", title: `${DEPT[log.data.dept] || ""} 기록에 새 의견`.trim(),
+      kind: "comment", title: `${own(DEPT, log.data.dept) || ""} 기록에 새 의견`.trim(),
       body: `${next.author || ctx?.user?.name || ""}: ${next.text || ""}${sess ? ` (${short(sess.date)} ${sess.event || ""})` : ""}`,
       link: { tab: "sessions", sid: next.sessionId || log.data.sessionId || "" }
     }, ctx?.user?.id);
@@ -150,7 +153,7 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
   function onLog(id, prev, next) {
     if (!next || !["warn", "bad"].includes(next.status) || prev?.status === next.status) return;
     const sess = typeof next.sessionId === "string" ? docs.get("sessions/" + next.sessionId)?.data : null;
-    const head = `${next.status === "bad" ? "🔴 문제" : "🟠 주의"} · ${DEPT[next.dept] || next.dept || ""}${sess ? ` · ${short(sess.date)} ${sess.event || ""}` : ""}`;
+    const head = `${next.status === "bad" ? "🔴 문제" : "🟠 주의"} · ${own(DEPT, next.dept) || next.dept || ""}${sess ? ` · ${short(sess.date)} ${sess.event || ""}` : ""}`;
     sendTeam("issues", `${head}\n${clip(next.analysis || next.observation || "", 300)}${next.action ? `\n→ ${clip(next.action, 200)}` : ""}`, `issue:${id}:${next.status}`);
   }
 
@@ -184,11 +187,11 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
       const to = picked.length ? picked : named(x.owner).length ? named(x.owner) : partLeads(x.dept);
       sent += notify(to, {
         kind: "part.due", title: bucket === "late" ? "마감 지난 부품" : bucket === "today" ? "오늘 마감인 부품" : `부품 마감 D-${n}`,
-        body: `${x.name || "(이름 없음)"} · ${DEPT[x.dept] || ""} · 마감 ${fmtDate(x.due)}`, link: { tab: "parts", part: p.id }, dedupe: `due:${p.id}:${x.due}:${bucket}`
+        body: `${x.name || "(이름 없음)"} · ${own(DEPT, x.dept) || ""} · 마감 ${fmtDate(x.due)}`, link: { tab: "parts", part: p.id }, dedupe: `due:${p.id}:${x.due}:${bucket}`
       });
     }
     if (late.length || dueToday.length) {
-      const names = (list) => list.slice(0, 8).map((x) => `${x.name} (${DEPT[x.dept] || ""}${x.owner ? ", " + x.owner : ""})`).join(", ") + (list.length > 8 ? ` 외 ${list.length - 8}개` : "");
+      const names = (list) => list.slice(0, 8).map((x) => `${x.name} (${own(DEPT, x.dept) || ""}${x.owner ? ", " + x.owner : ""})`).join(", ") + (list.length > 8 ? ` 외 ${list.length - 8}개` : "");
       sendTeam("parts", [late.length ? `📦 마감 지난 부품 ${late.length}개: ${names(late)}` : "", dueToday.length ? `⏰ 오늘 마감 ${dueToday.length}개: ${names(dueToday)}` : ""].filter(Boolean).join("\n"), `parts:${today}`);
     }
     for (const m of docs.list("milestones")) {
@@ -198,8 +201,8 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
       if (!bucket) continue;
       const label = n === 0 ? "D-DAY" : `D-${n}`, to = x.dept ? active().filter((u) => u.dept === x.dept).map((u) => u.id) : active().map((u) => u.id);
       const dedupe = `ms:${m.id}:${x.date}:${bucket}`;
-      sent += notify(to, { kind: "milestone", title: `${label} · ${x.title || "일정"}`, body: `${fmtDate(x.date)} · ${x.kind || "일정"}${DEPT[x.dept] ? " · " + DEPT[x.dept] : ""}`, link: { tab: "schedule" }, dedupe });
-      sendTeam("schedule", `🗓️ ${label} · ${x.title || "일정"} (${fmtDate(x.date)}${DEPT[x.dept] ? ", " + DEPT[x.dept] : ""})${x.note ? `\n${clip(x.note, 200)}` : ""}`, dedupe);
+      sent += notify(to, { kind: "milestone", title: `${label} · ${x.title || "일정"}`, body: `${fmtDate(x.date)} · ${x.kind || "일정"}${own(DEPT, x.dept) ? " · " + own(DEPT, x.dept) : ""}`, link: { tab: "schedule" }, dedupe });
+      sendTeam("schedule", `🗓️ ${label} · ${x.title || "일정"} (${fmtDate(x.date)}${own(DEPT, x.dept) ? ", " + own(DEPT, x.dept) : ""})${x.note ? `\n${clip(x.note, 200)}` : ""}`, dedupe);
     }
     const cutoff = new Date(d.getTime() - KEEP_DAYS * 86400000).toISOString();
     q.prune.run(cutoff); q.logPrune.run(new Date(d.getTime() - 120 * 86400000).toISOString());

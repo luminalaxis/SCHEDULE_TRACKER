@@ -342,6 +342,9 @@ function guardPart(ctx, prev, next) {
 }
 
 // Returns what is actually stored: the page's data, with history and people entries stamped from the account.
+// A new submission's id is what the page makes (letters and digits). Own-property checks throughout: an id such as
+// "constructor" must not count as an entry that is already there.
+const SUB_ID = /^[A-Za-z0-9_-]{1,64}$/;
 // Submitted 사비 내역서 entries are final for the submitter: they can add new ones but not change or remove
 // what was submitted (총무 replaces a file with a 수정본 instead). Developers keep full control (완전 삭제).
 function guardWrite(ctx, path, prev, next) {
@@ -352,11 +355,12 @@ function guardWrite(ctx, path, prev, next) {
   if (segs[0] !== "expenses" || segs.length !== 2 || ctx.user.role === "developer") return next;
   const before = (prev && prev.subs) || {}, after = next && next.subs && typeof next.subs === "object" && !Array.isArray(next.subs) ? next.subs : {};
   for (const [id, sub] of Object.entries(before)) {
-    if (!(id in after) || stableJson(after[id]) !== stableJson(sub))
+    if (!Object.hasOwn(after, id) || stableJson(after[id]) !== stableJson(sub))
       throw new StoreError("locked", "제출한 사비 내역서는 고치거나 지울 수 없어요. 바꿀 내용이 있으면 총무에게 수정본 교체를 요청하세요.", 403);
   }
   for (const [id, sub] of Object.entries(after)) {
-    if (id in before) continue;
+    if (Object.hasOwn(before, id)) continue;
+    if (!SUB_ID.test(id)) throw new StoreError("invalid_argument", "내역서 id가 올바르지 않아요.");
     for (const a of expenseAssets(sub)) {
       const row = validAssetId(a) ? assetGet.get(a) : null;
       if (!row || row.uploader !== ctx.user.id) throw new StoreError("forbidden", "내가 올린 파일만 내역서에 넣을 수 있어요.", 403);
@@ -374,7 +378,8 @@ async function recheckExpenses(ctx, path, data) {
   const stored = docs.get(path)?.data || {};
   if (segs[0] === "expenses" && isObject(data.subs)) {
     for (const [id, sub] of Object.entries(data.subs)) {
-      if (!isObject(sub) || (isObject(stored.subs) && id in stored.subs)) continue;   // existing entries: guardWrite keeps them unchanged
+      if (!isObject(sub) || (isObject(stored.subs) && Object.hasOwn(stored.subs, id))) continue;   // existing entries: guardWrite keeps them unchanged
+      if (!SUB_ID.test(id)) throw new StoreError("invalid_argument", "내역서 id가 올바르지 않아요.");
       const checked = await checkSubmittedFile(ctx, sub);
       if (!checked) continue;
       if (checked.check.level === "bad" && !isManager(ctx.user))
@@ -385,7 +390,8 @@ async function recheckExpenses(ctx, path, data) {
   if (segs[0] === "reviews" && isObject(data.items)) {
     for (const [key, it] of Object.entries(data.items)) {
       if (!isObject(it) || !isObject(it.override)) continue;
-      if (stableJson(stored.items?.[key]?.override) === stableJson(it.override)) continue;   // the page resends the current 수정본 with every review
+      const prev = isObject(stored.items) && Object.hasOwn(stored.items, key) ? stored.items[key] : null;
+      if (prev && stableJson(prev.override) === stableJson(it.override)) continue;   // the page resends the current 수정본 with every review
       const checked = await checkSubmittedFile(ctx, it.override);
       if (checked) { const { hash, fileSize, ...fields } = checked; it.override = { ...it.override, ...fields }; }
     }

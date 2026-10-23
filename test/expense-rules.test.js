@@ -146,3 +146,34 @@ test("server XML reader: prefixes, entities, phonetic runs, r: attributes", asyn
   assert.equal(sheet.getAttributeNS(RNS, "id"), "rId7"); assert.equal(sheet.getAttribute("r:id"), null);
   assert.equal(sheet.getAttributeNS("urn:other", "id"), null);
 });
+
+test("server XML reader stays fast on hostile input and refuses broken or oversized XML", async () => {
+  const { parseXml } = await import("../server/expense-check.js");
+  const t = Date.now();
+  for (const evil of ["<a" + "<".repeat(200000), "<!--".repeat(100000), "<a x=\"" + "<".repeat(200000), "<![CDATA[".repeat(50000), "<a " + "b".repeat(200000)])
+    assert.throws(() => parseXml(evil), (e) => typeof e.user === "string");
+  assert.ok(Date.now() - t < 2000, `hostile inputs took ${Date.now() - t} ms`);
+  assert.throws(() => parseXml("<a><b></a>"), (e) => typeof e.user === "string", "mismatched tags");
+  assert.throws(() => parseXml("<x>".repeat(65) + "</x>".repeat(65)), (e) => typeof e.user === "string", "too deep");
+  assert.throws(() => parseXml("<r>" + "<c/>".repeat(200001) + "</r>"), (e) => /너무 커요/.test(e.user), "too many elements");
+  assert.equal(parseXml("<r>" + "<c/>".repeat(1000) + "</r>").getElementsByTagNameNS("*", "c").length, 1000);
+});
+
+test("form rules stay fast on long cell text and file names", () => {
+  const t = Date.now();
+  check(workbook({ items: [item({ vendor: "1".repeat(200000) })] }));
+  check(workbook({ items: [item({ vendor: "1" + " ".repeat(200000) })] }));
+  R.checkStatement(workbook(), "개인사비사용내역서" + " ".repeat(400000) + "x.xlsx", TODAY);
+  assert.ok(Date.now() - t < 1500, `took ${Date.now() - t} ms`);
+  assert.ok(!has(check(workbook({ items: [item({ vendor: "서울 성북구 123-45" })] })).warns, /링크나 주소/), "a street number still counts as an address");
+});
+
+test("server check limits what a file can unpack and store", async () => {
+  const { checkExpenseFile } = await import("../server/expense-check.js");
+  const { statementXlsx } = await import("./helpers/xlsx.js");
+  const huge = await checkExpenseFile(html, statementXlsx({ items: [item({ team: "x".repeat(5 * 1024 * 1024) })] }).buffer, FILE, TODAY);
+  assert.equal(huge.check.level, "bad"); assert.match(huge.check.errors[0], /너무 커요/);
+  const long = await checkExpenseFile(html, statementXlsx({ items: Array.from({ length: 10 }, () => item({ team: "x".repeat(20000), cat: "y".repeat(20000) })) }).buffer, FILE, TODAY);
+  assert.equal(long.check.level, "bad"); assert.match(long.check.errors[0], /너무 길어요/);
+  assert.ok(JSON.stringify(long).length < 2000, "nothing long is kept");
+});

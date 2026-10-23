@@ -978,7 +978,7 @@ window.FSKExpenseRules = (() => {
     const E = [], W = [], I = [];
     const res = { errors: E, warns: W, infos: I, items: [], total: 0, account: "", receipts: [], applicant: "", totalRow: 13 };
     const done = () => { res.level = E.length ? "bad" : W.length ? "warn" : "ok"; return res; };
-    const fm = String(fileName).replace(/\.xlsx$/i, "").match(/^개인\s*사비\s*사용\s*내역서\s*[_\-\s]\s*([^_\-\s]+)\s*[_\-\s]\s*(.+)$/);
+    const fm = String(fileName).slice(0, 200).replace(/\.xlsx$/i, "").match(/^개인\s*사비\s*사용\s*내역서\s*[_\-\s]\s*([^_\-\s]+)\s*[_\-\s]\s*(.+)$/);
     if (fm) res.applicant = fm[1]; else W.push("파일명이 '개인사비사용내역서_이름_날짜' 형식이 아니에요.");
     const sheet = wbk.sheets.find((s) => normH(s.name) === "내역서"), rsheet = wbk.sheets.find((s) => normH(s.name) === "영수증");
     if (!sheet) { E.push("'내역서' 시트가 없어요. 동아리 사비 내역서 양식 파일인지 확인해 주세요."); return done(); }
@@ -1018,7 +1018,7 @@ window.FSKExpenseRules = (() => {
       if (calc !== null && tot === null) W.push(`${label} K${r}: 합계 칸이 비어 있어 단가×수량으로 계산했어요.`);
       if (g("K" + r) && !g("K" + r).f && tot !== null) formulaLost++;
       if (/배송|택배|운송/.test(product + purpose) && cat && cat !== "기타") W.push(`${label}: 배송비는 구분을 '기타'로 적어야 해요.`);
-      if (vendor && !/(https?:\/\/|www\.|\.(com|kr|net|co|shop|store)\b|스마트스토어|쿠팡|\(|\d+\s*[-–]\s*\d+|[시군구로길동]\s*\d)/i.test(vendor)) W.push(`${label} H${r}: 구매처에 링크나 주소가 없어요.`);
+      if (vendor && !/(https?:\/\/|www\.|\.(com|kr|net|co|shop|store)\b|스마트스토어|쿠팡|\(|\d\s*[-–]\s*\d|[시군구로길동]\s*\d)/i.test(vendor)) W.push(`${label} H${r}: 구매처에 링크나 주소가 없어요.`);
       groups.add(`${date || dateRaw}|${vendor}`);
       res.items.push({ no, team, date: date || dateRaw, cat, purpose, product, vendor, price, qty, total: calc ?? tot ?? 0 });
     }

@@ -8,7 +8,9 @@ import vm from "node:vm";
 import crypto from "node:crypto";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MAX_PART = 16 * 1024 * 1024;   // largest xml part we unpack, so a zip bomb cannot fill the Pi's memory
+// A club statement's xml parts are a few hundred KB at most. These keep a zip bomb from filling the Pi's memory.
+const MAX_PART = 4 * 1024 * 1024, MAX_UNPACKED = 16 * 1024 * 1024;
+const MAX_SUMMARY = 48 * 1024;        // what one submission may add to the submitter's document (256 KiB in all)
 
 // The vendored file is UMD: given module/exports it hands JSZip back instead of setting a global.
 const JSZip = (() => {
@@ -22,7 +24,7 @@ const JSZip = (() => {
 // and localName. xlsx parts are machine-written, so this is a tokenizer, not a validating parser.
 const ENT = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
 const decode = (s) => s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e) => {
-  if (e[0] !== "#") return ENT[e] ?? m;
+  if (e[0] !== "#") return Object.hasOwn(ENT, e) ? ENT[e] : m;
   const n = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : Number(e.slice(1));
   return n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : m;
 });
@@ -54,24 +56,65 @@ class XmlNode {
     return out;
   }
 }
-const TOKEN = /<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!DOCTYPE[^>]*>|<\/([^\s>]+)\s*>|<([^\s/>!?]+)((?:\s+[^\s=/>]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)|</g;
-const ATTR = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-export function parseXml(text) {
-  const doc = new XmlNode(null, {}, null);
-  let cur = doc, m;
-  const src = String(text).replace(/\r\n?/g, "\n");
-  TOKEN.lastIndex = 0;
-  while ((m = TOKEN.exec(src))) {
-    if (m[1] !== undefined) cur.childNodes.push(m[1]);
-    else if (m[2] !== undefined) { for (let n = cur; n !== doc; n = n.parentNode) if (n.nodeName === m[2]) { cur = n.parentNode; break; } }
-    else if (m[3] !== undefined) {
-      const attrs = {};
-      for (const a of (m[4] || "").matchAll(ATTR)) attrs[a[1]] = decode((a[2] ?? a[3]).replace(/[\t\n]/g, " "));
-      const el = new XmlNode(m[3], attrs, cur);
-      cur.childNodes.push(el);
-      if (!m[5]) cur = el;
-    } else if (m[6] !== undefined && cur !== doc) cur.childNodes.push(decode(m[6]));
+// One pass with indexOf, no backtracking regexes: a crafted part cannot make it slow. Malformed XML, more than
+// MAX_DEPTH levels or MAX_NODES elements throws (the check then reports the file as unreadable).
+const MAX_DEPTH = 64, MAX_NODES = 200000;
+const isSpace = (c) => c === " " || c === "\n" || c === "\t" || c === "\r";
+const malformed = () => { throw { user: "파일 안의 XML이 깨져 있어요. 엑셀이나 한셀에서 다시 저장해 주세요." }; };
+function parseTag(src, start, end, parent) {
+  let i = start;
+  while (i < end && !isSpace(src[i]) && src[i] !== "/") i++;
+  const name = src.slice(start, i), attrs = {};
+  if (!name) malformed();
+  for (;;) {
+    while (i < end && isSpace(src[i])) i++;
+    if (i >= end || src[i] === "/") break;
+    const n0 = i;
+    while (i < end && !isSpace(src[i]) && src[i] !== "=") i++;
+    const key = src.slice(n0, i);
+    while (i < end && isSpace(src[i])) i++;
+    if (!key || src[i] !== "=") malformed();
+    i++;
+    while (i < end && isSpace(src[i])) i++;
+    const q = src[i];
+    if (q !== '"' && q !== "'") malformed();
+    const close = src.indexOf(q, i + 1);
+    if (close < 0 || close >= end) malformed();
+    attrs[key] = decode(src.slice(i + 1, close).replace(/[\t\n]/g, " "));
+    i = close + 1;
   }
+  return new XmlNode(name, attrs, parent);
+}
+export function parseXml(text) {
+  const src = String(text).replace(/\r\n?/g, "\n"), n = src.length, doc = new XmlNode(null, {}, null);
+  let cur = doc, depth = 0, nodes = 0, i = 0;
+  while (i < n) {
+    const lt = src.indexOf("<", i);
+    if (lt < 0) { if (cur !== doc) cur.childNodes.push(decode(src.slice(i))); break; }
+    if (lt > i && cur !== doc) cur.childNodes.push(decode(src.slice(i, lt)));
+    const skipTo = (marker, from) => { const e = src.indexOf(marker, from); if (e < 0) malformed(); return e + marker.length; };
+    if (src.startsWith("<!--", lt)) { i = skipTo("-->", lt + 4); continue; }
+    if (src.startsWith("<![CDATA[", lt)) { const e = skipTo("]]>", lt + 9); if (cur !== doc) cur.childNodes.push(src.slice(lt + 9, e - 3)); i = e; continue; }
+    if (src.startsWith("<?", lt)) { i = skipTo("?>", lt + 2); continue; }
+    if (src.startsWith("<!", lt)) { i = skipTo(">", lt + 2); continue; }
+    // the tag ends at the first '>' outside a quoted attribute value
+    let gt = lt + 1, quote = "";
+    for (; gt < n; gt++) { const c = src[gt]; if (quote) { if (c === quote) quote = ""; } else if (c === '"' || c === "'") quote = c; else if (c === ">") break; }
+    if (gt >= n) malformed();
+    if (src[lt + 1] === "/") {
+      const name = src.slice(lt + 2, gt).trim();
+      if (cur === doc || cur.nodeName !== name) malformed();
+      cur = cur.parentNode; depth--;
+    } else {
+      const selfClosing = src[gt - 1] === "/";
+      const el = parseTag(src, lt + 1, selfClosing ? gt - 1 : gt, cur);
+      if (++nodes > MAX_NODES) throw { user: "파일 안의 표 데이터가 너무 커요. 동아리 양식 파일인지 확인해 주세요." };
+      cur.childNodes.push(el);
+      if (!selfClosing) { if (++depth > MAX_DEPTH) malformed(); cur = el; }
+    }
+    i = gt + 1;
+  }
+  if (cur !== doc) malformed();
   return doc;
 }
 
@@ -93,23 +136,31 @@ const todayKst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul"
 
 // Checks one statement. Returns the fields a submission stores (items, total, teams, accountMasked, check) plus the
 // file's hash and size. A file that cannot be read comes back as 양식 불일치 rather than throwing.
-export async function checkExpenseFile(html, buf, fileName, today = todayKst()) {
+// Checks run one at a time, so many uploads at once cannot multiply the memory a check needs.
+let queue = Promise.resolve();
+export function checkExpenseFile(html, buf, fileName, today = todayKst()) {
+  const run = queue.then(() => checkNow(html, buf, fileName, today));
+  queue = run.catch(() => {});
+  return run;
+}
+const unreadable = (msg) => ({ level: "bad", errors: [msg], warns: [], infos: [], items: [], total: 0, account: "" });
+async function checkNow(html, buf, fileName, today) {
   const R = rulesOf(html);
   let res;
   try {
-    let zip;
+    let zip, unpacked = 0;
     try { zip = await JSZip.loadAsync(buf); } catch { throw { user: "xlsx 파일을 열 수 없어요. 파일이 손상됐거나 암호가 걸려 있을 수 있어요." }; }
     const guarded = { file: (path) => {
-      const f = zip.file(path);
-      if (f && f._data && f._data.uncompressedSize > MAX_PART) throw { user: "파일 안의 표 데이터가 너무 커요. 동아리 양식 파일인지 확인해 주세요." };
+      const f = zip.file(path), size = f && f._data ? f._data.uncompressedSize : 0;
+      if (f && (!(size >= 0) || size > MAX_PART || (unpacked += size) > MAX_UNPACKED)) throw { user: "파일 안의 표 데이터가 너무 커요. 동아리 양식 파일인지 확인해 주세요." };
       return f;
     } };
-    res = R.checkStatement(await R.readWorkbook(guarded, parseXml), String(fileName || ""), today);
+    res = R.checkStatement(await R.readWorkbook(guarded, parseXml), String(fileName || "").slice(0, 200), today);
   } catch (e) {
-    const msg = e && typeof e.user === "string" ? e.user : "파일을 읽을 수 없어요. 동아리 양식의 xlsx 파일인지 확인해 주세요.";
-    res = { level: "bad", errors: [msg], warns: [], infos: [], items: [], total: 0, account: "" };
+    res = unreadable(e && typeof e.user === "string" ? e.user : "파일을 읽을 수 없어요. 동아리 양식의 xlsx 파일인지 확인해 주세요.");
   }
   // copy out of the vm realm so the stored values are plain objects of this one
-  const summary = JSON.parse(JSON.stringify(R.summarize(res)));
+  let summary = JSON.parse(JSON.stringify(R.summarize(res)));
+  if (JSON.stringify(summary).length > MAX_SUMMARY) summary = JSON.parse(JSON.stringify(R.summarize(unreadable("칸에 적힌 내용이 너무 길어요. 동아리 양식대로 짧게 적어 주세요."))));
   return { ...summary, hash: crypto.createHash("sha256").update(buf).digest("hex"), fileSize: buf.length };
 }

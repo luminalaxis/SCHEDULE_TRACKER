@@ -86,6 +86,17 @@ test("the server checks each submitted 사비 file again and stores its own resu
   assert.equal(stolen.status, 403, "a 수정본 must be the reviewer's own upload");
 });
 
+test("a submission id named like an Object property cannot skip the lock or the file check", async () => {
+  // b already has an expenses document, so "constructor" would have looked like an existing entry
+  assert.equal((await b.post("/api/db/set", { path: `expenses/${b.id}`, data: { subs: {} } })).status, 200);
+  for (const id of ["constructor", "toString", "__proto__", "a b", "x".repeat(65)]) {
+    const r = await b.post("/api/db/update", { path: `expenses/${b.id}`, data: { subs: { [id]: { id, fileAsset, total: 99999999, check: { level: "ok" }, receipts: [] } } } });
+    assert.notEqual(r.status, 200, `id ${JSON.stringify(id)} is refused`);
+  }
+  const blob = await fetch(srv.base + "/_blob/" + fileAsset, { headers: { cookie: b.cookie } });
+  assert.equal(blob.status, 403, "b still cannot open a's original");
+});
+
 test("사비 files are private to the submitter, 총무 and developers", async () => {
   const blob = (c, id) => fetch(srv.base + "/_blob/" + id, { headers: { cookie: c.cookie } }).then((r) => r.status);
   assert.equal(await blob(b, fileAsset), 403, "another member cannot open the original");

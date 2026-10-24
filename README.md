@@ -101,6 +101,8 @@ npm run test:e2e             # 브라우저 테스트 (Playwright가 있을 때�
 
 결과는 `양식 통과` / `확인 필요` / `양식 불일치` 세 단계이며, 팀원은 양식 불일치 파일을 제출할 수 없습니다.
 
+자체 서버에서는 제출된 원본 파일을 서버가 열어 **같은 규칙으로 한 번 더 검사**해요(`server/expense-check.js`). 항목·합계·가린 계좌번호·검사 결과는 페이지가 보낸 값이 아니라 서버가 읽은 값으로 저장돼요. 팀원이 페이지를 거치지 않고 저장해도 양식 불일치면 서버가 거절해요(총무·개발자는 등록 가능). 총무가 올린 수정본도 서버가 다시 검사해요. 사람이 고르는 신청자 이름은 그대로 둬요.
+
 ### 지급 상태
 
 `검토 대기` → `보완 요청` / `승인 · 지급 대기` → `지급 완료` / `반려`
@@ -157,6 +159,7 @@ npm run test:e2e             # 브라우저 테스트 (Playwright가 있을 때�
 index.html                  페이지 본문 (Artifact와 자체 서버가 함께 씀). 사비 양식 규칙은 별도 <script>로 분리돼 테스트에서도 그대로 실행돼요
 artifact.config.json        권한 규칙 (Artifact 게시 설정이자 서버의 권한 규칙)
 server/server.js            HTTP 서버: 로그인, db API, 실시간(SSE), 첨부 파일, 관리 API, 자동 백업, 사비 잠금, 외부 복사
+server/expense-check.js     사비 내역서 서버 검사: index.html의 양식 규칙과 같은 JSZip을 그대로 써서 저장된 원본을 다시 검사
 server/store.js             SQLite 문서 저장소, 경로 규칙, 권한 규칙 엔진, 쿼리
 server/auth.js              계정, scrypt 비밀번호, 세션 쿠키
 server/depts.js             부서 목록 (서버·명령줄 도구·알림·로그인·관리 창이 함께 씀. index.html 목록과 같은지 테스트로 확인)
@@ -192,7 +195,7 @@ SECURITY.md                 보안 검토 결과와 남은 위험
 
 ## 테스트
 
-- `npm test`: 서버 API, 사비 잠금·파일 비공개, 알림, 전체 백업·외부 복사, claude.ai 옮기기, 보안 설정(`test/server.test.js`, `test/features.test.js`), 사비 내역서 양식 규칙(`test/expense-rules.test.js`, index.html의 규칙 코드를 그대로 실행), 모듈 단위 테스트(`test/units.test.js`). 설치할 것 없음
+- `npm test`: 서버 API, 사비 잠금·파일 비공개·서버 양식 재검사, 알림, 전체 백업·외부 복사, claude.ai 옮기기, 보안 설정(`test/server.test.js`, `test/features.test.js`), 사비 내역서 양식 규칙(`test/expense-rules.test.js`, index.html의 규칙 코드를 그대로 실행하고, 서버 검사가 같은 결과를 내는지도 확인), 모듈 단위 테스트(`test/units.test.js`). 설치할 것 없음
 - `npm run test:e2e`: 실제 브라우저로 휴대폰 화면 배치, 인터넷이 끊긴 상태에서 점검 체크 → 다시 연결되면 올라가는지, xlsx 제출과 양식 검사, 총무 승인 알림까지 확인해요. Playwright가 필요해요 (`npm i --no-save playwright && npx playwright install chromium`). 없으면 건너뛰어요. `E2E_SHOTS=폴더`를 주면 화면을 저장해요
 
 ## 외부 라이브러리

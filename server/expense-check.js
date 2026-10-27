@@ -131,6 +131,14 @@ function rulesOf(html) {
   }
   return rulesFor.rules;
 }
+// An index.html from before the server check (e.g. copied back from the claude.ai Artifact) has rules without
+// readWorkbook/summarize. Returns what is wrong, or "" when the page's rules are usable here.
+export function rulesProblem(html) {
+  let R;
+  try { R = rulesOf(html); } catch { return "index.html 에 사비 내역서 양식 규칙이 없어요."; }
+  const missing = ["checkStatement", "readWorkbook", "summarize"].filter((k) => typeof (R && R[k]) !== "function");
+  return missing.length ? `index.html 이 서버 코드보다 오래된 버전이에요 (양식 규칙에 ${missing.join(", ")} 없음).` : "";
+}
 // Today in Korea, so "날짜가 오늘 이후" agrees with what the team's browsers said whatever the server's time zone is.
 const todayKst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 

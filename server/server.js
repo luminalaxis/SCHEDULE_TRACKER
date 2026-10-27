@@ -14,7 +14,7 @@ import { analyzeExport, remapRows } from "./migrate.js";
 import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
 import { contentMatches, cleanName } from "./filetype.js";
 import { DEPARTMENTS, DEPTS, deptLabel, DEPTS_PLACEHOLDER } from "./depts.js";
-import { checkExpenseFile } from "./expense-check.js";
+import { checkExpenseFile, rulesProblem } from "./expense-check.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -431,6 +431,7 @@ async function checkSubmittedFile(ctx, sub) {
   // The page stores the xlsx base64-wrapped as text/plain (the claude.ai asset store does not take xlsx); a raw xlsx also works.
   const raw = await fsp.readFile(assetPath(id));
   const buf = row.content_type === "text/plain" ? Buffer.from(raw.toString("latin1").trim(), "base64") : raw;
+  if (rulesProblem(pageSource())) throw new StoreError("quota_or_state", "서버의 index.html 이 서버 코드와 버전이 달라서 사비 내역서를 확인할 수 없어요. 개발자에게 알려 주세요.", 500); // not 503: the page treats 502-504 as offline and would queue it
   return checkExpenseFile(pageSource(), buf, cleanName(String(sub.fileName || "")));
 }
 function afterWrite(ctx, path, prevData, d) {
@@ -969,6 +970,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`FSK 피트보드 ${VERSION} · http://${CONFIG.host}:${CONFIG.port} · data ${CONFIG.dataDir}`);
     if (auth.count() === 0) console.log("아직 계정이 없어요. /login 에서 처음 가입하는 사람이 개발자 계정이 돼요.");
+    const pageProblem = rulesProblem(pageSource());
+    if (pageProblem) console.warn(`주의: ${pageProblem} 이대로는 사비 내역서를 제출할 수 없어요. 저장소의 index.html 을 쓰거나(git checkout -- index.html), 고친 화면을 최신 index.html 에 다시 옮겨 주세요.`);
     if (!jszipMatchesPage()) console.warn("주의: server/public/vendor/jszip.min.js 가 원본과 달라서 사비 내역서(xlsx)를 읽을 수 없어요. 저장소 폴더에서 이 파일을 지우고 git checkout -- server/public/vendor/jszip.min.js 로 다시 받으세요.");
   });
   const tick = () => { autoBackupTick(); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };

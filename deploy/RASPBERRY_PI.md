@@ -44,9 +44,11 @@ journalctl -u fsk-pitboard -f        # 로그 보기
 
 ## 5. 바깥에서 접속하기
 
-### 방법 A: Cloudflare Tunnel (추천)
+세 방법 모두 포트포워딩이 필요 없고, 학교·기숙사 망에서도 대부분 동작해요.
 
-포트포워딩 없이 HTTPS 주소가 생기고, 학교·기숙사 망에서도 대부분 동작해요. Cloudflare에 등록된 도메인이 필요해요.
+### 방법 A: Cloudflare Tunnel (내 도메인이 있을 때)
+
+`pit.example.com` 같은 내 주소로 HTTPS가 생겨요. Cloudflare에 등록된 도메인이 필요해요.
 
 ```bash
 # cloudflared 설치 (arm64)
@@ -76,9 +78,27 @@ sudo systemctl enable --now cloudflared
 
 도메인이 없을 때 잠깐 테스트만 하려면 `cloudflared tunnel --url http://localhost:8080` 을 실행하면 임시 `trycloudflare.com` 주소가 나와요 (재시작하면 바뀜).
 
-### 방법 B: Tailscale (팀원만 접속)
+### 방법 B: Tailscale Funnel (무료, 도메인 없이 고정 주소)
 
-팀원 모두가 Tailscale 앱을 깔고 같은 네트워크에 들어오는 방식이에요. 인터넷에 공개되지 않아 가장 안전해요. 이 경우 서비스 파일에서 `HOST=0.0.0.0`, `TRUST_PROXY=0` 으로 바꾸세요.
+`https://pitboard.<이름>.ts.net` 같은 HTTPS 주소가 생기고 무료예요. 팀원은 아무것도 설치하지 않고 브라우저로 들어와요. 주소가 기기 이름에 묶여 있어서, 서버를 바꿔도 새 기기에 같은 이름을 주면 주소가 그대로예요 ([10단계](#10-노트북에서-쓰던-피트보드-옮겨-오기)).
+
+1. [login.tailscale.com](https://login.tailscale.com/admin/dns) 관리 화면 → **DNS**에서 **MagicDNS**와 **HTTPS Certificates**를 켜요.
+2. 파이에서:
+
+   ```bash
+   curl -fsSL https://tailscale.com/install.sh | sh
+   sudo tailscale up                        # 나오는 링크로 로그인
+   sudo tailscale set --hostname=pitboard   # 주소의 앞부분이 돼요
+   sudo tailscale funnel --bg 8080
+   ```
+
+   Funnel 권한을 켜라는 링크가 나오면 한 번 눌러요. `--bg` 로 켠 Funnel은 재부팅해도 남아 있어요.
+
+서비스 파일은 기본값(`HOST=127.0.0.1`, `TRUST_PROXY=1`) 그대로 두세요. Funnel 주소는 항상 HTTPS라서 `Environment=COOKIE_SECURE=1` 을 더해 두면 확실해요. 팀원이 로그인한 뒤 관리 창 → 감사 로그에 IP가 모두 `127.0.0.1` 로만 보이면 Tailscale을 최신으로 업데이트하세요.
+
+### 방법 C: Tailscale (팀원만 접속)
+
+팀원 모두가 Tailscale 앱을 깔고 같은 네트워크에 들어오는 방식이에요. 인터넷에 공개되지 않아 가장 안전해요. 이 경우 서비스 파일에서 `HOST=0.0.0.0`, `TRUST_PROXY=0` 으로 바꾸세요. (방법 B의 Funnel과 달리 주소가 `http://` 라서 `COOKIE_SECURE` 는 켜지 마세요.)
 
 ## 6. 백업
 
@@ -142,9 +162,30 @@ sudo systemctl restart fsk-pitboard
 
 첨부 파일(사진, 도면, 영수증)은 claude.ai 파일 저장소에 있어서 함께 옮겨지지 않아요. 필요한 파일은 다시 올려 주세요.
 
-## 10. 휴대폰에 앱처럼 설치
+## 10. 노트북에서 쓰던 피트보드 옮겨 오기
 
-HTTPS 주소(5단계의 Cloudflare Tunnel)로 접속해야 해요.
+Windows 노트북([WINDOWS.md](WINDOWS.md))에서 Tailscale Funnel로 쓰던 피트보드를 파이로 옮겨요. 주소, 계정과 비밀번호, 데이터, 첨부 파일, 설정이 모두 그대로예요.
+
+1. **미리 공지하세요.** 백업한 뒤에 들어온 기록은 옮겨지지 않아요.
+2. **노트북에서 백업:** `tailscale funnel --bg 8080 off` 로 바깥 접속을 막고, 노트북 브라우저로 `http://localhost:8080/admin` → 백업 · 복원 → **전체 백업 내려받기**. 받은 뒤 서버 창을 꺼요.
+3. **파이 준비:** 이 문서의 2~4단계를 해요. 3단계에서는 가입하지 않아도 돼요.
+4. **파이에서 복원:** 백업 파일을 파이로 옮기고(USB, 또는 노트북에서 `scp fsk-full-….tar.gz pi@<파이 IP>:~`):
+
+   ```bash
+   sudo systemctl stop fsk-pitboard
+   cd ~/SCHEDULE_TRACKER
+   DATA_DIR=~/fsk-data npm run admin -- restore ~/fsk-full-….tar.gz   # 3단계에서 가입했다면 끝에 --force
+   sudo systemctl start fsk-pitboard
+   ```
+
+5. **주소 넘기기:** Tailscale 관리 화면 → Machines에서 **노트북(pitboard)을 먼저 삭제**하고, 파이에서 5단계 방법 B를 해요. 같은 이름(`pitboard`)이라 주소가 그대로예요. 노트북을 지우지 않으면 파이가 `pitboard-1` 같은 다른 이름을 받아요.
+6. **확인:** 주소로 들어가 로그인해요. 복원하면 로그인 상태가 초기화돼서 팀원도 모두 한 번씩 다시 로그인해야 해요(비밀번호는 그대로). 노트북에서 외부 복사 폴더를 정해 뒀다면 Windows 경로라서, 관리 창에서 파이 경로(예: `/media/pi/BACKUP/fsk`)로 바꿔요.
+
+서버 두 대가 같은 주소에 동시에 붙어 있으면 안 돼요. 데이터가 다른 두 서버를 팀원들이 섞어 쓰게 돼요. 노트북을 다시 켜더라도 Funnel은 꺼 둔 채로 두세요.
+
+## 11. 휴대폰에 앱처럼 설치
+
+HTTPS 주소(5단계의 방법 A 또는 B)로 접속해야 해요.
 
 - 안드로이드(Chrome): 메뉴 → **홈 화면에 추가** (또는 "앱 설치")
 - 아이폰(Safari): 공유 → **홈 화면에 추가**
@@ -153,7 +194,7 @@ HTTPS 주소(5단계의 Cloudflare Tunnel)로 접속해야 해요.
 
 ## 보안 체크리스트
 
-- [ ] 외부 공개는 HTTPS(Cloudflare Tunnel)로만, 서버는 `HOST=127.0.0.1`
+- [ ] 외부 공개는 HTTPS(Cloudflare Tunnel 또는 Tailscale Funnel)로만, 서버는 `HOST=127.0.0.1`
 - [ ] 관리 창 → 설정에서 가입 방식을 "승인제" 또는 "초대 코드"로
 - [ ] 개발자 계정은 강한 비밀번호, 개발자는 꼭 필요한 사람만
 - [ ] 외부 복사(USB)가 매일 도는지 관리 창 개요에서 확인

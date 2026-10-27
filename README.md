@@ -4,7 +4,7 @@ FSK(Formula Student Korea) 차량 제작동아리용 팀 현황판입니다. 부
 
 같은 `index.html`이 두 곳에서 돌아갑니다.
 
-- **자체 서버 (라즈베리파이 등, 최종 운영용):** `server/` 의 Node.js 서버가 로그인, 데이터베이스(SQLite), 실시간 동기화, 첨부 파일, 권한을 맡고, 개발자 전용 관리 창(`/admin`)을 제공해요. 설치는 [deploy/RASPBERRY_PI.md](deploy/RASPBERRY_PI.md).
+- **자체 서버 (라즈베리파이 등, 최종 운영용):** `server/` 의 Node.js 서버가 로그인, 데이터베이스(SQLite), 실시간 동기화, 첨부 파일, 권한을 맡고, 개발자 전용 관리 창(`/admin`)을 제공해요. 설치는 [deploy/RASPBERRY_PI.md](deploy/RASPBERRY_PI.md), 파이 전에 Windows 노트북으로 먼저 써 보려면 [deploy/WINDOWS.md](deploy/WINDOWS.md).
 - **claude.ai Artifact (지금 쓰는 곳):** 데이터는 Artifact의 공유 데이터베이스와 파일 저장소에 있어요.
 
 이 저장소에는 코드와 설정만 있고 팀 데이터는 없습니다.
@@ -83,7 +83,7 @@ npm run test:e2e             # 브라우저 테스트 (Playwright가 있을 때�
 ## 휴대폰 · 앱 설치 · 오프라인 (자체 서버)
 
 - 휴대폰 화면에 맞춰 입력 칸이 커지고(아이폰 확대 방지), 대화 상자는 전체 화면에 저장 버튼이 항상 아래에 보여요. 출주 전 점검 체크 칸도 손가락으로 누르기 쉽게 커져요.
-- HTTPS 주소(Cloudflare Tunnel)로 열면 **홈 화면에 추가**해서 앱처럼 쓸 수 있어요.
+- HTTPS 주소(Cloudflare Tunnel 또는 Tailscale Funnel)로 열면 **홈 화면에 추가**해서 앱처럼 쓸 수 있어요.
 - **신호가 약한 곳에서도 써요.** 한 번 연 기기는 인터넷이 끊겨도 마지막으로 본 내용으로 열려요. 끊긴 동안 바꾼 점검 체크·기록·부품은 이 기기에 저장해 두었다가(오른쪽 위 "오프라인 · 저장 대기 N") 연결되면 순서대로 올려요. 그 사이 권한이 바뀌었거나 지워진 항목은 올라가지 않고 알려 줘요. 첨부 파일과 사비 내역서는 연결된 뒤에 올려요.
 - 로그아웃하면 이 기기에 저장한 데이터를 지워요. 같은 기기를 여러 사람이 쓰면 꼭 로그아웃하세요.
 
@@ -173,7 +173,7 @@ server/public/sw.js         서비스 워커 (인터넷 없이 열기), manifest
 server/public/vendor/       JSZip 3.10.1 (npm 원본과 같은 파일, 서버에서 직접 제공)
 server/public/login.html    로그인·가입·임시 비밀번호 변경
 server/public/admin.html    개발자 관리 창
-deploy/                     라즈베리파이 설치 안내, systemd 서비스 파일
+deploy/                     라즈베리파이·Windows 설치 안내, systemd 서비스 파일, Windows 시작 스크립트(start-pitboard.cmd)
 test/                       서버 API·기능 테스트, 사비 양식 규칙·모듈 단위 테스트, e2e/ 브라우저 테스트
 SECURITY.md                 보안 검토 결과와 남은 위험
 ```

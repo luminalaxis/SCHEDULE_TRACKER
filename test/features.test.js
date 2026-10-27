@@ -309,9 +309,9 @@ test("pages run scripts only by nonce; app files are served", async () => {
   assert.doesNotMatch(scriptSrc, /unsafe-inline|cdnjs/);
   const tags = page.text.match(/<script\b[^>]*>/g);
   assert.ok(tags.length >= 4 && tags.every((t) => t.includes(`nonce="${nonce}"`)), tags.join("\n"));
-  assert.match(page.text, /src="\/vendor\/jszip\.min\.js" integrity="sha512-/);
+  assert.match(page.text, /src="\/vendor\/jszip\.min\.js\?v=[0-9a-f]{12}" integrity="sha512-/, "the address changes with the content, so a bad cached copy is not reused");
   // the browser runs the local JSZip only if it matches the page's hash (else the 사비 xlsx check cannot load)
-  const localZip = await a.get("/vendor/jszip.min.js"), want = page.text.match(/jszip\.min\.js" integrity="(sha512-[^"]+)"/)[1];
+  const localZip = await a.get(page.text.match(/src="(\/vendor\/jszip\.min\.js\?v=[^"]+)"/)[1]), want = page.text.match(/jszip\.min\.js[^"]*" integrity="(sha512-[^"]+)"/)[1];
   assert.equal("sha512-" + createHash("sha512").update(localZip.buf).digest("base64"), want);
   assert.match(spawnSync("git", ["check-attr", "text", "server/public/vendor/jszip.min.js"], { cwd: ROOT, encoding: "utf8" }).stdout || "text: unset", /text: unset/, "git keeps its bytes (no CRLF on Windows)");
   assert.doesNotMatch(srv.log(), /jszip\.min\.js 가 원본과 달라서/);

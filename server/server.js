@@ -277,12 +277,20 @@ function jszipMatchesPage() {
   const want = (pageSource().match(/jszip\.min\.js" integrity="(sha512-[^"]+)"/) || [])[1];
   return !want || want === "sha512-" + crypto.createHash("sha512").update(staticFile("vendor/jszip.min.js")).digest("base64");
 }
+// The file is cached for a year, so its address carries a hash of its content: a fixed copy gets a new address
+// instead of browsers keeping a bad one they already hold.
+let jszipUrl = { mtime: 0, url: "" };
+function localJszip() {
+  const m = statSync(join(HERE, "public", "vendor", "jszip.min.js")).mtimeMs;
+  if (m !== jszipUrl.mtime) jszipUrl = { mtime: m, url: "/vendor/jszip.min.js?v=" + crypto.createHash("sha256").update(staticFile("vendor/jszip.min.js")).digest("hex").slice(0, 12) };
+  return jszipUrl.url;
+}
 function renderPage(user) {
   const me = { ...auth.publicUser(user), level: levelOf(user) };
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`
     + `<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#131A24"><link rel="icon" href="/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="피트보드">`
     + `<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>`
-    + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource().replace(JSZIP_CDN, "/vendor/jszip.min.js")}\n</body></html>`;
+    + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource().replace(JSZIP_CDN, localJszip())}\n</body></html>`;
 }
 const staticFile = (name) => readFileSync(join(HERE, "public", name));
 function sendStatic(res, name, type, cache = "no-cache", extra = {}) {

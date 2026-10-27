@@ -225,6 +225,26 @@ test("the page's people list follows the accounts", async () => {
   await dev.req("DELETE", `/api/admin/users/${tmp.id}`);
 });
 
+test("changing or deleting the account of someone with the page open does not stop the server", async () => {
+  const p = await member(srv.base, dev, "promo", "승급자", { dept: "aero" });
+  const open = async () => {
+    const res = await fetch(srv.base + "/api/stream", { headers: { cookie: p.cookie } });
+    const reader = res.body.getReader();
+    const ended = (async () => { for (;;) if ((await reader.read()).done) return "ended"; })();
+    await new Promise((r) => setTimeout(r, 100));
+    return { ended }; // wrapped: an async function would wait for a returned promise
+  };
+  const timeout = () => new Promise((r) => setTimeout(() => r("timeout"), 3000));
+  let { ended } = await open();
+  assert.equal((await dev.post(`/api/admin/users/${p.id}`, { position: "part_lead", dept: "aero" })).status, 200);
+  assert.equal(await Promise.race([ended, timeout()]), "ended", "the page reconnects with its new position");
+  assert.equal((await fetch(srv.base + "/healthz")).status, 200);
+  ({ ended } = await open());
+  assert.equal((await dev.req("DELETE", `/api/admin/users/${p.id}`)).status, 200);
+  assert.equal(await Promise.race([ended, timeout()]), "ended");
+  assert.equal((await fetch(srv.base + "/healthz")).status, 200);
+});
+
 test("full backup carries the attachment files and restores them", async () => {
   const r = await dev.get("/api/admin/backups-full");
   assert.equal(r.status, 200); assert.equal(r.headers.get("content-type"), "application/gzip");

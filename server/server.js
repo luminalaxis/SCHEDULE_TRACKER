@@ -63,7 +63,8 @@ function broadcast(path, doc) {
   const payload = `event: change\ndata: ${JSON.stringify({ path, collection: docs.collectionOf(path), op: doc ? "set" : "delete", doc: doc || null })}\n\n`;
   for (const c of clients) if (rules.canRead(c.user, path)) c.res.write(payload);
 }
-function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) c.res.end(); }
+// Leave the set at once: the stream's "close" comes later, and a broadcast in between would write after end and crash the server.
+function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) { clients.delete(c); c.res.end(); } }
 function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) c.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
 // A name or department change reaches that person's open pages at once, and the page's people list.
 function profileChanged(u) {
@@ -590,6 +591,7 @@ route("GET", "/api/stream", (ctx) => {
   clients.add(client);
   const ping = setInterval(() => res.write(": ping\n\n"), 25000);
   req.on("close", () => { clearInterval(ping); clients.delete(client); });
+  res.on("error", () => clients.delete(client)); // a failed write to one page must not take the server down
 });
 
 // notifications (the bell in the page)

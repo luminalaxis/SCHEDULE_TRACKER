@@ -174,13 +174,25 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   <!-- backups -->
   <section class="panel" id="p-backups" hidden>
     <div class="sec-head"><h2>백업</h2><div class="toolbar"><input class="field" id="bNote" placeholder="메모 (선택)" maxlength="100" aria-label="백업 메모"><button class="btn primary" type="button" id="btnBackup">지금 백업</button><a class="btn" href="/api/admin/backups-full" download id="btnFull">전체 백업 내려받기 (첨부 파일 포함)</a></div></div>
-    <p class="hint">아래 목록의 백업(JSON)에는 모든 데이터 문서, 계정(비밀번호는 암호화된 상태), 설정, 첨부 파일 목록이 들어가요. 첨부 파일까지 한 파일로 받으려면 <b>전체 백업 내려받기</b>(.tar.gz)를 쓰세요. 결제 정보와 계정이 들어 있으니 안전한 곳에만 보관하세요.</p>
+    <p class="hint">아래 목록의 백업(JSON)에는 모든 데이터 문서, 계정(비밀번호는 암호화된 상태), 설정, 첨부 파일 목록, 감사 로그가 들어가요. 첨부 파일까지 한 파일로 받으려면 <b>전체 백업 내려받기</b>(.tar.gz)를 쓰세요. 결제 정보와 계정이 들어 있으니 안전한 곳에만 보관하세요.</p>
     <div class="scroll"><table><thead><tr><th>파일</th><th>종류</th><th class="r">크기</th><th>만든 시각</th><th>관리</th></tr></thead><tbody id="backupBody"></tbody></table></div>
     <div class="card">
       <h3>외부 복사 (USB 드라이브 · 네트워크 폴더)</h3>
       <p class="hint">매일 자동 백업이 끝나면 백업 파일과 첨부 파일을 이 폴더로 복사해요. 복사본에서는 지우지 않으니 서버 데이터가 지워져도 남아 있어요. 라즈베리파이에 꽂은 USB 드라이브 경로를 적으세요.</p>
       <div class="toolbar"><input class="field mono" id="mirrorDir" placeholder="/media/pi/BACKUP/fsk" style="flex:1 1 260px" aria-label="외부 복사 폴더"><button class="btn" type="button" id="btnMirrorSave">저장</button><button class="btn primary" type="button" id="btnMirrorRun">지금 복사</button></div>
       <div class="status-line" id="mirrorStatus"></div>
+    </div>
+    <div class="card">
+      <h3>감사 로그 보관</h3>
+      <p class="hint">감사 로그는 백업마다 함께 들어가고, 따로 월별 파일(<span class="mono">backups/audit/fsk-audit-연-월.jsonl</span>, 한 줄에 기록 하나)에도 쌓여요. 백업할 때마다 새 기록이 뒤에 붙고, 이 파일들은 외부 복사와 전체 백업에도 들어가요. 데이터베이스에는 최근 1년치만 남기고, 그보다 오래된 기록은 보관 파일에 들어간 것만 정리해요.</p>
+      <div class="toolbar"><button class="btn" type="button" id="btnAuditArchive">지금 보관</button><span class="hint" id="auditArchiveMsg"></span></div>
+      <div class="scroll"><table><thead><tr><th>파일</th><th class="r">크기</th><th>마지막 추가</th><th></th></tr></thead><tbody id="auditArchiveBody"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h3>서버 상태 알림 (헬스 체크)</h3>
+      <p class="hint">서버에 <span class="mono">HEALTH_PING_URL</span>(예: healthchecks.io의 주소)을 정해 두면 매일 자동 백업과 외부 복사가 끝난 뒤 그 주소로 신호를 보내요. 신호가 끊기면(서버가 꺼졌거나 백업이 멈춤) 그 서비스가 휴대폰·메일로 알려 줘요. 실패하면 주소 끝에 <span class="mono">/fail</span>을 붙여 보내요 (주소에 <span class="mono">?</span>가 있으면, 예: Uptime Kuma, 성공했을 때만 보내요).</p>
+      <div class="toolbar"><button class="btn" type="button" id="btnPing">테스트 신호 보내기</button></div>
+      <div class="status-line" id="pingStatus"></div>
     </div>
     <div class="card">
       <h3>전체 백업으로 복원</h3>
@@ -211,8 +223,8 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
 
   <!-- audit -->
   <section class="panel" id="p-audit" hidden>
-    <div class="sec-head"><h2>감사 로그</h2><div class="toolbar"><select class="field" id="aFilter" aria-label="종류"><option value="">모든 기록</option><option value="login">로그인</option><option value="signup">가입</option><option value="user.">사용자 관리</option><option value="role.">역할 변경</option><option value="data.">데이터 직접 수정</option><option value="backup.">백업·복원</option><option value="asset.">첨부 파일</option><option value="settings.">설정</option><option value="password">비밀번호</option><option value="expense.">사비 정산</option></select></div></div>
-    <p class="hint">서버가 직접 남기는 기록이라 페이지의 변경 이력과 달리 고칠 수 없어요. 로그인 실패, 권한 변경, 데이터 직접 수정이 모두 남아요.</p>
+    <div class="sec-head"><h2>감사 로그</h2><div class="toolbar"><select class="field" id="aFilter" aria-label="종류"><option value="">모든 기록</option><option value="login">로그인</option><option value="signup">가입</option><option value="user.">사용자 관리</option><option value="role.">역할 변경</option><option value="data.">데이터 직접 수정</option><option value="backup.">백업·복원·감사 로그 보관</option><option value="asset.">첨부 파일</option><option value="settings.">설정</option><option value="password">비밀번호</option><option value="expense.">사비 정산</option></select></div></div>
+    <p class="hint">서버가 직접 남기는 기록이라 페이지의 변경 이력과 달리 고칠 수 없어요. 로그인 실패, 권한 변경, 데이터 직접 수정이 모두 남아요. 최근 1년치가 여기 보이고, 모든 기록은 백업과 감사 로그 보관 파일(백업 · 복원 탭)에 남아요.</p>
     <div class="scroll"><table><thead><tr><th>시각</th><th>사람</th><th>동작</th><th>대상</th><th>내용</th><th>IP</th></tr></thead><tbody id="auditBody"></tbody></table></div>
   </section>
 
@@ -296,6 +308,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     "role.change": "역할 변경", "settings.update": "설정 변경", "data.edit": "데이터 수정", "data.create": "데이터 생성", "data.delete": "데이터 삭제", "data.import": "데이터 가져오기",
     "backup.create": "백업", "backup.download": "백업 내려받기", "backup.restore": "백업 복원", "backup.delete": "백업 삭제", "asset.delete": "파일 삭제", "asset.cleanup": "파일 정리",
     "backup.full": "전체 백업 내려받기", "backup.restore_full": "전체 백업 복원", "backup.mirror": "외부 복사", "notify.webhook_test": "웹훅 테스트",
+    "backup.fail": "백업 실패", "backup.audit_archive": "감사 로그 보관", "backup.audit_download": "감사 로그 내려받기", "notify.health_ping": "헬스 체크 테스트",
     "expense.review": "사비 정산 처리", "expense.delete": "사비 내역서 삭제", "expense.restore": "사비 내역서 복구", "expense.replace": "사비 수정본 교체" };
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -361,6 +374,9 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     if (!s.settings.mirrorDir) al.push(["info", "외부 복사가 설정되지 않았어요. 라즈베리파이가 고장 나면 데이터가 함께 사라질 수 있어요. USB 드라이브로 복사하도록 정해 두세요.", '<button class="btn sm" type="button" data-go="backups">설정하기</button>']);
     else if (ml && !ml.ok) al.push(["bad", `외부 복사에 실패했어요 (${ago(ml.at)}): ${ml.message}`, '<button class="btn sm" type="button" data-go="backups">확인</button>']);
     else if (!ml || Date.now() - new Date(ml.at) > 2 * 86400000) al.push(["warn", ml ? `마지막 외부 복사가 ${ago(ml.at)}이에요.` : "아직 외부 복사를 한 번도 하지 않았어요.", '<button class="btn sm" type="button" data-go="backups">지금 복사</button>']);
+    const hp = s.healthPing;
+    if (hp.configured && hp.last && !hp.last.ok) al.push(["bad", `헬스 체크 신호를 보내지 못했어요 (${ago(hp.last.at)}): ${hp.last.status}`, '<button class="btn sm" type="button" data-go="backups">확인</button>']);
+    else if (!hp.configured) al.push(["info", "서버가 멈추거나 자동 백업이 끊겨도 지금은 알림이 오지 않아요. HEALTH_PING_URL 을 정해 두면 휴대폰으로 알 수 있어요.", '<button class="btn sm" type="button" data-go="backups">설명 보기</button>']);
     $("alerts").innerHTML = al.map(([k, t, b]) => `<div class="alert ${k}"><span>${esc(t)}</span>${b}</div>`).join("");
     $("pendingBadge").hidden = !s.users.pending; $("pendingBadge").textContent = s.users.pending;
   };
@@ -505,9 +521,23 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
       : !ml ? '<span class="pill warn">아직 안 함</span>'
       : `<span class="pill ${ml.ok ? "ok" : "bad"}">${ml.ok ? "성공" : "실패"}</span><span>${esc(when(ml.at))} · ${esc(ml.message)}${ml.ok && ml.bytes ? ` (${bytes(ml.bytes)})` : ""}</span>`;
   }
+  function renderAuditArchives(list) {
+    $("auditArchiveBody").innerHTML = list.map((f) => `<tr><td class="mono">${esc(f.name)}</td><td class="r num">${bytes(f.bytes)}</td><td>${esc(when(f.updatedAt))}</td>
+      <td><a class="btn sm" href="/api/admin/audit-archives/${encodeURIComponent(f.name)}" download>내려받기</a></td></tr>`).join("") || `<tr><td colspan="4" class="dim">아직 보관 파일이 없어요. 첫 백업 때 만들어져요.</td></tr>`;
+  }
+  function renderPing(hp) {
+    $("btnPing").disabled = !hp.configured;
+    const l = hp.last;
+    $("pingStatus").innerHTML = !hp.configured ? '<span class="pill none">꺼짐</span><span class="hint">서버의 환경 변수로 정해요 (deploy/fsk-pitboard.service).</span>'
+      : !l ? '<span class="pill warn">아직 안 보냄</span><span class="hint">다음 자동 백업 뒤에 보내요.</span>'
+      : `<span class="pill ${l.ok ? "ok" : "bad"}">${l.ok ? "성공" : "실패"}</span><span>${esc(when(l.at))} · ${esc(l.status)}</span>`;
+  }
   loaders.backups = async () => {
-    try { state.backups = (await api("GET", "/api/admin/backups")).backups; } catch (e) { return fail(e); }
+    let r;
+    try { r = await api("GET", "/api/admin/backups"); state.backups = r.backups; } catch (e) { return fail(e); }
+    renderAuditArchives(r.auditArchives || []);
     api("GET", "/api/admin/settings").then(renderMirror).catch(() => {});
+    api("GET", "/api/admin/status").then((st) => renderPing(st.healthPing)).catch(() => {});
     const kind = (n) => n.endsWith("-auto.json") ? '<span class="pill acc">자동</span>' : n.endsWith("-pre-restore.json") ? '<span class="pill warn">복원 직전</span>' : '<span class="pill none">수동</span>';
     $("backupBody").innerHTML = state.backups.map((b) => `<tr><td class="mono">${esc(b.name)}</td><td>${kind(b.name)}</td><td class="r num">${bytes(b.bytes)}</td><td>${esc(when(b.createdAt))}</td>
       <td><a class="btn sm" href="/api/admin/backups/${encodeURIComponent(b.name)}" download>내려받기</a> <button class="btn sm danger" type="button" data-restore="${esc(b.name)}">이 시점으로 복원</button> <button class="btn sm danger" type="button" data-delbackup="${esc(b.name)}">삭제</button></td></tr>`).join("") || `<tr><td colspan="5" class="dim">아직 백업이 없어요.</td></tr>`;
@@ -531,6 +561,16 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     const b = e.currentTarget; b.disabled = true; $("mirrorStatus").innerHTML = '<span class="hint">복사하는 중… 처음에는 오래 걸릴 수 있어요.</span>';
     try { const r = await api("POST", "/api/admin/mirror", {}); toast(r.ok ? r.message : "외부 복사에 실패했어요"); } catch (er) { fail(er); }
     b.disabled = false; api("GET", "/api/admin/settings").then(renderMirror).catch(() => {});
+  });
+  $("btnAuditArchive").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try { const r = await api("POST", "/api/admin/audit-archive", {}); renderAuditArchives(r.auditArchives); $("auditArchiveMsg").textContent = r.archived ? `새 기록 ${r.archived}개를 보관했어요.` : "새로 보관할 기록이 없어요."; } catch (er) { fail(er); }
+    b.disabled = false;
+  });
+  $("btnPing").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try { const r = await api("POST", "/api/admin/health-ping", {}); toast(r.ok ? "신호를 보냈어요" : `신호를 보내지 못했어요 (${r.status})`); } catch (er) { fail(er); }
+    api("GET", "/api/admin/status").then((st) => renderPing(st.healthPing)).catch(() => {});
   });
   $("fullFile").addEventListener("change", () => { $("btnFullRestore").disabled = !$("fullFile").files.length; $("fullMsg").textContent = ""; });
   $("btnFullRestore").addEventListener("click", async (e) => {
@@ -624,7 +664,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   loaders.audit = async () => {
     let rows;
     try { rows = (await api("GET", `/api/admin/audit?limit=500&action=${encodeURIComponent($("aFilter").value)}`)).entries; } catch (e) { return fail(e); }
-    const cls = (a) => a === "login.fail" || a.endsWith(".delete") || a.startsWith("backup.restore") || a === "data.import" ? "bad" : a.startsWith("user.") || a.startsWith("role.") || a.startsWith("data.") || a.startsWith("expense.") ? "warn" : "none";
+    const cls = (a) => a === "login.fail" || a === "backup.fail" || a.endsWith(".delete") || a.startsWith("backup.restore") || a === "data.import" ? "bad" : a.startsWith("user.") || a.startsWith("role.") || a.startsWith("data.") || a.startsWith("expense.") ? "warn" : "none";
     $("auditBody").innerHTML = rows.map((r) => `<tr><td class="num">${esc(when(r.at))}</td><td>${esc(r.actor_name || (r.actor ? r.actor : "–"))}</td><td><span class="pill ${cls(r.action)}">${esc(ACTION[r.action] || r.action)}</span></td><td class="mono" style="font-size:12px">${esc(r.target || "")}</td><td class="wrap" style="font-size:12px">${esc(r.detail || "")}</td><td class="mono dim" style="font-size:12px">${esc(r.ip || "")}</td></tr>`).join("") || `<tr><td colspan="6" class="dim">기록이 없어요.</td></tr>`;
   };
   $("aFilter").addEventListener("change", loaders.audit);

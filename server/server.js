@@ -2,11 +2,12 @@
 // Serves the same index.html as the claude.ai Artifact, plus a runtime shim (public/fsk-runtime.js)
 // that implements window.claude.use("db" | "user" | "assets" | "downloads") against this server.
 import http from "node:http";
-import { readFileSync, writeFileSync, existsSync, statSync, statfsSync, createReadStream, readdirSync, unlinkSync, renameSync, mkdtempSync, rmSync, promises as fsp } from "node:fs";
+import { readFileSync, existsSync, statSync, statfsSync, createReadStream, readdirSync, unlinkSync, renameSync, mkdtempSync, mkdirSync, rmSync, promises as fsp } from "node:fs";
 import { join, dirname, isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import { openStore, createDocs, createRules, runQuery, splitPath, StoreError, levelOf, POSITIONS, deepMerge, stableJson } from "./store.js";
 import { createAuth, checkPasswordRule, checkUsername, verifyPassword, hashPassword, tempPassword, ROLES, STATUSES, POSITION_LABEL, tierOf } from "./auth.js";
 import { writeTarGz, readTarGz } from "./archive.js";
@@ -15,10 +16,11 @@ import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
 import { contentMatches, cleanName } from "./filetype.js";
 import { DEPARTMENTS, DEPTS, deptLabel, DEPTS_PLACEHOLDER } from "./depts.js";
 import { checkExpenseFile } from "./expense-check.js";
+import { localStamp, localMonth, autoBackupDue, writeFileDurable, appendDurable, syncDir } from "./durable.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const CONFIG = {
   port: Number(process.env.PORT || 8080),
   host: process.env.HOST || "127.0.0.1",
@@ -26,7 +28,10 @@ const CONFIG = {
   trustProxy: process.env.TRUST_PROXY === "1",
   cookieSecure: process.env.COOKIE_SECURE === "1",
   // Extra hosts allowed for the team webhook besides Discord and Slack (e.g. a self-hosted Mattermost). Set on the server only.
-  webhookHosts: String(process.env.WEBHOOK_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean)
+  webhookHosts: String(process.env.WEBHOOK_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean),
+  // A check-in address (healthchecks.io and the like) called after each day's backup, so a dead server or a backup
+  // that stopped running shows up as a missed check-in on someone's phone. Set on the server only.
+  healthPingUrl: String(process.env.HEALTH_PING_URL || "").trim()
 };
 const ASSET_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml", "video/mp4", "video/webm", "application/pdf",
   "text/csv", "text/markdown", "application/json", "text/plain", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
@@ -44,7 +49,8 @@ const startedAt = new Date();
 const sGet = db.prepare("SELECT value FROM settings WHERE key = ?"), sSet = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
 const DEFAULT_SETTINGS = {
   signupMode: "approval", inviteCode: "", autoBackup: true, backupHour: 4, backupKeep: 14,
-  mirrorDir: "", mirrorLast: null, webhookUrl: "", webhookKinds: Object.keys(WEBHOOK_KINDS), webhookLast: null
+  mirrorDir: "", mirrorLast: null, webhookUrl: "", webhookKinds: Object.keys(WEBHOOK_KINDS), webhookLast: null,
+  auditArchivedId: 0, healthPingLast: null
 };
 const setting = (k) => { const r = sGet.get(k); return r ? JSON.parse(r.value) : DEFAULT_SETTINGS[k]; };
 const setSetting = (k, v) => sSet.run(k, JSON.stringify(v));
@@ -58,13 +64,22 @@ function audit(ctx, action, target = "", detail = "") {
 }
 
 // ---------- live updates (SSE) ----------
+// A page that stops reading (a phone asleep on a bad connection) is dropped once this much waits for it, instead
+// of the server holding every change for it; the page reconnects and loads afresh. One person keeps at most
+// MAX_STREAMS open pages; a new one closes their oldest.
 const clients = new Set();
+const MAX_BUFFERED = 2 * 1024 * 1024, MAX_STREAMS = 10;
+function sse(c, chunk) {
+  if (c.res.destroyed) return;
+  if (c.res.writableLength > MAX_BUFFERED) { clients.delete(c); c.res.destroy(); return; }
+  c.res.write(chunk);
+}
 function broadcast(path, doc) {
   const payload = `event: change\ndata: ${JSON.stringify({ path, collection: docs.collectionOf(path), op: doc ? "set" : "delete", doc: doc || null })}\n\n`;
-  for (const c of clients) if (rules.canRead(c.user, path)) c.res.write(payload);
+  for (const c of clients) if (rules.canRead(c.user, path)) sse(c, payload);
 }
 function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) c.res.end(); }
-function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) c.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
+function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) sse(c, `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
 // A name or department change reaches that person's open pages at once, and the page's people list.
 function profileChanged(u) {
   for (const c of clients) if (c.user.id === u.id) c.user = { ...c.user, name: u.name, dept: u.dept };
@@ -107,24 +122,70 @@ function handOver(ctx, targetId, position, dept) {
 
 // ---------- backups ----------
 const BACKUP_DIR = join(CONFIG.dataDir, "backups");
-const backupStamp = () => new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
-const backupName = (kind) => `fsk-${backupStamp()}-${kind}.json`;
+const backupName = (kind) => `fsk-${localStamp()}-${kind}.json`;
 function backupData(ctx, note) {
   return {
     format: "fsk-backup", version: 1, createdAt: new Date().toISOString(), createdBy: ctx?.user?.name || "system", note,
     docs: docs.all().map(({ path, data, version, updatedAt, updatedBy, createdBy }) => ({ path, data, version, updatedAt, updatedBy, createdBy })),
     users: db.prepare("SELECT * FROM users").all(),
     settings: allSettings(),
-    assets: db.prepare("SELECT * FROM assets").all()
+    assets: db.prepare("SELECT * FROM assets").all(),
+    audit: db.prepare("SELECT * FROM audit ORDER BY id").all()
   };
 }
 function createBackup(kind, ctx, note = "") {
-  const data = backupData(ctx, note);
-  const name = backupName(kind), tmp = join(BACKUP_DIR, name + ".tmp");
-  writeFileSync(tmp, JSON.stringify(data), { mode: 0o600 });
-  renameSync(tmp, join(BACKUP_DIR, name));
-  audit(ctx, "backup.create", name, `${data.docs.length} docs`);
+  const name = backupName(kind);
+  audit(ctx, "backup.create", name, `${docs.counts().reduce((n, c) => n + c.n, 0)} docs`);   // first, so the backup holds its own record
+  try { writeFileDurable(join(BACKUP_DIR, name), JSON.stringify(backupData(ctx, note))); }
+  catch (e) { audit(ctx, "backup.fail", name, String((e && e.message) || e).slice(0, 300)); throw e; }
+  try { archiveAudit(); } catch (e) { console.error("audit archive failed", e); }
   return name;
+}
+
+// ---------- audit log archive ----------
+// Besides being in every backup, the audit log is kept on its own in backups/audit/fsk-audit-YYYY-MM.jsonl: one JSON
+// line per entry, appended (never rewritten) after each backup, by the month of the entry. These files go along to
+// the off-site copy and into full backups. Entries older than AUDIT_KEEP_DAYS leave the database only once they are
+// in an archive file, so the log stays small without anything being lost.
+const AUDIT_DIR = join(BACKUP_DIR, "audit"), AUDIT_KEEP_DAYS = 365;
+const AUDIT_FILE = /^fsk-audit-\d{4}-\d{2}\.jsonl$/;
+function archiveAudit() {
+  mkdirSync(AUDIT_DIR, { recursive: true, mode: 0o700 });
+  const last = Number(setting("auditArchivedId")) || 0;
+  const rows = db.prepare("SELECT * FROM audit WHERE id > ? ORDER BY id").all(last);
+  if (rows.length) {
+    const byMonth = new Map();
+    for (const r of rows) { const m = localMonth(new Date(r.at)); byMonth.set(m, (byMonth.get(m) || "") + JSON.stringify(r) + "\n"); }
+    for (const [m, text] of byMonth) appendDurable(join(AUDIT_DIR, `fsk-audit-${m}.jsonl`), text);
+    setSetting("auditArchivedId", rows[rows.length - 1].id);
+  }
+  const cutoff = new Date(Date.now() - AUDIT_KEEP_DAYS * 86400000).toISOString();
+  db.prepare("DELETE FROM audit WHERE at < ? AND id <= ?").run(cutoff, Number(setting("auditArchivedId")) || 0);
+  return rows.length;
+}
+function listAuditArchives() {
+  try {
+    return readdirSync(AUDIT_DIR).filter((f) => AUDIT_FILE.test(f)).map((f) => { const st = statSync(join(AUDIT_DIR, f)); return { name: f, bytes: st.size, updatedAt: st.mtime.toISOString() }; })
+      .sort((a, b) => b.name.localeCompare(a.name));
+  } catch { return []; }
+}
+
+// ---------- health check-in ----------
+// healthchecks.io style addresses (no query string) get a POST with what happened, and "/fail" when a step failed.
+// Addresses with a query string (Uptime Kuma push and the like) get a plain GET on success only; a failure then shows
+// up there as a missed check-in.
+async function pingHealth(ok, detail) {
+  const url = CONFIG.healthPingUrl;
+  if (!url) return null;
+  const query = url.includes("?");
+  if (!ok && query) return null;
+  let res;
+  try {
+    const r = await fetch(query ? url : url + (ok ? "" : "/fail"), { method: query ? "GET" : "POST", body: query ? undefined : String(detail || "").slice(0, 500), signal: AbortSignal.timeout(10000) });
+    res = { at: new Date().toISOString(), ok: r.ok, status: `HTTP ${r.status}` };
+  } catch (e) { res = { at: new Date().toISOString(), ok: false, status: e && e.name === "TimeoutError" ? "시간 초과" : "연결 실패" }; }
+  setSetting("healthPingLast", res);
+  return res;
 }
 function listBackups() {
   return readdirSync(BACKUP_DIR).filter((f) => /^fsk-[\w.-]+\.json$/.test(f)).map((f) => { const st = statSync(join(BACKUP_DIR, f)); return { name: f, bytes: st.size, createdAt: st.mtime.toISOString(), auto: f.endsWith("-auto.json") }; })
@@ -134,16 +195,15 @@ function pruneAutoBackups() {
   const keep = Math.max(1, Number(setting("backupKeep")) || 14);
   listBackups().filter((b) => b.auto).slice(keep).forEach((b) => unlinkSync(join(BACKUP_DIR, b.name)));
 }
-function autoBackupTick() {
-  try {
-    if (!setting("autoBackup")) return;
-    const now = new Date(), today = now.toISOString().slice(0, 10).replace(/-/g, "");
-    if (now.getHours() < Number(setting("backupHour"))) return;
-    if (listBackups().some((b) => b.auto && b.name.startsWith(`fsk-${today}`))) return;
-    createBackup("auto", null, "자동 백업");
-    pruneAutoBackups();
-    if (setting("mirrorDir")) mirrorNow(null);
-  } catch (e) { console.error("auto backup failed", e); }
+// The day's automatic backup, then the off-site copy, then the health check-in (a failed step checks in as failed).
+async function autoBackupTick() {
+  if (!setting("autoBackup") || !autoBackupDue(new Date(), Number(setting("backupHour")), listBackups().map((b) => b.name))) return;
+  let name;
+  try { name = createBackup("auto", null, "자동 백업"); pruneAutoBackups(); }
+  catch (e) { console.error("auto backup failed", e); return pingHealth(false, `자동 백업 실패: ${e && e.message}`); }
+  const mirror = setting("mirrorDir") ? await mirrorNow(null) : null;
+  if (mirror && !mirror.ok) return pingHealth(false, `외부 복사 실패: ${mirror.message}`);
+  return pingHealth(true, `${name}${mirror ? ` · 외부 복사 ${mirror.message}` : ""}`);
 }
 
 // ---------- off-site copy (USB drive, network share) ----------
@@ -162,12 +222,15 @@ async function runMirror(ctx) {
   try {
     if (!dir) throw new Error("외부 복사 폴더가 정해지지 않았어요.");
     const err = mirrorCheck(dir); if (err) throw new Error(err);
-    const root = resolve(dir), bdir = join(root, "backups"), adir = join(root, "assets"), src = join(CONFIG.dataDir, "assets");
-    await fsp.mkdir(bdir, { recursive: true, mode: 0o700 }); await fsp.mkdir(adir, { recursive: true, mode: 0o700 });
+    const root = resolve(dir), bdir = join(root, "backups"), adir = join(root, "assets"), udir = join(root, "audit"), src = join(CONFIG.dataDir, "assets");
+    for (const d of [bdir, adir, udir]) await fsp.mkdir(d, { recursive: true, mode: 0o700 });
+    // A USB drive can be pulled out at any time: each copy is synced to the drive before it takes its real name.
     const copyIfNew = async (from, to) => {
       const st = await fsp.stat(from);
       try { if ((await fsp.stat(to)).size === st.size) return; } catch {}
-      await fsp.copyFile(from, to + ".part"); await fsp.chmod(to + ".part", 0o600).catch(() => {}); await fsp.rename(to + ".part", to);
+      await fsp.copyFile(from, to + ".part"); await fsp.chmod(to + ".part", 0o600).catch(() => {});
+      const fh = await fsp.open(to + ".part", "r+"); try { await fh.sync(); } finally { await fh.close(); }
+      await fsp.rename(to + ".part", to);
       res.files++; res.bytes += st.size;
     };
     const backups = listBackups();
@@ -177,7 +240,11 @@ async function runMirror(ctx) {
     for (const f of autos.slice(60)) await fsp.unlink(join(bdir, f));
     let assetsTotal = 0;
     for (const f of await fsp.readdir(src)) if (validAssetId(f)) { assetsTotal++; await copyIfNew(join(src, f), join(adir, f)); }
-    await fsp.writeFile(join(root, "LAST_COPY.txt"), `FSK 피트보드 외부 복사\n마지막 복사: ${res.at}\n백업 파일 ${backups.length}개, 첨부 파일 ${assetsTotal}개\n복원 방법: 저장소 README의 '외부 복사본에서 복원'\n`);
+    // audit archive files only grow, so a size change means new entries: copied again in full
+    const auditFiles = listAuditArchives();
+    for (const a of auditFiles) await copyIfNew(join(AUDIT_DIR, a.name), join(udir, a.name));
+    for (const d of [bdir, adir, udir]) syncDir(d);
+    await fsp.writeFile(join(root, "LAST_COPY.txt"), `FSK 피트보드 외부 복사\n마지막 복사: ${res.at}\n백업 파일 ${backups.length}개, 첨부 파일 ${assetsTotal}개, 감사 로그 보관 파일 ${auditFiles.length}개\n복원 방법: 저장소 README의 '외부 복사본에서 복원'\n`);
     res.ok = true; res.message = res.files ? `새 파일 ${res.files}개를 복사했어요` : "새로 복사할 파일이 없어요";
   } catch (e) { res.message = e && e.message ? e.message : String(e); }
   setSetting("mirrorLast", res);
@@ -216,15 +283,28 @@ function restoreDocs(ctx, rows, mode) {
 const SECURITY_HEADERS = { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "X-Frame-Options": "DENY", "Cross-Origin-Opener-Policy": "same-origin", "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()" };
 // Scripts run only with this response's nonce (no 'unsafe-inline'), so injected markup cannot run script.
 const pageCsp = (nonce) => `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
+// Pages, scripts and larger JSON go out gzipped when the browser takes it (the page alone is over 200 KB, and phones
+// at the track are on slow connections). Compression runs on the thread pool, not the event loop. res.sending marks
+// a response that is on its way, so an error after it cannot start a second one.
+const COMPRESS_MIN = 1024;
+const takesGzip = (res) => /\bgzip\b/.test(String(res.req?.headers["accept-encoding"] || ""));
+function finish(res, status, headers, body) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  res.sending = true;
+  if (buf.length < COMPRESS_MIN || !takesGzip(res)) { res.writeHead(status, headers); return res.end(buf); }
+  zlib.gzip(buf, (err, out) => {
+    if (res.headersSent || res.destroyed) return;
+    if (err) { res.writeHead(status, headers); return res.end(buf); }
+    res.writeHead(status, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+    res.end(out);
+  });
+}
 function send(res, status, body, headers = {}) {
-  const json = JSON.stringify(body);
-  res.writeHead(status, { ...SECURITY_HEADERS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });
-  res.end(json);
+  finish(res, status, { ...SECURITY_HEADERS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers }, JSON.stringify(body));
 }
 function sendHtml(res, html, status = 200) {
   const nonce = crypto.randomBytes(16).toString("base64");
-  res.writeHead(status, { ...SECURITY_HEADERS, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": pageCsp(nonce) });
-  res.end(html.replace(/<script(?=[\s>])/g, `<script nonce="${nonce}"`));
+  finish(res, status, { ...SECURITY_HEADERS, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": pageCsp(nonce) }, html.replace(/<script(?=[\s>])/g, `<script nonce="${nonce}"`));
 }
 const redirect = (res, to) => { res.writeHead(302, { Location: to, "Cache-Control": "no-store" }); res.end(); };
 function readBody(req, limit) {
@@ -255,7 +335,7 @@ const limited = (map, key, max, win) => { const f = map.get(key); return !!f && 
 const bump = (map, key, win) => { const f = map.get(key); if (!f || Date.now() - f.first > win) map.set(key, { count: 1, first: Date.now() }); else f.count++; };
 function pruneLimits() { for (const m of [fails, accountFails, signups]) for (const [k, f] of m) if (Date.now() - f.first > SIGNUP_WINDOW) m.delete(k); }
 // Unknown usernames still pay for one scrypt check, so response time does not reveal which accounts exist.
-const DUMMY_HASH = hashPassword(crypto.randomBytes(12).toString("hex"));
+const DUMMY_HASH = await hashPassword(crypto.randomBytes(12).toString("hex"));
 const sameSecret = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 // ---------- page ----------
@@ -275,9 +355,16 @@ function renderPage(user) {
     + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource().replace(JSZIP_CDN, "/vendor/jszip.min.js")}\n</body></html>`;
 }
 const staticFile = (name) => readFileSync(join(HERE, "public", name));
+// Script and manifest files are gzipped once and kept until the file changes; images go out as they are.
+const gzCache = new Map();
 function sendStatic(res, name, type, cache = "no-cache", extra = {}) {
-  res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": type, "Cache-Control": cache, ...extra });
-  res.end(staticFile(name));
+  const headers = { ...SECURITY_HEADERS, "Content-Type": type, "Cache-Control": cache, ...extra };
+  if (type.startsWith("image/png") || !takesGzip(res)) { res.writeHead(200, headers); return res.end(staticFile(name)); }
+  const file = join(HERE, "public", name), mtime = statSync(file).mtimeMs;
+  let c = gzCache.get(name);
+  if (!c || c.mtime !== mtime) gzCache.set(name, (c = { mtime, gz: zlib.gzipSync(readFileSync(file), { level: 9 }) }));
+  res.writeHead(200, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+  res.end(c.gz);
 }
 
 // ---------- 사비 정산 protection ----------
@@ -460,7 +547,11 @@ route("GET", "/icons/:name", (ctx) => {
   sendStatic(ctx.res, "icons/" + ctx.params.name, type, "public, max-age=86400");
 }, { auth: "none" });
 route("GET", "/vendor/jszip.min.js", (ctx) => sendStatic(ctx.res, "vendor/jszip.min.js", "text/javascript; charset=utf-8", "public, max-age=31536000, immutable"), { auth: "none" });
-route("GET", "/healthz", (ctx) => send(ctx.res, 200, { ok: true, version: VERSION }), { auth: "none" });
+// For an outside uptime monitor: 503 when the database cannot be read.
+route("GET", "/healthz", (ctx) => {
+  try { db.prepare("SELECT 1").get(); } catch { return send(ctx.res, 503, { ok: false, version: VERSION }); }
+  send(ctx.res, 200, { ok: true, version: VERSION });
+}, { auth: "none" });
 
 // auth
 route("GET", "/api/auth/config", (ctx) => send(ctx.res, 200, { signupMode: setting("signupMode"), firstUser: auth.count() === 0, signedIn: !!ctx.user }), { auth: "none" });
@@ -470,7 +561,7 @@ route("POST", "/api/auth/login", async (ctx) => {
   const uname = String(username || "").trim().toLowerCase().slice(0, 64);
   if (limited(accountFails, uname, 30, LOGIN_WINDOW)) return send(ctx.res, 429, { code: "rate_limited", message: "이 아이디로 로그인 실패가 너무 많아요. 15분 뒤에 다시 시도하거나 개발자에게 문의하세요." });
   const u = auth.byUsername(uname);
-  const ok = verifyPassword(String(password || ""), u ? u.pw_hash : DUMMY_HASH) && !!u;
+  const ok = (await verifyPassword(String(password || ""), u ? u.pw_hash : DUMMY_HASH)) && !!u;
   if (!ok) {
     bump(fails, ctx.ip, LOGIN_WINDOW); bump(accountFails, uname, LOGIN_WINDOW); audit({ ip: ctx.ip }, "login.fail", uname.slice(0, 40));
     return send(ctx.res, 401, { code: "bad_credentials", message: "아이디 또는 비밀번호가 맞지 않아요." });
@@ -489,6 +580,8 @@ route("POST", "/api/auth/signup", async (ctx) => {
   const username = String(b.username || "").trim().toLowerCase(), name = String(b.name || "").trim(), dept = DEPTS.includes(b.dept) ? b.dept : "";
   const err = checkUsername(username) || checkPasswordRule(b.password) || (!name || name.length > 20 ? "이름을 1~20자로 적어 주세요." : null);
   if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
+  // hash first: from here to the insert nothing waits, so two sign-ups at once see each other
+  const pwHash = await hashPassword(b.password);
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
   const first = auth.count() === 0, mode = setting("signupMode");
   // 팀원 must pick a department when signing up; only the very first account (the developer) may skip it.
@@ -500,7 +593,7 @@ route("POST", "/api/auth/signup", async (ctx) => {
     if (!sameSecret(String(b.invite || "").trim(), setting("inviteCode"))) { bump(signups, ctx.ip, SIGNUP_WINDOW); return send(ctx.res, 403, { code: "bad_invite", message: "초대 코드가 맞지 않아요." }); }
     status = "active";
   }
-  const u = auth.create({ username, name, dept, role, status, password: b.password });
+  const u = auth.create({ username, name, dept, role, status, pwHash });
   if (!first) bump(signups, ctx.ip, SIGNUP_WINDOW);
   audit({ user: u, ip: ctx.ip }, "signup", username, `${role} · ${status}`);
   if (first) syncRoles();
@@ -516,9 +609,9 @@ route("POST", "/api/auth/logout", (ctx) => {
 }, { auth: "none" });
 route("POST", "/api/auth/password", async (ctx) => {
   const b = await readJson(ctx.req, AUTH_BODY);
-  if (!verifyPassword(String(b.current || ""), ctx.user.pw_hash)) return send(ctx.res, 400, { code: "bad_credentials", message: "현재 비밀번호가 맞지 않아요." });
+  if (!(await verifyPassword(String(b.current || ""), ctx.user.pw_hash))) return send(ctx.res, 400, { code: "bad_credentials", message: "현재 비밀번호가 맞지 않아요." });
   const err = checkPasswordRule(b.next); if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
-  auth.setPassword(ctx.user.id, b.next, false);
+  auth.setPassword(ctx.user.id, await hashPassword(b.next), false);
   auth.endOtherSessions(ctx.user.id, ctx.user.tokenHash);
   audit(ctx, "password.change", ctx.user.username);
   send(ctx.res, 200, { ok: true });
@@ -584,9 +677,11 @@ route("GET", "/api/stream", (ctx) => {
   const { req, res, user } = ctx;
   res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", Connection: "keep-alive", "X-Accel-Buffering": "no" });
   res.write("retry: 3000\n\n: connected\n\n");
+  const mine = [...clients].filter((c) => c.user.id === user.id);
+  for (const c of mine.slice(0, Math.max(0, mine.length - MAX_STREAMS + 1))) { clients.delete(c); c.res.end(); }
   const client = { res, user };
   clients.add(client);
-  const ping = setInterval(() => res.write(": ping\n\n"), 25000);
+  const ping = setInterval(() => sse(client, ": ping\n\n"), 25000);
   req.on("close", () => { clearInterval(ping); clients.delete(client); });
 });
 
@@ -604,6 +699,23 @@ const assetGet = db.prepare("SELECT * FROM assets WHERE id = ?"), assetDel = db.
 const assetPath = (id) => join(CONFIG.dataDir, "assets", id);
 const validAssetId = (id) => /^[a-f0-9]{32}$/.test(id);
 const assetUsage = db.prepare("SELECT COALESCE(SUM(size), 0) AS bytes FROM assets WHERE uploader = ?");
+// Writes an upload straight to disk (synced) instead of holding up to 20 MB per request in memory. Keeps the first
+// 64 KiB, which is all the content check (contentMatches) reads.
+const HEAD_BYTES = 64 * 1024;
+async function receiveFile(req, limit, file) {
+  const fh = await fsp.open(file, "wx", 0o600), head = [];
+  let size = 0, headLen = 0;
+  try {
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > limit) { req.destroy(); throw new StoreError("too_large", "파일이 너무 커요.", 413); }
+      if (headLen < HEAD_BYTES) { const h = chunk.subarray(0, HEAD_BYTES - headLen); head.push(h); headLen += h.length; }
+      await fh.write(chunk);
+    }
+    await fh.sync();
+  } finally { await fh.close(); }
+  return { size, head: Buffer.concat(head) };
+}
 function freeDisk() { try { const s = statfsSync(CONFIG.dataDir); return s.bavail * s.bsize; } catch { return Infinity; } }
 route("POST", "/api/assets", async (ctx) => {
   if (level(ctx.user) < 2) return send(ctx.res, 403, { code: "not_granted", message: "파일을 올릴 권한이 없어요." });
@@ -611,26 +723,46 @@ route("POST", "/api/assets", async (ctx) => {
   if (!ASSET_TYPES.has(type)) return send(ctx.res, 415, { code: "unsupported_type", message: "지원하지 않는 파일 형식이에요." });
   if (freeDisk() < MIN_FREE_DISK) return send(ctx.res, 507, { code: "quota_or_state", message: "서버 저장 공간이 부족해요. 개발자에게 알려 주세요." });
   if (ctx.user.role !== "developer" && assetUsage.get(ctx.user.id).bytes > MAX_USER_ASSETS) return send(ctx.res, 507, { code: "quota_or_state", message: "내가 올린 파일이 2GB를 넘었어요. 안 쓰는 첨부를 지운 뒤 다시 올려 주세요." });
-  const buf = await readBody(ctx.req, type === "image/svg+xml" ? 2 * 1024 * 1024 : MAX_ASSET);
-  if (!buf.length) return send(ctx.res, 400, { code: "invalid_request", message: "빈 파일이에요." });
-  if (!contentMatches(type, buf)) return send(ctx.res, 415, { code: "unsupported_type", message: "파일 내용이 확장자와 맞지 않아요. 원래 형식 그대로 저장한 파일을 올려 주세요." });
+  const limit = type === "image/svg+xml" ? 2 * 1024 * 1024 : MAX_ASSET;
+  // refused before reading: the body is still on its way, so the connection is closed rather than reused
+  if (Number(ctx.req.headers["content-length"]) > limit) return send(ctx.res, 413, { code: "too_large", message: "파일이 너무 커요." }, { Connection: "close" });
+  const id = crypto.randomBytes(16).toString("hex"), part = assetPath(id) + ".part";
+  let got;
+  try {
+    got = await receiveFile(ctx.req, limit, part);
+    if (!got.size) return send(ctx.res, 400, { code: "invalid_request", message: "빈 파일이에요." });
+    if (!contentMatches(type, got.head)) return send(ctx.res, 415, { code: "unsupported_type", message: "파일 내용이 확장자와 맞지 않아요. 원래 형식 그대로 저장한 파일을 올려 주세요." });
+    await fsp.rename(part, assetPath(id));
+    syncDir(dirname(assetPath(id)));
+  } finally { await fsp.rm(part, { force: true }); }
   let fileName = String(ctx.req.headers["x-file-name"] || "");
   try { fileName = decodeURIComponent(fileName); } catch {}
   fileName = cleanName(fileName);
-  const id = crypto.randomBytes(16).toString("hex");
-  writeFileSync(assetPath(id), buf, { mode: 0o600 });
-  assetIns.run(id, type, buf.length, ctx.user.id, fileName.slice(0, 200), new Date().toISOString());
-  send(ctx.res, 200, { id, url: `/_blob/${id}`, sizeBytes: buf.length, contentType: type });
+  assetIns.run(id, type, got.size, ctx.user.id, fileName.slice(0, 200), new Date().toISOString());
+  send(ctx.res, 200, { id, url: `/_blob/${id}`, sizeBytes: got.size, contentType: type });
 });
 route("GET", "/api/assets", (ctx) => {
   const all = db.prepare("SELECT * FROM assets ORDER BY created_at").all();
   const mine = ctx.user.role === "developer" ? all : all.filter((a) => a.uploader === ctx.user.id);
   send(ctx.res, 200, { assets: mine.map((a) => ({ id: a.id, url: `/_blob/${a.id}`, contentType: a.content_type, sizeBytes: a.size, createdAt: a.created_at })), usage: { files: all.length, bytes: all.reduce((s, a) => s + a.size, 0), maxFiles: 100000, maxBytes: 0 } });
 });
+// Files that a 사비 내역서 or 총무 record points at stay as long as that record does (developers remove both with
+// 완전 삭제), and so do the attachments of a locked part, except for those who manage its department.
+function lockedAsset(user, id) {
+  if (user.role === "developer") return null;
+  if (privateAssets().has(id)) return "사비 내역서에 들어간 파일은 지울 수 없어요. 바꿀 내용이 있으면 총무에게 수정본 교체를 요청하세요.";
+  for (const p of docs.list("parts")) {
+    const x = p.data;
+    if (x.locked && Array.isArray(x.attachments) && x.attachments.some((a) => a && a.id === id) && !managesDept(user, x.dept)) return "잠긴 부품의 첨부 파일은 그 부서 파트장이나 팀장·부팀장만 지울 수 있어요.";
+  }
+  return null;
+}
 route("DELETE", "/api/assets/:id", (ctx) => {
   const id = ctx.params.id; if (!validAssetId(id)) return send(ctx.res, 400, { code: "invalid_request", message: "bad id" });
   const a = assetGet.get(id); if (!a) return send(ctx.res, 200, { deleted: false });
   if (a.uploader !== ctx.user.id && ctx.user.role !== "developer") return send(ctx.res, 403, { code: "not_uploader", message: "올린 사람만 지울 수 있어요." });
+  const locked = lockedAsset(ctx.user, id);
+  if (locked) return send(ctx.res, 403, { code: "locked", message: locked });
   if (existsSync(assetPath(id))) unlinkSync(assetPath(id));
   assetDel.run(id);
   send(ctx.res, 200, { deleted: true });
@@ -650,7 +782,7 @@ function guardLastDeveloper(target, nextRole, nextStatus) {
   if (target.role === "developer" && target.status === "active" && (nextRole !== "developer" || nextStatus !== "active") && devs.length <= 1)
     throw new StoreError("invalid_argument", "마지막 개발자 계정은 역할을 바꾸거나 비활성화할 수 없어요. 다른 개발자를 먼저 지정하세요.");
 }
-function dirBytes(dir) { try { return readdirSync(dir).reduce((s, f) => s + statSync(join(dir, f)).size, 0); } catch { return 0; } }
+function dirBytes(dir) { try { return readdirSync(dir).reduce((s, f) => { const st = statSync(join(dir, f)); return s + (st.isFile() ? st.size : 0); }, 0); } catch { return 0; } }
 route("GET", "/api/admin/status", (ctx) => {
   const dbFile = join(CONFIG.dataDir, "fsk.db");
   const size = (f) => existsSync(f) ? statSync(f).size : 0;
@@ -673,7 +805,9 @@ route("GET", "/api/admin/status", (ctx) => {
         partLeads: Object.fromEntries(DEPTS.map((d) => [d, users.filter((u) => u.status === "active" && u.position === "part_lead" && u.dept === d).map((u) => u.name)]))
       }
     },
-    collections: docs.counts(), lastBackup: backups[0] || null, backupBytes: dirBytes(BACKUP_DIR),
+    collections: docs.counts(), lastBackup: backups[0] || null, backupBytes: dirBytes(BACKUP_DIR) + dirBytes(AUDIT_DIR),
+    audit: { entries: db.prepare("SELECT COUNT(*) AS n FROM audit").get().n, archives: listAuditArchives().length, archivedThrough: Number(setting("auditArchivedId")) || 0, keepDays: AUDIT_KEEP_DAYS },
+    healthPing: { configured: !!CONFIG.healthPingUrl, last: setting("healthPingLast") },
     settings: { ...allSettings(), inviteCode: undefined, webhookUrl: undefined, webhookOn: !!setting("webhookUrl") },
     behindProxy: CONFIG.trustProxy, cookieSecure: isHttps(ctx.req)
   });
@@ -693,9 +827,9 @@ route("POST", "/api/admin/users", async (ctx) => {
   // same rule as sign-up: only a developer account may be made without a department
   if (role !== "developer" && !dept) return send(ctx.res, 400, { code: "invalid_argument", message: "부서를 골라 주세요. 부서 없이 만들 수 있는 건 개발자 계정뿐이에요." });
   checkPosition(position, dept);
+  const pw = tempPassword(), pwHash = await hashPassword(pw);
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
-  const pw = tempPassword();
-  const u = auth.create({ username, name, dept, role, position, status: "active", password: pw, mustChange: true });
+  const u = auth.create({ username, name, dept, role, position, status: "active", pwHash, mustChange: true });
   const moved = handOver(ctx, u.id, position, dept);
   syncPerson(u);
   audit(ctx, "user.create", username, auth.publicUser(u).title);
@@ -723,9 +857,9 @@ route("POST", "/api/admin/users/:id", async (ctx) => {
   if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id); syncRoles(); }
   send(ctx.res, 200, { user: auth.publicUser(auth.byId(u.id)), handedOver: moved });
 }, { auth: "developer" });
-route("POST", "/api/admin/users/:id/reset-password", (ctx) => {
-  const u = findUser(ctx.params.id), pw = tempPassword();
-  auth.setPassword(u.id, pw, true); auth.endAllSessions(u.id); dropStreams(u.id);
+route("POST", "/api/admin/users/:id/reset-password", async (ctx) => {
+  const pw = tempPassword(), pwHash = await hashPassword(pw), u = findUser(ctx.params.id);
+  auth.setPassword(u.id, pwHash, true); auth.endAllSessions(u.id); dropStreams(u.id);
   audit(ctx, "user.reset_password", u.username);
   send(ctx.res, 200, { tempPassword: pw });
 }, { auth: "developer" });
@@ -816,7 +950,25 @@ route("GET", "/api/admin/audit", (ctx) => {
   const rows = db.prepare(`SELECT * FROM audit WHERE (? = '' OR action LIKE ? || '%') AND (? = '' OR actor = ?) ORDER BY id DESC LIMIT ?`).all(action, action, actor, actor, limit);
   send(ctx.res, 200, { entries: rows });
 }, { auth: "developer" });
-route("GET", "/api/admin/backups", (ctx) => send(ctx.res, 200, { backups: listBackups() }), { auth: "developer" });
+route("GET", "/api/admin/backups", (ctx) => send(ctx.res, 200, { backups: listBackups(), auditArchives: listAuditArchives() }), { auth: "developer" });
+route("POST", "/api/admin/audit-archive", (ctx) => {
+  const n = archiveAudit();
+  audit(ctx, "backup.audit_archive", "", `${n}개 기록 보관`);
+  send(ctx.res, 200, { archived: n, auditArchives: listAuditArchives() });
+}, { auth: "developer" });
+route("GET", "/api/admin/audit-archives/:name", (ctx) => {
+  const name = ctx.params.name;
+  if (!AUDIT_FILE.test(name) || !existsSync(join(AUDIT_DIR, name))) throw new StoreError("not_found", "감사 로그 보관 파일이 없어요.", 404);
+  ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": "application/x-ndjson; charset=utf-8", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" });
+  createReadStream(join(AUDIT_DIR, name)).pipe(ctx.res);
+  audit(ctx, "backup.audit_download", name);
+}, { auth: "developer" });
+route("POST", "/api/admin/health-ping", async (ctx) => {
+  if (!CONFIG.healthPingUrl) throw new StoreError("invalid_argument", "서버에 HEALTH_PING_URL 이 설정되지 않았어요.");
+  const r = await pingHealth(true, "관리 창에서 보낸 테스트");
+  audit(ctx, "notify.health_ping", new URL(CONFIG.healthPingUrl).hostname, r.status);
+  send(ctx.res, 200, r);
+}, { auth: "developer" });
 route("POST", "/api/admin/backups", async (ctx) => {
   const b = await readJson(ctx.req);
   const name = createBackup("manual", ctx, String(b.note || "").slice(0, 100));
@@ -842,8 +994,9 @@ route("DELETE", "/api/admin/backups/:name", (ctx) => {
 }, { auth: "developer" });
 // Full backup: every document, account (hashed passwords), setting, and the attachment files themselves.
 route("GET", "/api/admin/backups-full", async (ctx) => {
-  const data = backupData(ctx, "전체 백업 (첨부 파일 포함)"), name = `fsk-full-${backupStamp()}.tar.gz`;
-  const files = data.assets.filter((a) => validAssetId(a.id) && existsSync(assetPath(a.id))).map((a) => ({ name: `assets/${a.id}`, file: assetPath(a.id), size: statSync(assetPath(a.id)).size }));
+  const data = backupData(ctx, "전체 백업 (첨부 파일 포함)"), name = `fsk-full-${localStamp()}.tar.gz`;
+  const files = data.assets.filter((a) => validAssetId(a.id) && existsSync(assetPath(a.id))).map((a) => ({ name: `assets/${a.id}`, file: assetPath(a.id), size: statSync(assetPath(a.id)).size }))
+    .concat(listAuditArchives().map((f) => ({ name: `audit/${f.name}`, file: join(AUDIT_DIR, f.name), size: f.bytes })));
   audit(ctx, "backup.full", name, `${data.docs.length} docs · ${files.length} files`);
   ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": "application/gzip", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" });
   try { await writeTarGz(ctx.res, [{ name: "backup.json", data: Buffer.from(JSON.stringify(data)) }, ...files]); }
@@ -939,19 +1092,22 @@ const server = http.createServer(async (req, res) => {
     if (r.auth === "developer" && (!user || user.role !== "developer" || user.must_change_pw)) return send(res, 403, { code: "forbidden", message: "개발자만 쓸 수 있어요." });
     await r.handler(ctx);
   } catch (e) {
-    if (e instanceof StoreError) { if (!res.headersSent) send(res, e.status, { code: e.code, message: e.message }); return; }
+    if (e instanceof StoreError) { if (!res.headersSent && !res.sending) send(res, e.status, { code: e.code, message: e.message }); return; }
     console.error(new Date().toISOString(), req.method, url.pathname, e);
-    if (!res.headersSent) send(res, 500, { code: "unavailable", message: "서버 오류가 났어요. 잠시 후 다시 시도해 주세요." });
+    if (!res.headersSent && !res.sending) send(res, 500, { code: "unavailable", message: "서버 오류가 났어요. 잠시 후 다시 시도해 주세요." });
   }
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   syncPeople();
+  // uploads cut off by a crash or restart
+  for (const f of readdirSync(join(CONFIG.dataDir, "assets"))) if (f.endsWith(".part")) rmSync(join(CONFIG.dataDir, "assets", f), { force: true });
+  if (CONFIG.healthPingUrl && !/^https?:\/\//.test(CONFIG.healthPingUrl)) console.error("HEALTH_PING_URL 은 http(s) 주소여야 해요:", CONFIG.healthPingUrl);
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`FSK 피트보드 ${VERSION} · http://${CONFIG.host}:${CONFIG.port} · data ${CONFIG.dataDir}`);
     if (auth.count() === 0) console.log("아직 계정이 없어요. /login 에서 처음 가입하는 사람이 개발자 계정이 돼요.");
   });
-  const tick = () => { autoBackupTick(); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
+  const tick = () => { autoBackupTick().catch((e) => console.error("auto backup failed", e)); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
   setInterval(tick, 10 * 60000);
   setTimeout(tick, 30000);
   const stop = () => { console.log("shutting down"); for (const c of clients) c.res.end(); server.close(() => { db.close(); process.exit(0); }); setTimeout(() => process.exit(0), 3000); };

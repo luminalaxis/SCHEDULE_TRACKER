@@ -82,8 +82,10 @@ sudo systemctl enable --now cloudflared
 
 ## 6. 백업
 
-- 서버가 매일 새벽 4시 이후 **자동 백업**을 `~/fsk-data/backups/` 에 만들고 14개를 보관해요 (관리 창 → 설정에서 변경).
-- 자동 백업(JSON)에는 첨부 파일 자체가 들어가지 않아요. 파이가 고장 나도 데이터가 남도록 **외부 복사**를 꼭 설정하세요.
+- 서버가 매일 새벽 4시 이후 **자동 백업**을 `~/fsk-data/backups/` 에 만들고 14개를 보관해요 (관리 창 → 설정에서 변경). 시각은 파이의 시간대(`TZ=Asia/Seoul`) 기준이에요.
+- 백업(JSON)에는 데이터, 계정, 설정, 첨부 파일 목록, **감사 로그**가 들어가요. 첨부 파일 자체는 들어가지 않아요. 파이가 고장 나도 데이터가 남도록 **외부 복사**를 꼭 설정하세요.
+- 감사 로그는 따로 `~/fsk-data/backups/audit/fsk-audit-연-월.jsonl` 에도 쌓여요 (한 줄에 기록 하나, 백업할 때마다 뒤에 붙음). 데이터베이스에는 1년치만 남기고, 더 오래된 기록은 이 파일에 들어간 것만 정리해요. 관리 창 → 백업·복원 → 감사 로그 보관에서 내려받을 수 있어요.
+- 백업·첨부 파일·외부 복사는 디스크에 다 쓴 뒤 이름을 붙여서, 전원이 갑자기 나가도 반쪽짜리 파일이 남지 않아요.
 
 ### 외부 복사 (USB 드라이브, 권장)
 
@@ -100,7 +102,7 @@ sudo systemctl enable --now cloudflared
 2. 서비스가 그 폴더에 쓸 수 있게 `/etc/systemd/system/fsk-pitboard.service` 의 `# ReadWritePaths=/media/pi/BACKUP` 줄 앞의 `#` 을 지우고 `sudo systemctl daemon-reload && sudo systemctl restart fsk-pitboard`.
 3. 관리 창 → 백업·복원 → 외부 복사에 `/media/pi/BACKUP/fsk` 를 적고 **저장**, **지금 복사**.
 
-이후 매일 자동 백업이 끝나면 백업 파일과 새 첨부 파일을 복사해요. 복사본에서는 지우지 않으니(자동 백업은 60개까지 보관) 서버 데이터가 지워져도 남아 있어요. 실패하거나 이틀 넘게 복사가 안 되면 관리 창 개요에 경고가 떠요.
+이후 매일 자동 백업이 끝나면 백업 파일, 새 첨부 파일, 감사 로그 보관 파일(`audit/`)을 복사해요. 복사본에서는 지우지 않으니(자동 백업은 60개까지 보관) 서버 데이터가 지워져도 남아 있어요. 실패하거나 이틀 넘게 복사가 안 되면 관리 창 개요에 경고가 떠요.
 
 Google Drive 같은 클라우드에도 두려면, 외부 복사 폴더를 `rclone` 으로 올리세요 (`crontab -e`):
 
@@ -110,7 +112,14 @@ Google Drive 같은 클라우드에도 두려면, 외부 복사 폴더를 `rclon
 
 ### 한 파일로 받기
 
-관리 창 → 백업·복원 → **전체 백업 내려받기**는 데이터, 계정, 설정, 첨부 파일을 한 `.tar.gz` 파일로 줘요. 대회 전처럼 중요한 때 받아 두세요.
+관리 창 → 백업·복원 → **전체 백업 내려받기**는 데이터, 계정, 설정, 감사 로그, 첨부 파일, 감사 로그 보관 파일을 한 `.tar.gz` 파일로 줘요. 대회 전처럼 중요한 때 받아 두세요.
+
+### 서버가 멈추면 알림 받기
+
+파이가 꺼지거나 백업이 멈춰도 관리 창에 들어가기 전에는 알 수 없어요. 두 가지를 해 두면 휴대폰으로 알 수 있어요.
+
+1. **매일 백업 신호 (healthchecks.io, 무료):** 계정을 만들고 체크를 하나 만들어요 (주기 1일, 유예 2시간). 받은 주소를 서비스 파일의 `HEALTH_PING_URL` 줄에 넣고 앞의 `#`을 지운 뒤 `sudo systemctl daemon-reload && sudo systemctl restart fsk-pitboard`. 관리 창 → 백업·복원 → 서버 상태 알림에서 **테스트 신호 보내기**로 확인해요. 그 뒤로는 매일 자동 백업과 외부 복사가 끝나면 신호를 보내고, 실패하면 `/fail` 신호를 보내요. 신호가 안 오면 healthchecks.io가 메일·앱으로 알려 줘요.
+2. **접속 확인 (UptimeRobot 등):** `https://pit.example.com/healthz` 를 5분마다 확인하게 해 두면 서버나 터널이 내려갔을 때 바로 알려 줘요 (데이터베이스를 읽을 수 없으면 503을 돌려줘요).
 
 ## 7. 업데이트
 
@@ -128,9 +137,9 @@ sudo systemctl restart fsk-pitboard
 | 계정 목록 확인 | `DATA_DIR=~/fsk-data npm run admin -- list-users` |
 | 새 개발자 계정 만들기 | `DATA_DIR=~/fsk-data npm run admin -- create-user <아이디> developer <이름>` |
 | 직책 있는 계정 만들기 | `... create-user <아이디> member\|team_lead\|vice_lead\|part_lead <이름> <부서>` (developer가 아니면 부서 필수: battery, circuit, chassis, aero, powertrain) |
-| 파이가 고장 나서 새 파이로 옮김 (전체 백업 파일이 있음) | 새 파이에 2~4단계를 한 뒤 `DATA_DIR=~/fsk-data npm run admin -- restore fsk-full-….tar.gz` (계정·데이터·설정·첨부 파일 모두 복원) |
-| 외부 복사본(USB)만 있음 | 새 파이에 2~4단계 → `mkdir -p ~/fsk-data/assets && cp /media/pi/BACKUP/fsk/assets/* ~/fsk-data/assets/` → `DATA_DIR=~/fsk-data npm run admin -- restore /media/pi/BACKUP/fsk/backups/<가장 최근>.json` |
-| 백업 JSON만 있음 | `DATA_DIR=~/fsk-data npm run admin -- restore 백업파일.json` (계정·데이터·설정 복원, 첨부 파일은 따로) |
+| 파이가 고장 나서 새 파이로 옮김 (전체 백업 파일이 있음) | 새 파이에 2~4단계를 한 뒤 `DATA_DIR=~/fsk-data npm run admin -- restore fsk-full-….tar.gz` (계정·데이터·설정·감사 로그·첨부 파일·감사 로그 보관 파일 모두 복원) |
+| 외부 복사본(USB)만 있음 | 새 파이에 2~4단계 → `mkdir -p ~/fsk-data/assets ~/fsk-data/backups/audit && cp /media/pi/BACKUP/fsk/assets/* ~/fsk-data/assets/ && cp /media/pi/BACKUP/fsk/audit/* ~/fsk-data/backups/audit/` → `DATA_DIR=~/fsk-data npm run admin -- restore /media/pi/BACKUP/fsk/backups/<가장 최근>.json` |
+| 백업 JSON만 있음 | `DATA_DIR=~/fsk-data npm run admin -- restore 백업파일.json` (계정·데이터·설정·감사 로그 복원, 첨부 파일은 따로) |
 | 알림이 안 옴 | 관리 창 → 설정 → 알림 → **지금 마감·일정 알림 확인** / **테스트 보내기**. 시간대가 맞는지 `timedatectl` 확인 |
 
 ## 9. claude.ai 피트보드에서 데이터 옮기기

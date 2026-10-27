@@ -1,7 +1,10 @@
 // 사비 내역서 양식 검사 on the server. It runs the page's own rules script (window.FSKExpenseRules in index.html) with the
 // same JSZip the page loads, so a submission is checked by exactly the code the submitter's browser ran, but on the
 // file the server actually stores. Only DOMParser is missing in Node; parseXml below stands in for it.
+// The check itself runs in a worker thread (expense-worker.js) with its own memory cap, so unpacking and reading a
+// workbook never stalls the server's other requests, and a file that still takes too long is given up on.
 import { readFileSync } from "node:fs";
+import { Worker } from "node:worker_threads";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -12,12 +15,19 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const MAX_PART = 4 * 1024 * 1024, MAX_UNPACKED = 16 * 1024 * 1024;
 const MAX_SUMMARY = 48 * 1024;        // what one submission may add to the submitter's document (256 KiB in all)
 
-// The vendored file is UMD: given module/exports it hands JSZip back instead of setting a global.
-const JSZip = (() => {
-  const mod = { exports: {} };
-  new Function("module", "exports", readFileSync(join(HERE, "public", "vendor", "jszip.min.js"), "utf8"))(mod, mod.exports);
-  return mod.exports;
-})();
+const CHECK_TIMEOUT = 30000, WORKER_HEAP_MB = 256;
+
+// The vendored file is UMD: given module/exports it hands JSZip back instead of setting a global. Loaded only where
+// workbooks are read (the worker).
+let JSZipLib = null;
+const jszip = () => {
+  if (!JSZipLib) {
+    const mod = { exports: {} };
+    new Function("module", "exports", readFileSync(join(HERE, "public", "vendor", "jszip.min.js"), "utf8"))(mod, mod.exports);
+    JSZipLib = mod.exports;
+  }
+  return JSZipLib;
+};
 
 // ---------- a small XML DOM ----------
 // Just what the reader uses: getElementsByTagNameNS("*", name), getAttribute, getAttributeNS, textContent, parentNode
@@ -120,14 +130,21 @@ export function parseXml(text) {
 
 // ---------- the check ----------
 // Rules come from index.html, re-read when the page changes (the server already caches it by mtime).
-let rulesFor = { html: null, rules: null };
-function rulesOf(html) {
-  if (rulesFor.html !== html) {
+let scriptFor = { html: null, src: null };
+function rulesScript(html) {
+  if (scriptFor.html !== html) {
     const m = html.match(/<script>\s*(\/\/ 사비 내역서 양식 규칙[\s\S]*?)<\/script>/);
     if (!m) throw new Error("index.html has no 사비 내역서 rules script");
+    scriptFor = { html, src: m[1] };
+  }
+  return scriptFor.src;
+}
+let rulesFor = { src: null, rules: null };
+function rulesOf(src) {
+  if (rulesFor.src !== src) {
     const ctx = { window: {} };
-    vm.runInNewContext(m[1], ctx);
-    rulesFor = { html, rules: ctx.window.FSKExpenseRules };
+    vm.runInNewContext(src, ctx);
+    rulesFor = { src, rules: ctx.window.FSKExpenseRules };
   }
   return rulesFor.rules;
 }
@@ -139,17 +156,64 @@ const todayKst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul"
 // Checks run one at a time, so many uploads at once cannot multiply the memory a check needs.
 let queue = Promise.resolve();
 export function checkExpenseFile(html, buf, fileName, today = todayKst()) {
-  const run = queue.then(() => checkNow(html, buf, fileName, today));
+  const src = rulesScript(html);
+  const run = queue.then(() => inWorker(src, buf, fileName, today));
   queue = run.catch(() => {});
   return run;
 }
 const unreadable = (msg) => ({ level: "bad", errors: [msg], warns: [], infos: [], items: [], total: 0, account: "" });
-async function checkNow(html, buf, fileName, today) {
-  const R = rulesOf(html);
+const hashOf = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
+// What a submission stores when the worker gave up on the file (too slow, or over its memory cap).
+const failed = (src, buf, msg) => ({ ...JSON.parse(JSON.stringify(rulesOf(src).summarize(unreadable(msg)))), hash: hashOf(buf), fileSize: buf.length });
+
+// ---------- the worker ----------
+let worker = null, jobs = 0;
+const pending = new Map();
+function getWorker() {
+  if (worker) return worker;
+  const w = new Worker(new URL("./expense-worker.js", import.meta.url), { resourceLimits: { maxOldGenerationSizeMb: WORKER_HEAP_MB } });
+  w.unref();
+  const fail = (err) => {
+    if (worker === w) worker = null;
+    for (const [, p] of pending) p.reject(err);
+    pending.clear();
+  };
+  w.on("message", ({ id, result, error }) => {
+    const p = pending.get(id); if (!p) return;
+    pending.delete(id);
+    if (error) p.reject(new Error(error)); else p.resolve(result);
+  });
+  w.on("error", fail);
+  w.on("exit", () => fail(new Error("worker stopped")));
+  return (worker = w);
+}
+async function inWorker(src, buf, fileName, today) {
+  const w = getWorker(), id = ++jobs, bytes = new Uint8Array(buf);
+  let timer;
+  w.ref();   // keep the process alive while a check is running (the idle worker does not)
+  try {
+    const done = new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+    const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("timeout")), CHECK_TIMEOUT); });
+    w.postMessage({ id, src, bytes, fileName, today }, [bytes.buffer]);
+    return await Promise.race([done, late]);
+  } catch (e) {
+    pending.delete(id);
+    if (e && e.message === "timeout") { await w.terminate(); return failed(src, buf, "파일을 확인하는 데 너무 오래 걸려요. 동아리 양식 파일인지 확인해 주세요."); }
+    if (worker !== w || (e && e.message === "worker stopped")) return failed(src, buf, "파일이 너무 커서 확인할 수 없어요. 동아리 양식 파일인지 확인해 주세요.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    if (worker === w) w.unref();
+  }
+}
+
+// Runs inside the worker.
+export async function checkInline(src, buf, fileName, today) {
+  const R = rulesOf(src);
   let res;
   try {
     let zip, unpacked = 0;
-    try { zip = await JSZip.loadAsync(buf); } catch { throw { user: "xlsx 파일을 열 수 없어요. 파일이 손상됐거나 암호가 걸려 있을 수 있어요." }; }
+    try { zip = await jszip().loadAsync(buf); } catch { throw { user: "xlsx 파일을 열 수 없어요. 파일이 손상됐거나 암호가 걸려 있을 수 있어요." }; }
     const guarded = { file: (path) => {
       const f = zip.file(path), size = f && f._data ? f._data.uncompressedSize : 0;
       if (f && (!(size >= 0) || size > MAX_PART || (unpacked += size) > MAX_UNPACKED)) throw { user: "파일 안의 표 데이터가 너무 커요. 동아리 양식 파일인지 확인해 주세요." };
@@ -162,5 +226,5 @@ async function checkNow(html, buf, fileName, today) {
   // copy out of the vm realm so the stored values are plain objects of this one
   let summary = JSON.parse(JSON.stringify(R.summarize(res)));
   if (JSON.stringify(summary).length > MAX_SUMMARY) summary = JSON.parse(JSON.stringify(R.summarize(unreadable("칸에 적힌 내용이 너무 길어요. 동아리 양식대로 짧게 적어 주세요."))));
-  return { ...summary, hash: crypto.createHash("sha256").update(buf).digest("hex"), fileSize: buf.length };
+  return { ...summary, hash: hashOf(buf), fileSize: buf.length };
 }

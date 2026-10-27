@@ -4,11 +4,11 @@
 //   node server/cli.js reset-password <username>
 //   node server/cli.js backup
 //   node server/cli.js restore <backup.json | fsk-full-….tar.gz> [--force]
-import { readFileSync, createReadStream, existsSync, renameSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, readdirSync, createReadStream, existsSync, renameSync, mkdtempSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openStore, createDocs } from "./store.js";
-import { createAuth, tempPassword, checkUsername } from "./auth.js";
+import { createAuth, tempPassword, checkUsername, hashPassword } from "./auth.js";
 import { readTarGz } from "./archive.js";
 import { DEPTS } from "./depts.js";
 
@@ -18,6 +18,7 @@ const db = openStore(dataDir), docs = createDocs(db), auth = createAuth(db);
 const [cmd, ...args] = process.argv.slice(2);
 const audit = (action, target, detail) => db.prepare("INSERT INTO audit (at, actor, actor_name, action, target, detail, ip) VALUES (?, NULL, 'cli', ?, ?, ?, 'local')").run(new Date().toISOString(), action, target, detail);
 const die = (msg) => { console.error(msg); process.exit(1); };
+const AUDIT_FILE = /^audit\/fsk-audit-\d{4}-\d{2}\.jsonl$/;
 
 switch (cmd) {
   case "list-users":
@@ -33,7 +34,7 @@ switch (cmd) {
     if (dept && !DEPTS.includes(dept)) die(`부서는 ${DEPTS.join(", ")} 중 하나예요.`);
     if (auth.byUsername(username)) die("이미 있는 아이디예요.");
     const [role, position] = KINDS[kind], pw = tempPassword();
-    auth.create({ username, name: name || username, dept, role, position, status: "active", password: pw, mustChange: true });
+    auth.create({ username, name: name || username, dept, role, position, status: "active", pwHash: await hashPassword(pw), mustChange: true });
     audit("user.create", username, `${kind} (cli)`);
     console.log(`만들었어요: ${username} (${kind})\n임시 비밀번호: ${pw}\n처음 로그인할 때 새 비밀번호를 정하게 돼요. 역할 변경이 페이지에 반영되려면 서버를 다시 시작하거나 관리 창에서 역할을 한 번 저장하세요.`);
     break;
@@ -42,7 +43,7 @@ switch (cmd) {
     const u = auth.byUsername(args[0] || "");
     if (!u) die("그런 아이디가 없어요.");
     const pw = tempPassword();
-    auth.setPassword(u.id, pw, true); auth.endAllSessions(u.id);
+    auth.setPassword(u.id, await hashPassword(pw), true); auth.endAllSessions(u.id);
     if (u.status !== "active") auth.update(u.id, { status: "active" });
     audit("user.reset_password", u.username, "cli");
     console.log(`${u.username} 임시 비밀번호: ${pw}`);
@@ -60,7 +61,9 @@ switch (cmd) {
     if (full) {
       // full backup: backup.json plus the attachment files
       tmp = mkdtempSync(join(dataDir, "restore-"));
-      const out = await readTarGz(createReadStream(file), (name) => name === "backup.json" ? "json" : /^assets\/[a-f0-9]{32}$/.test(name) ? join(tmp, name.slice(7)) : null);
+      mkdirSync(join(tmp, "audit"));
+      const out = await readTarGz(createReadStream(file), (name) => name === "backup.json" ? "json" : /^assets\/[a-f0-9]{32}$/.test(name) ? join(tmp, name.slice(7))
+        : AUDIT_FILE.test(name) ? join(tmp, name) : null);
       if (!out.json) { rmSync(tmp, { recursive: true, force: true }); die("backup.json 이 없는 파일이에요."); }
       json = JSON.parse(out.json.toString("utf8"));
     } else json = JSON.parse(readFileSync(file, "utf8"));
@@ -79,19 +82,46 @@ switch (cmd) {
       for (const [k, v] of Object.entries(json.settings || {})) set.run(k, JSON.stringify(v));
       const a = db.prepare("INSERT OR REPLACE INTO assets (id, content_type, size, uploader, name, created_at) VALUES (?, ?, ?, ?, ?, ?)");
       for (const x of json.assets || []) a.run(x.id, x.content_type, x.size, x.uploader, x.name, x.created_at);
+      // The audit log comes back as it was in the backup (same ids, so the archive files line up), followed by this
+      // server's own entries that the backup does not have (for example the accounts made here before restoring).
+      if (Array.isArray(json.audit)) {
+        const cols = ["at", "actor", "actor_name", "action", "target", "detail", "ip"], key = (r) => JSON.stringify(cols.map((c) => r[c] ?? null));
+        const local = db.prepare("SELECT * FROM audit ORDER BY id").all(), had = new Set(json.audit.map(key));
+        db.exec("DELETE FROM audit");
+        const withId = db.prepare(`INSERT INTO audit (id, ${cols.join(", ")}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`), noId = db.prepare(`INSERT INTO audit (${cols.join(", ")}) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+        for (const r of json.audit) if (Number.isInteger(r.id) && r.action && r.at) withId.run(r.id, ...cols.map((c) => r[c] ?? null));
+        for (const r of local) if (!had.has(key(r))) noId.run(...cols.map((c) => r[c] ?? null));
+      }
       db.exec("COMMIT");
     } catch (e) { db.exec("ROLLBACK"); throw e; }
     docs.replaceAll(json.docs || []);
-    let files = 0;
+    let files = 0, auditFiles = 0;
     if (tmp) {
       for (const x of json.assets || []) {
         const from = join(tmp, String(x.id)), to = join(dataDir, "assets", String(x.id));
         if (/^[a-f0-9]{32}$/.test(String(x.id)) && existsSync(from) && !existsSync(to)) { renameSync(from, to); files++; }
       }
+      // audit archive files: a file here that is shorter than the backup's copy gets the backup's copy
+      const adir = join(dataDir, "backups", "audit");
+      mkdirSync(adir, { recursive: true, mode: 0o700 });
+      for (const f of readdirSync(join(tmp, "audit"))) {
+        const to = join(adir, f);
+        if (AUDIT_FILE.test("audit/" + f) && (!existsSync(to) || statSync(to).size < statSync(join(tmp, "audit", f)).size)) { renameSync(join(tmp, "audit", f), to); auditFiles++; }
+      }
       rmSync(tmp, { recursive: true, force: true });
     }
-    audit("backup.restore", file, `full restore (cli) · ${json.docs?.length || 0} docs · ${json.users?.length || 0} users${tmp ? ` · 파일 ${files}개` : ""}`);
-    console.log(`복원했어요: 문서 ${json.docs?.length || 0}개, 계정 ${json.users?.length || 0}개${tmp ? `, 첨부 파일 ${files}개` : ". 첨부 파일은 data/assets 폴더를 따로 복사해 넣어야 해요 (전체 백업 .tar.gz 로 복원하면 함께 들어가요)"}.`);
+    // Entries count as archived only up to what the archive files on this server really hold, so none is pruned
+    // from the database before it is in a file here (a JSON restore on a new Pi brings no archive files).
+    let through = 0;
+    const adir = join(dataDir, "backups", "audit");
+    if (existsSync(adir)) for (const f of readdirSync(adir)) {
+      if (!AUDIT_FILE.test("audit/" + f)) continue;
+      const lines = readFileSync(join(adir, f), "utf8").trim().split("\n");
+      try { through = Math.max(through, Number(JSON.parse(lines[lines.length - 1]).id) || 0); } catch {}
+    }
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('auditArchivedId', ?)").run(JSON.stringify(through));
+    audit("backup.restore", file, `full restore (cli) · ${json.docs?.length || 0} docs · ${json.users?.length || 0} users · 감사 로그 ${json.audit?.length || 0}개${tmp ? ` · 파일 ${files}개` : ""}`);
+    console.log(`복원했어요: 문서 ${json.docs?.length || 0}개, 계정 ${json.users?.length || 0}개, 감사 로그 ${json.audit?.length || 0}개${tmp ? `, 첨부 파일 ${files}개, 감사 로그 보관 파일 ${auditFiles}개` : ". 첨부 파일은 data/assets 폴더를 따로 복사해 넣어야 해요 (전체 백업 .tar.gz 로 복원하면 함께 들어가요)"}.`);
     break;
   }
   default:

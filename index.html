@@ -761,7 +761,7 @@ body.tv-on { overflow: hidden; }
       <div class="toolbar">
         <span class="role" id="expRole"></span>
         <button class="btn" type="button" id="btnRoles" hidden>권한 관리</button>
-        <button class="btn" type="button" id="btnExpCsv" hidden>정산 내역 CSV</button>
+        <button class="btn" type="button" id="btnExpCsv" hidden>정산 내역 엑셀</button>
         <button class="btn primary" type="button" id="btnExpNew" hidden>+ 사비 내역서 제출</button>
       </div>
     </div>
@@ -2933,18 +2933,87 @@ window.FSKExpenseRules = (() => {
   $("xq").addEventListener("input", renderExpense);
   $("meName").addEventListener("change", () => { state.registered = false; registerMe(); });
   $("meDept").addEventListener("change", () => { state.registered = false; registerMe(); });
+  // Minimal xlsx writer for exports: inline strings, a few styles, column widths fitted to the content (Korean counts
+  // double; a cell with fit: false spills over instead of widening its column), formulas stored with their computed value so the file reads right even before Excel recalculates.
+  function xlsxBook(sheets) {
+    const xe = (v) => String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const colName = (i) => { let n = "", x = i + 1; while (x) { const m = (x - 1) % 26; n = String.fromCharCode(65 + m) + n; x = Math.floor((x - 1) / 26); } return n; };
+    const shown = (c) => { if (c && c.fit === false) return ""; const v = c && typeof c === "object" ? c.v : c; return typeof v === "number" ? Math.round(v).toLocaleString("ko-KR") : String(v ?? ""); };
+    const textWidth = (t) => Math.max(0, ...t.split("\n").map((l) => [...l].reduce((w, ch) => w + (ch.codePointAt(0) > 0x2e7f ? 2 : 1), 0)));
+    // styles: 0 plain, 1 header, 2 number, 3 bold, 4 bold number, 5 title
+    const STYLE = { head: 1, num: 2, bold: 3, boldNum: 4, title: 5 };
+    const cellXml = (c, ref) => {
+      if (c === null || c === undefined || c === "") return "";
+      const o = typeof c === "object" ? c : { v: c }, st = o.s ? ` s="${STYLE[o.s]}"` : typeof o.v === "number" ? ' s="2"' : "";
+      if (o.f) return `<c r="${ref}"${st}><f>${xe(o.f)}</f><v>${Number(o.v) || 0}</v></c>`;
+      if (typeof o.v === "number") return `<c r="${ref}"${st}><v>${o.v}</v></c>`;
+      return `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(o.v ?? "")}</t></is></c>`;
+    };
+    const sheetXml = (sh) => {
+      const ncol = Math.max(1, ...sh.rows.map((r) => r.length));
+      const widths = Array.from({ length: ncol }, (_, i) => Math.min(60, Math.max(sh.minWidth || 8, ...sh.rows.map((r) => textWidth(shown(r[i])) + 2))));
+      const cols = `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>`;
+      const rows = sh.rows.map((r, ri) => `<row r="${ri + 1}">${r.map((c, ci) => cellXml(c, colName(ci) + (ri + 1))).join("")}</row>`).join("");
+      const pane = sh.freeze ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sh.freeze}" topLeftCell="A${sh.freeze + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : "";
+      const filter = sh.filter && sh.rows.length > 1 ? `<autoFilter ref="A1:${colName(ncol - 1)}${sh.rows.length}"/>` : "";
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${pane}<sheetFormatPr defaultRowHeight="16.5"/>${cols}<sheetData>${rows}</sheetData>${filter}</worksheet>`;
+    };
+    const zip = new JSZip(), R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`);
+    zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+    zip.file("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${R}"><sheets>${sheets.map((sh, i) => `<sheet name="${xe(sh.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`);
+    zip.file("xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${R}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="${R}/styles" Target="styles.xml"/></Relationships>`);
+    zip.file("xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts><fonts count="3"><font><sz val="11"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font><font><b/><sz val="11"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font><font><b/><sz val="14"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E7E3"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
+    sheets.forEach((sh, i) => zip.file(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sh)));
+    return zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", compression: "DEFLATE" });
+  }
+  // 사비 정산 내역 as an Excel file: the list (부서 = the submitter's department; 지급 금액 only for 지급 완료, so the
+  // column sums to what was paid) and a 요약 sheet whose totals and 부서별 amounts are formulas over that list.
+  function expenseWorkbook(subs) {
+    const when = (iso) => { const d = new Date(iso || ""); return isNaN(d) ? "" : `${ymd(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+    const head = ["제출일시", "신청자", "등록한 사람", "부서", "팀", "항목 수", "신청 금액(원)", "자동 검사", "지급 상태", "지급일", "지급 금액(원)", "총무 메모", "파일명", "계좌(일부)"];
+    const NO_DEPT = "부서 없음";
+    const rows = subs.map((s) => {
+      const e = effective(s), r = reviewOf(s.key), st = statusOf(s), paid = st === "paid" ? (num(r?.paidAmount) ?? num(e.total) ?? 0) : "";
+      return [when(s.submittedAt), e.applicant || "", s.by || "", DEPT[s.byDept] ? DEPT[s.byDept].l : NO_DEPT, (e.teams || []).join(" "), (e.items || []).length, num(e.total) ?? 0,
+        LEVEL_LABEL[e.check?.level] || "", EXP_ST[st], st === "paid" ? r?.paidAt || "" : "", paid, r?.note || "", cleanName(e.fileName || ""), e.accountMasked || ""];
+    });
+    const L = "'정산 내역'!", D = `${L}D:D`, G = `${L}G:G`, I = `${L}I:I`, K = `${L}K:K`;
+    const sum = (list, i) => list.reduce((a, r) => a + (typeof r[i] === "number" ? r[i] : 0), 0);
+    const waiting = rows.filter((r) => r[8] === EXP_ST.approved);
+    const deptNames = [...DEPTS.map((d) => d.l), NO_DEPT];
+    const deptRows = deptNames.map((name, i) => {
+      const mine = rows.filter((r) => r[3] === name), q = `"${name}"`;
+      return [name, { f: `COUNTIF(${D},${q})`, v: mine.length }, { f: `SUMIF(${D},${q},${G})`, v: sum(mine, 6), s: "num" }, { f: `SUMIF(${D},${q},${K})`, v: sum(mine, 10), s: "num" }];
+    });
+    const first = 9, last = first + deptRows.length - 1;
+    const summary = [
+      [{ v: "사비 정산 요약", s: "title" }],
+      ["내보낸 날짜", todayStr()],
+      [],
+      [{ v: "구분", s: "head" }, { v: "건수", s: "head" }, { v: "신청 금액(원)", s: "head" }, { v: "지급액(원)", s: "head" }],
+      [{ v: "전체", s: "bold" }, { f: `COUNTA(${L}A:A)-1`, v: rows.length, s: "bold" }, { f: `SUM(${G})`, v: sum(rows, 6), s: "boldNum" }, { f: `SUM(${K})`, v: sum(rows, 10), s: "boldNum" }],
+      ["지급 대기 (승인)", { f: `COUNTIF(${I},"${EXP_ST.approved}")`, v: waiting.length }, { f: `SUMIF(${I},"${EXP_ST.approved}",${G})`, v: sum(waiting, 6), s: "num" }, ""],
+      [],
+      [{ v: "부서", s: "head" }, { v: "건수", s: "head" }, { v: "신청 금액(원)", s: "head" }, { v: "지급액(원)", s: "head" }],
+      ...deptRows,
+      [{ v: "합계", s: "bold" }, { f: `SUM(B${first}:B${last})`, v: rows.length, s: "bold" }, { f: `SUM(C${first}:C${last})`, v: sum(rows, 6), s: "boldNum" }, { f: `SUM(D${first}:D${last})`, v: sum(rows, 10), s: "boldNum" }],
+      [],
+      [{ v: "부서는 제출한 사람의 부서, 지급액은 '지급 완료'인 내역의 지급 금액이에요.", fit: false }],
+      [{ v: "'정산 내역' 시트를 고치면 이 표도 다시 계산돼요.", fit: false }]
+    ];
+    return xlsxBook([
+      { name: "정산 내역", rows: [head.map((h) => ({ v: h, s: "head" })), ...rows], freeze: 1, filter: true },
+      { name: "요약", rows: summary, minWidth: 12 }
+    ]);
+  }
   $("btnExpCsv").addEventListener("click", async () => {
-    const cell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-    const head = ["제출일시", "신청자", "등록한 사람", "팀", "항목 수", "신청 금액(원)", "자동 검사", "지급 상태", "지급일", "지급 금액(원)", "총무 메모", "파일명", "계좌(일부)"];
-    const lines = [head.join(",")].concat(liveSubs().map((s) => {
-      const e = effective(s), r = reviewOf(s.key), st = statusOf(s);
-      return [fmtWhen(s.submittedAt), e.applicant, s.by, (e.teams || []).join(" "), (e.items || []).length, e.total || 0, LEVEL_LABEL[e.check?.level] || "", EXP_ST[st], st === "paid" ? r?.paidAt || "" : "", num(r?.paidAmount) ?? "", r?.note || "", e.fileName, e.accountMasked].map(cell).join(",");
-    }));
-    const csv = "﻿" + lines.join("\r\n"), filename = `사비정산_${todayStr()}.csv`;
+    if (typeof JSZip === "undefined") { toast("파일 분석 도구를 불러오지 못했어요. 페이지를 새로고침해 주세요."); return; }
+    const data = await expenseWorkbook(liveSubs()), filename = `사비정산_${todayStr()}.xlsx`;
     let dl = null;
     try { dl = await window.claude.use("downloads"); } catch {}
-    if (dl) { try { await dl.save({ filename, data: csv }); toast("정산 내역을 저장했어요"); return; } catch (err) { if (err && err.code === "declined") return; } }
-    try { await navigator.clipboard.writeText(csv); toast("파일로 저장할 수 없어 CSV를 클립보드에 복사했어요"); } catch { toast("이 화면에서는 내보낼 수 없어요"); }
+    if (dl) { try { await dl.save({ filename, data }); toast("정산 내역을 저장했어요"); return; } catch (err) { if (err && err.code === "declined") return; } }
+    toast("이 화면에서는 파일을 저장할 수 없어요");
   });
 
   if (typeof ResizeObserver === "function") {

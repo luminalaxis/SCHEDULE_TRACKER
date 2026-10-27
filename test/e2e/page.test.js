@@ -5,6 +5,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { startServer, Client, member } from "../helpers/server.js";
 import { statementXlsx } from "../helpers/xlsx.js";
@@ -276,5 +277,38 @@ test("a 권한 change reloads the person's open page, after any open dialog is c
   assert.equal(await page.evaluate(() => window.__before), true, "an open dialog is not thrown away");
   await page.evaluate(() => document.getElementById("dlgLog").close());
   assert.ok(await until(async () => (await role().catch(() => "")) === "팀원"), "reloads once the dialog is closed");
+  await ctx.close();
+});
+
+test("사비 정산 내역 downloads as an Excel file with fitted columns and 부서별 totals", { skip, timeout: 90000 }, async () => {
+  const mod = { exports: {} }; // the vendored JSZip is UMD: given module/exports it hands JSZip back
+  new Function("module", "exports", await readFile(new URL("../../server/public/vendor/jszip.min.js", import.meta.url), "utf8"))(mod, mod.exports);
+  const JSZip = mod.exports;
+  // one paid submission from a 프레임·현가 member (the 사비 test above submitted it and 총무 approved it)
+  const subs = (await serverDoc(`expenses/${a.id}`)).data.subs, key = `${a.id}:${Object.keys(subs)[0]}`, total = Object.values(subs)[0].total;
+  await vice.post("/api/db/set", { path: `reviews/${vice.id}`, data: { items: { [key]: { status: "paid", note: "", paidAt: "2026-10-20", paidAmount: total - 3000, fp: "", by: "박총무", at: new Date().toISOString(), log: [] } } } });
+  const ctx = await browser.newContext({ baseURL: srv.base, acceptDownloads: true });
+  const page = await signIn(ctx, "vice", "password-vice");
+  await page.click("#tab-expense");
+  await page.waitForSelector("#btnExpCsv:not([hidden])");
+  // headless Chromium reports any non-ASCII download name as "download", so read the name the page asked for
+  await page.evaluate(() => { const click = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { window.__dlName = this.download; return click.call(this); }; });
+  const [download] = await Promise.all([page.waitForEvent("download"), page.click("#btnExpCsv")]);
+  assert.match(await page.evaluate(() => window.__dlName), /^사비정산_\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const zip = await JSZip.loadAsync(await readFile(await download.path()));
+  const book = await zip.file("xl/workbook.xml").async("string"), list = await zip.file("xl/worksheets/sheet1.xml").async("string"), sum = await zip.file("xl/worksheets/sheet2.xml").async("string");
+  assert.match(book, /name="정산 내역"/); assert.match(book, /name="요약"/);
+  const widths = [...list.matchAll(/<col min="(\d+)" max="\d+" width="(\d+)"/g)].map((m) => Number(m[2]));
+  assert.equal(widths.length, 14);
+  const fname = list.match(/<c r="M2"[^>]*><is><t[^>]*>([^<]*)</)[1], wide = [...fname].reduce((w, ch) => w + (ch.codePointAt(0) > 0x2e7f ? 2 : 1), 0);
+  assert.match(fname, /^개인사비사용내역서_이에이/);
+  assert.ok(widths[12] >= wide && widths[12] < wide + 6, `the file name column fits its text (${widths[12]} for "${fname}")`);
+  assert.ok(widths[6] >= 13 && widths[1] >= 8, "header text fits too");
+  assert.match(list, /<pane ySplit="1"/); assert.match(list, /<autoFilter ref="A1:N2"\/>/);
+  assert.match(list, /프레임·현가/, "the submitter's department");
+  assert.match(list, new RegExp(`<c r="K2" s="2"><v>${total - 3000}</v>`), "지급 금액 of a paid entry");
+  assert.match(sum, new RegExp(`<f>SUM\\('정산 내역'!K:K\\)</f><v>${total - 3000}</v>`), "총 지급액 is a formula");
+  assert.match(sum, new RegExp(`<f>SUMIF\\('정산 내역'!D:D,&quot;프레임·현가&quot;,'정산 내역'!K:K\\)</f><v>${total - 3000}</v>`), "부서별 지급액 is a formula");
+  assert.match(sum, new RegExp(`<f>SUM\\('정산 내역'!G:G\\)</f><v>${total}</v>`), "총 신청액");
   await ctx.close();
 });

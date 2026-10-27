@@ -359,3 +359,19 @@ test("login and sign-up are rate limited", async () => {
   for (let i = 0; i < 12; i++) { last = await x.post("/api/auth/signup", { username: `flood${i}`, password: "password-x", name: "flood", dept: "aero" }); if (last.status === 429) break; }
   assert.equal(last.status, 429);
 });
+
+test("behind a tunnel the address comes from the tunnel's own X-Forwarded-For entry", async () => {
+  const s = await startServer({ TRUST_PROXY: "1" });
+  try {
+    const x = new Client(s.base);
+    // the visitor forges CF-Connecting-IP and an earlier X-Forwarded-For entry; the tunnel adds 203.0.113.7 last
+    for (let i = 0; i < 10; i++) {
+      const r = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "cf-connecting-ip": `198.51.100.${i}`, "x-forwarded-for": `192.0.2.${i}, 203.0.113.7` });
+      assert.equal(r.status, 401);
+    }
+    const blocked = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "cf-connecting-ip": "198.51.100.99", "x-forwarded-for": "192.0.2.99, 203.0.113.7" });
+    assert.equal(blocked.status, 429, "changing the forgeable headers does not reset the limit");
+    const other = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "x-forwarded-for": "203.0.113.8" });
+    assert.equal(other.status, 401, "another visitor is not blocked");
+  } finally { s.stop(); }
+});

@@ -242,7 +242,9 @@ async function readJson(req, limit = 1024 * 1024) {
 }
 const cookies = (req) => Object.fromEntries(String(req.headers.cookie || "").split(";").map((p) => p.trim().split("=")).filter((p) => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join("="))]));
 const isHttps = (req) => CONFIG.cookieSecure || (CONFIG.trustProxy && req.headers["x-forwarded-proto"] === "https");
-const clientIp = (req) => (CONFIG.trustProxy && (req.headers["cf-connecting-ip"] || String(req.headers["x-forwarded-for"] || "").split(",")[0].trim())) || req.socket.remoteAddress;
+// The tunnel adds the visitor's address as the last X-Forwarded-For entry (Cloudflare appends, Tailscale Funnel overwrites);
+// earlier entries and CF-Connecting-IP can come from the visitor when the tunnel is not Cloudflare, so they are only a fallback.
+const clientIp = (req) => (CONFIG.trustProxy && (String(req.headers["x-forwarded-for"] || "").split(",").pop().trim() || req.headers["cf-connecting-ip"])) || req.socket.remoteAddress;
 function setSessionCookie(req, res, token, maxAge) {
   res.setHeader("Set-Cookie", `fsk_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${isHttps(req) ? "; Secure" : ""}`);
 }

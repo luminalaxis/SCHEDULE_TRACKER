@@ -167,7 +167,7 @@ sudo systemctl restart fsk-pitboard
 Windows 노트북([WINDOWS.md](WINDOWS.md))에서 Tailscale Funnel로 쓰던 피트보드를 파이로 옮겨요. 주소, 계정과 비밀번호, 데이터, 첨부 파일, 설정이 모두 그대로예요.
 
 1. **미리 공지하세요.** 백업한 뒤에 들어온 기록은 옮겨지지 않아요.
-2. **노트북에서 백업:** `tailscale funnel --bg 8080 off` 로 바깥 접속을 막고, 노트북 브라우저로 `http://localhost:8080/admin` → 백업 · 복원 → **전체 백업 내려받기**. 받은 뒤 서버 창을 꺼요.
+2. **노트북에서 백업:** `tailscale funnel --https=443 off` 로 바깥 접속을 막고, 노트북 브라우저로 `http://localhost:8080/admin` → 백업 · 복원 → **전체 백업 내려받기**. 받은 뒤 서버 창을 꺼요.
 3. **파이 준비:** 이 문서의 2~4단계를 해요. 3단계에서는 가입하지 않아도 돼요.
 4. **파이에서 복원:** 백업 파일을 파이로 옮기고(USB, 또는 노트북에서 `scp fsk-full-….tar.gz pi@<파이 IP>:~`):
 

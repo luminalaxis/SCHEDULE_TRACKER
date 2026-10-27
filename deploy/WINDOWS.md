@@ -53,7 +53,9 @@ git clone https://github.com/luminalaxis/SCHEDULE_TRACKER.git
 
    Funnel 권한을 켜라는 링크가 나오면 한 번 눌러 주세요. 처음 열 때는 인증서를 받느라 1분쯤 걸릴 수 있어요.
 
-`--bg` 로 켠 Funnel은 재부팅해도 남아 있어요. 3단계 창에 바깥 주소가 표시돼요. 끄려면 `tailscale funnel --bg 8080 off`.
+`--bg` 로 켠 Funnel은 재부팅해도 남아 있어요. 3단계 창에 바깥 주소가 표시돼요. 끄려면 `tailscale funnel --https=443 off`.
+
+`tailscale funnel status` 에 주소가 두 개(예: 노트북 원래 이름과 `pitboard`) 보이면, 이름을 바꾸기 전에 Funnel을 켠 설정이 남아 있는 거예요. `tailscale serve reset` 으로 지우고 `tailscale funnel --bg 8080` 을 다시 실행하세요.
 
 ## 5. 주소를 공유하기 전에
 

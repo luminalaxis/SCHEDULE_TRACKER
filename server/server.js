@@ -271,6 +271,12 @@ function pageSource() {
 }
 const safeJson = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+// The page keeps the CDN tag's integrity hash, so the local copy must match it byte for byte or the browser refuses it
+// (사비 xlsx check: "파일 분석 도구를 불러오지 못했어요"). Git on Windows turning LF into CRLF is the usual cause.
+function jszipMatchesPage() {
+  const want = (pageSource().match(/jszip\.min\.js" integrity="(sha512-[^"]+)"/) || [])[1];
+  return !want || want === "sha512-" + crypto.createHash("sha512").update(staticFile("vendor/jszip.min.js")).digest("base64");
+}
 function renderPage(user) {
   const me = { ...auth.publicUser(user), level: levelOf(user) };
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`
@@ -955,6 +961,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`FSK 피트보드 ${VERSION} · http://${CONFIG.host}:${CONFIG.port} · data ${CONFIG.dataDir}`);
     if (auth.count() === 0) console.log("아직 계정이 없어요. /login 에서 처음 가입하는 사람이 개발자 계정이 돼요.");
+    if (!jszipMatchesPage()) console.warn("주의: server/public/vendor/jszip.min.js 가 원본과 달라서 사비 내역서(xlsx)를 읽을 수 없어요. 저장소 폴더에서 이 파일을 지우고 git checkout -- server/public/vendor/jszip.min.js 로 다시 받으세요.");
   });
   const tick = () => { autoBackupTick(); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
   setInterval(tick, 10 * 60000);

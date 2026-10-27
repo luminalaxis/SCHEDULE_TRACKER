@@ -69,6 +69,12 @@ git clone https://github.com/luminalaxis/SCHEDULE_TRACKER.git
 - 업데이트: 서버 창을 끄고 `cd ~\SCHEDULE_TRACKER; git pull` 한 뒤 다시 켜요.
 - 데이터는 `%USERPROFILE%\fsk-data` 에 있어요. 매일 자동 백업이 `fsk-data\backups` 에 쌓이고, 관리 창 → 백업 · 복원 → **전체 백업 내려받기**로 첨부 파일까지 한 파일로 받을 수 있어요.
 
-## 7. 라즈베리파이로 옮기기
+## 7. 문제가 생겼을 때
+
+| 상황 | 해결 |
+|---|---|
+| 사비 내역서를 올리면 "파일 분석 도구를 불러오지 못했어요" (서버 창에 `jszip.min.js 가 원본과 달라서` 경고) | Git이 줄바꿈을 바꿔 저장한 거예요. 서버를 끄고 `cd ~\SCHEDULE_TRACKER; git pull; Remove-Item server\public\vendor\jszip.min.js; git checkout -- server/public/vendor/jszip.min.js` 한 뒤 다시 켜요 |
+
+## 8. 라즈베리파이로 옮기기
 
 [RASPBERRY_PI.md의 "노트북에서 쓰던 피트보드 옮겨 오기"](RASPBERRY_PI.md#10-노트북에서-쓰던-피트보드-옮겨-오기)를 따르세요. 주소·계정·비밀번호·데이터는 그대로이고, 팀원은 한 번 다시 로그인하면 돼요.

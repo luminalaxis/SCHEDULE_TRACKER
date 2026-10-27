@@ -151,7 +151,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     <div class="card"><h3>조직</h3><div class="org" id="orgBox"></div><p class="hint">팀장·부팀장은 한 명씩, 파트장은 부서마다 한 명이에요. 새로 지정하면 이전 사람은 팀원으로 바뀌어요. 부팀장은 총무를 겸해서 사비 정산 지급 처리를 해요.</p></div>
     <div id="pendingBox"></div>
     <div class="scroll"><table><thead><tr><th></th><th>이름</th><th>아이디</th><th>부서</th><th>직책</th><th>개발자</th><th>상태</th><th>마지막 접속</th><th class="r">작성한 문서</th><th>관리</th></tr></thead><tbody id="userBody"></tbody></table></div>
-    <p class="hint">개발자: 모든 권한과 관리 창 · 임원진(팀장·부팀장·파트장): 팀원 권한 + 차량 설정·출주 전 점검 항목·일정 관리 · 부팀장: 임원진 + 총무(사비 정산 지급 처리) · 팀원: 부품·테스트 기록·사비 내역서 제출. 개발자도 직책을 겸할 수 있어요. 바꾸면 그 사람의 화면이 바로 새 권한으로 다시 연결돼요.</p>
+    <p class="hint">개발자: 모든 권한과 관리 창 · 임원진(팀장·부팀장·파트장): 팀원 권한 + 차량 설정·주행 전 점검 항목·일정 관리 · 부팀장: 임원진 + 총무(사비 정산 지급 처리) · 팀원: 부품·테스트 기록·사비 내역서 제출. 개발자도 직책을 겸할 수 있어요. 바꾸면 그 사람의 화면이 바로 새 권한으로 다시 연결돼요.</p>
   </section>
 
   <!-- data -->
@@ -290,7 +290,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   const TIER = { developer: "개발자", executive: "임원진", member: "팀원" };
   const STATUS = { active: "활성", pending: "승인 대기", disabled: "비활성" };
   const DEPT = /*DEPARTMENTS*/{}; // filled in by the server from server/depts.js
-  const COLL = { parts: "부품", sessions: "테스트 세션", logs: "부서 기록", comments: "의견", checks: "출주 전 점검", milestones: "일정", history: "변경 이력", config: "설정 (차량·점검·권한)", people: "사람 목록 (페이지용)", expenses: "사비 내역서", reviews: "총무 검토·지급" };
+  const COLL = { parts: "부품", sessions: "테스트 세션", logs: "부서 기록", comments: "의견", checks: "주행 전 점검", milestones: "일정", history: "변경 이력", config: "설정 (차량·점검·권한)", people: "사람 목록 (페이지용)", expenses: "사비 내역서", reviews: "총무 검토·지급" };
   const ACTION = { login: "로그인", "login.fail": "로그인 실패", logout: "로그아웃", signup: "가입", "password.change": "비밀번호 변경", "profile.name": "이름 변경", "profile.dept": "부서 변경",
     "user.create": "계정 생성", "user.update": "계정 변경", "user.approve": "가입 승인", "user.reset_password": "비밀번호 초기화", "user.force_logout": "강제 로그아웃", "user.delete": "계정 삭제",
     "role.change": "역할 변경", "settings.update": "설정 변경", "data.edit": "데이터 수정", "data.create": "데이터 생성", "data.delete": "데이터 삭제", "data.import": "데이터 가져오기",

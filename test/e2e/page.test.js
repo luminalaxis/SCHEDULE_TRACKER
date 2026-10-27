@@ -260,3 +260,21 @@ test("담당 is picked from accounts; a locked part is read-only for 팀원; pro
   await dev.post(`/api/admin/users/${a.id}`, { dept: "chassis" });
   await ctx.close();
 });
+
+test("a 권한 change reloads the person's open page, after any open dialog is closed", { skip, timeout: 90000 }, async () => {
+  const ctx = await browser.newContext({ baseURL: srv.base });
+  const page = await signIn(ctx, "aaa", "password-aaa");
+  const role = () => page.textContent(".acct-bar .acct-role");
+  await page.evaluate(() => { window.__before = true; });
+  await dev.post(`/api/admin/users/${a.id}`, { position: "part_lead", dept: "chassis" });
+  assert.ok(await until(async () => (await role().catch(() => "")) === "파트장"), "the new 직책 shows after a reload");
+  assert.equal(await page.evaluate(() => window.__before), undefined, "the page was reloaded");
+
+  await page.evaluate(() => { window.__before = true; document.getElementById("dlgLog").showModal(); });
+  await dev.post(`/api/admin/users/${a.id}`, { position: "" });
+  assert.ok(await until(async () => /권한이 바뀌었어요/.test(await page.textContent("#toast"))), "asks to finish the open dialog first");
+  assert.equal(await page.evaluate(() => window.__before), true, "an open dialog is not thrown away");
+  await page.evaluate(() => document.getElementById("dlgLog").close());
+  assert.ok(await until(async () => (await role().catch(() => "")) === "팀원"), "reloads once the dialog is closed");
+  await ctx.close();
+});

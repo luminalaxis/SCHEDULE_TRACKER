@@ -64,7 +64,8 @@ function broadcast(path, doc) {
   for (const c of clients) if (rules.canRead(c.user, path)) c.res.write(payload);
 }
 // Leave the set at once: the stream's "close" comes later, and a broadcast in between would write after end and crash the server.
-function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) { clients.delete(c); c.res.end(); } }
+// With an event, the page hears it before the stream ends ("access": reload to show the new 권한).
+function dropStreams(userId, event) { for (const c of clients) if (c.user.id === userId) { clients.delete(c); c.res.end(event ? `event: ${event}\ndata: {}\n\n` : undefined); } }
 function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) c.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
 // A name or department change reaches that person's open pages at once, and the page's people list.
 function profileChanged(u) {
@@ -99,7 +100,7 @@ function handOver(ctx, targetId, position, dept) {
   if (!position) return moved;
   for (const u of auth.list()) {
     if (u.id === targetId || u.position !== position || (position === "part_lead" && u.dept !== dept)) continue;
-    auth.update(u.id, { position: "" }); dropStreams(u.id);
+    auth.update(u.id, { position: "" }); dropStreams(u.id, "access");
     audit(ctx, "role.change", u.username, `${POSITION_LABEL[position]} → 팀원 (새 ${POSITION_LABEL[position]}에게 넘김)`);
     moved.push({ name: u.name, position });
   }
@@ -724,7 +725,7 @@ route("POST", "/api/admin/users/:id", async (ctx) => {
   if (changes.length) audit(ctx, status !== u.status && u.status === "pending" && status === "active" ? "user.approve" : "user.update", u.username, changes.join(", "));
   if (status !== "active") auth.endAllSessions(u.id);
   if (name !== u.name || dept !== u.dept) profileChanged(auth.byId(u.id)); else syncPerson(auth.byId(u.id));
-  if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id); syncRoles(); }
+  if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id, "access"); syncRoles(); }
   send(ctx.res, 200, { user: auth.publicUser(auth.byId(u.id)), handedOver: moved });
 }, { auth: "developer" });
 route("POST", "/api/admin/users/:id/reset-password", (ctx) => {

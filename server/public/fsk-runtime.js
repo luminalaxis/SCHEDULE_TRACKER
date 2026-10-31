@@ -397,7 +397,7 @@
     if (outbox.length && !btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = `올리지 못한 변경 ${outbox.length}개가 사라져요. 한 번 더`; return; }
     await api("POST", "/api/auth/logout", {}).catch(() => {});
     // cached data and the saved page belong to this account: leave nothing behind on a shared device
-    try { indexedDB.deleteDatabase("fsk-" + ME.id); localStorage.removeItem(OUTBOX_KEY); } catch {}
+    try { indexedDB.deleteDatabase("fsk-" + ME.id); ["fsk.me.name", "fsk.me.dept", OUTBOX_KEY].forEach((k) => localStorage.removeItem(k)); } catch {}
     try { navigator.serviceWorker?.controller?.postMessage("fsk-logout"); } catch {}
     try { if (window.caches) await Promise.all((await caches.keys()).map((k) => caches.delete(k))); } catch {}
     location.href = "/login";
@@ -436,7 +436,7 @@
     </style><b></b><span class="acct-role"></span>
       <button type="button" class="acct-bell" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>알림<span class="acct-count" hidden></span></button>
       <span class="acct-sync" hidden></span>
-      ${ME.role === "developer" ? '<a href="/admin">관리 창</a>' : ""}<button type="button" class="acct-link" data-logout>로그아웃</button>
+      ${ME.role === "developer" ? '<a href="/admin">관리 창</a>' : ""}<a href="/privacy">개인정보</a><button type="button" class="acct-link" data-logout>로그아웃</button>
       <div class="acct-pop" hidden><div class="acct-pop-h"><b>알림</b><button type="button" class="acct-link" data-readall>모두 읽음</button></div><div class="acct-list"></div></div>`;
     bar.querySelector("b").textContent = ME.name;
     bar.querySelector(".acct-role").textContent = ME.title || "팀원";
@@ -462,7 +462,36 @@
     // 팀원 can't change their own department: a developer does it in /admin (or here, for their own account)
     if (deptSel && level >= 4) deptSel.addEventListener("change", () => api("POST", "/api/me/profile", { dept: deptSel.value }).catch(() => {}));
     else if (deptSel) { deptSel.disabled = true; deptSel.title = "부서는 개발자만 바꿀 수 있어요"; }
-    renderBell(); syncUi(); loadNotes(); stream();
+    renderBell(); syncUi(); loadNotes(); stream(); privacyCheck();
+  }
+
+  // ---------- 개인정보 처리방침 확인 ----------
+  // Sign-up asks for consent; accounts a developer made, and everyone after the policy changes, confirm it here once.
+  function privacyCheck() {
+    const version = window.__FSK_PRIVACY;
+    if (!version || ME.privacyAck === version) return;
+    const dlg = document.createElement("dialog");
+    dlg.setAttribute("aria-labelledby", "fskPvTitle");
+    dlg.innerHTML = `<div class="dlg">
+      <h3 id="fskPvTitle">개인정보 처리 안내</h3>
+      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+        <li>모으는 것: 이름, 부서, 아이디, 비밀번호(되돌릴 수 없는 해시로 저장), 로그인할 때의 IP 주소·브라우저 정보, 직접 적은 기록</li>
+        <li>사비 내역서를 내면 계좌번호와 영수증이 함께 저장돼요. 제출자·총무·개발자만 볼 수 있어요.</li>
+        <li>쓰는 곳: 팀원 확인, 로그인, 권한, 기록의 작성자 표시, 사비 정산 지급</li>
+        <li>언제든 <a href="/privacy">개인정보 처리방침</a> 페이지에서 내 정보 삭제를 요청할 수 있어요.</li>
+      </ul>
+      <p class="hint">보관 기간, 볼 수 있는 사람, 기기에 저장하는 것은 <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침 전체</a>에 있어요.</p>
+      <div class="dlg-foot"><div class="right"><button class="btn primary" type="button" data-ack>확인했어요</button></div></div>
+    </div>`;
+    // the notice has to be confirmed, not dismissed with Esc
+    dlg.addEventListener("cancel", (e) => e.preventDefault());
+    dlg.querySelector("[data-ack]").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
+      try { await api("POST", "/api/me/privacy-ack", {}); ME.privacyAck = version; } catch {}
+      dlg.close(); dlg.remove();
+    });
+    document.body.append(dlg);
+    dlg.showModal();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", accountBar); else accountBar();
 

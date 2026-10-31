@@ -147,6 +147,8 @@ tbody tr:last-child td { border-bottom: 0; }
 td.r, th.r { text-align: right; }
 tbody tr:hover td { background: var(--surface-2); }
 tr.link { cursor: pointer; }
+tr.link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+tr.link:focus-visible td { background: var(--surface-2); }
 .sys-bar { width: 100%; min-width: 160px; }
 .issue-link { background: none; border: 0; padding: 0; cursor: pointer; color: var(--bad); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .count { font-size: 12px; color: var(--muted); }
@@ -346,6 +348,13 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .seg input { margin: 0; }
 .seg label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.check.xagree { align-items: flex-start; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); padding: 10px 12px; line-height: 1.5; }
+.check.xagree input { margin-top: 3px; flex: none; }
+.site-foot { max-width: 1280px; margin: 0 auto; padding: 8px 16px 28px; font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.site-foot a { color: var(--muted); }
+.site-foot a:hover { color: var(--ink); }
+.dlg a, .check.xagree a { color: var(--accent); }
+.pv-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .filebtn { position: relative; overflow: hidden; }
 .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .dlg-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
@@ -734,10 +743,11 @@ body.tv-on { overflow: hidden; }
         <select class="field" id="hDept" aria-label="부서"></select>
       </div>
     </div>
-    <p class="hint">최근 90일 동안의 변경 중 최신 300건을 보여줘요. 이름은 각자 오른쪽 위에 입력한 이름으로 남아요.</p>
+    <p class="hint">최근 90일 동안의 변경 중 최신 300건을 보여줘요. <span id="hNameHint">이름은 각자 오른쪽 위에 입력한 이름으로 남아요.</span></p>
     <div id="histBody"></div>
   </section>
 </main>
+<footer class="site-foot"><a href="#" id="pvLink" data-privacy>개인정보 처리 안내</a></footer>
 
 <dialog id="dlgPart">
   <form class="dlg" id="formPart">
@@ -905,10 +915,11 @@ body.tv-on { overflow: hidden; }
 <dialog id="dlgExpNew">
   <form class="dlg" id="formExpNew">
     <h3 id="xNewTitle">사비 내역서 제출</h3>
-    <p class="hint">동아리 양식(개인사비사용내역서_이름_날짜.xlsx)을 올리면 양식에 맞는지 바로 확인해요. 제출한 뒤에는 총무와 개발자만 수정할 수 있어요.</p>
+    <p class="hint">동아리 양식(개인사비사용내역서_이름_날짜.xlsx)을 올리면 양식에 맞는지 바로 확인해요. <span id="xLockHint">제출한 뒤 내용이 바뀌면 총무 화면에 "검토 후 변경됨"으로 표시돼요.</span></p>
     <div class="toolbar"><span class="btn filebtn">xlsx 파일 선택<input type="file" id="xFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></span><span class="hint" id="xFileName">선택한 파일 없음</span></div>
     <label class="f" id="xApplicantWrap" hidden>신청자 이름 (돈을 받을 사람)<input id="xApplicant" maxlength="20"></label>
     <div id="xResult"></div>
+    <label class="check xagree"><input type="checkbox" id="xAgree" required> <span><b>(필수) 개인정보 제공에 동의해요.</b> <span id="xAgreeText">입금 계좌번호와 영수증 사진이 담긴 원본 파일을 제출해요. 이 페이지는 claude.ai에 저장되고, 페이지를 열 수 있는 사람은 기술적으로 원본을 열어 볼 수 있어요. 화면에서 전체 계좌번호는 총무와 소유자에게만 보여요.</span> <a href="#" data-privacy>자세히</a></span></label>
     <div class="dlg-foot">
       <span class="hint" id="xSubmitHint"></span>
       <div class="right">
@@ -937,6 +948,21 @@ body.tv-on { overflow: hidden; }
 </dialog>
 
 <div class="tv" id="tv" role="region" aria-label="공방 TV 화면" hidden></div>
+
+<dialog id="dlgPrivacy" aria-labelledby="pvTitle">
+  <div class="dlg">
+    <h3 id="pvTitle">개인정보 처리 안내</h3>
+    <ul class="pv-list">
+      <li>이 페이지는 claude.ai Artifact에서 돌아가요. 데이터는 Artifact의 공유 저장소에 있고, 페이지를 열 수 있는 사람이 함께 봐요. 사람 구분은 claude.ai 계정 기준이고, 계정 정보는 claude.ai(Anthropic)의 개인정보 처리방침을 따라요.</li>
+      <li>저장하는 것: 각자 적은 이름·부서, 부품·테스트 기록·의견·점검·일정, 변경 이력(90일), 사비 내역서(신청자 이름, 계좌번호가 든 원본 파일, 영수증 사진, 금액).</li>
+      <li>사비 내역서 원본과 영수증은 페이지를 열 수 있는 사람이 기술적으로 열어 볼 수 있어요. 화면에서 전체 계좌번호는 총무와 소유자에게만 보여요. 계좌 정보를 더 안전하게 다루려면 자체 서버 버전을 쓰세요.</li>
+      <li>이 기기의 브라우저 저장소에는 내 이름·부서와 화면 설정(일반/TV, 닫은 안내)만 저장해요. 광고·분석·추적 쿠키는 없어요.</li>
+      <li>글꼴(Google Fonts)과 xlsx 읽기 도구(JSZip, cdnjs)를 외부에서 불러와요. 이때 접속 IP 주소가 Google과 Cloudflare에 전달돼요.</li>
+      <li>내 정보를 지우고 싶으면 페이지 소유자(개발자)에게 요청하세요. 소유자는 사비 내역서를 "완전 삭제"로 파일까지 지울 수 있어요.</li>
+    </ul>
+    <div class="dlg-foot"><div class="right"><button class="btn primary" type="button" data-close>닫기</button></div></div>
+  </div>
+</dialog>
 
 <div class="toast" id="toast" role="status" hidden></div>
 
@@ -1785,7 +1811,7 @@ window.FSKExpenseRules = (() => {
 
     const desc = sess.slice().reverse();
     $("mxHead").innerHTML = `<tr><th>세션</th>${DEPTS.map((x) => `<th><span class="dname">${dmark(x.k)}${x.l}</span></th>`).join("")}<th class="r">점검</th></tr>`;
-    $("mxBody").innerHTML = desc.length ? desc.map((s) => { const cp = checkProgress(s); return `<tr class="link" data-goto="${esc(s.id)}"><td><span class="mono dim">${esc(fmtShort(s.date))}</span> ${esc(s.event || "주행")}</td>${DEPTS.map((x) => `<td>${verdictChip(worst(logsOf(s.id, x.k)))}</td>`).join("")}<td class="r num">${cp.n}/${cp.total}</td></tr>`; }).join("")
+    $("mxBody").innerHTML = desc.length ? desc.map((s) => { const cp = checkProgress(s); return `<tr class="link" tabindex="0" data-goto="${esc(s.id)}"><td><span class="mono dim">${esc(fmtShort(s.date))}</span> ${esc(s.event || "주행")}</td>${DEPTS.map((x) => `<td>${verdictChip(worst(logsOf(s.id, x.k)))}</td>`).join("")}<td class="r num">${cp.n}/${cp.total}</td></tr>`; }).join("")
       : `<tr><td colspan="${DEPTS.length + 2}" class="dim">${live() ? "선택한 종목의 세션이 없어요." : "저장소에 연결되면 표시돼요."}</td></tr>`;
     $("tvHead").innerHTML = `<tr><th>세션</th>${series.map((s) => `<th class="r">${esc(s.name)} (${esc(unit)})</th>`).join("")}</tr>`;
     $("tvBody").innerHTML = desc.length ? desc.map((s) => { const i = sess.indexOf(s); return `<tr><td>${esc(xs[i].long)}</td>${series.map((se) => `<td class="r num">${fmtN(se.values[i])}</td>`).join("")}</tr>`; }).join("")
@@ -2351,6 +2377,14 @@ window.FSKExpenseRules = (() => {
 
   // ---------- events ----------
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+  // 개인정보 안내: the self-hosted server has its own /privacy page and its own rules (submitted 내역서 are locked,
+  // files are private, names come from the account); on claude.ai the notice is a dialog in this page.
+  if (window.FSK_SELF_HOSTED) {
+    document.querySelectorAll("a[data-privacy]").forEach((a) => { a.href = "/privacy"; if (a.closest("dialog")) { a.target = "_blank"; a.rel = "noopener"; } });
+    $("xLockHint").textContent = "제출한 뒤에는 총무와 개발자만 고칠 수 있어요.";
+    $("xAgreeText").textContent = "입금 계좌번호와 영수증 사진이 담긴 원본 파일을 제출해요. 원본과 영수증은 나·총무·개발자만 열 수 있고, 목록과 금액은 팀원 모두에게 보여요. 제출일로부터 정해진 기간이 지나면 원본은 지워요.";
+    $("hNameHint").textContent = "이름은 서버가 로그인한 계정 이름으로 기록해요.";
+  } else document.querySelectorAll("a[data-privacy]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); $("dlgPrivacy").showModal(); }));
   $("meDept").addEventListener("change", (e) => { state.me.dept = e.target.value; store.set("fsk.me.dept", state.me.dept); render(); });
   $("banner").addEventListener("click", (e) => { if (e.target.closest("[data-banner-close]")) { store.set("fsk.hint.me", "closed"); render(); } });
   // self-hosted server: a developer changed my name or department while this page was open
@@ -2393,6 +2427,8 @@ window.FSKExpenseRules = (() => {
   });
   document.addEventListener("keydown", (e) => {
     if ((e.key === "Enter" || e.key === " ") && e.target.matches(".chip.static[data-part]")) { e.preventDefault(); openPart(e.target.dataset.part); }
+    // table rows that open a 내역서 or a session: Tab to the row, then Enter or Space
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("tr.link[tabindex]")) { e.preventDefault(); e.target.click(); }
   });
   document.addEventListener("change", async (e) => {
     const sel = e.target.closest("select[data-stage]");
@@ -2601,7 +2637,7 @@ window.FSKExpenseRules = (() => {
     });
     $("expBody").innerHTML = `<div class="scroll"><table><thead><tr><th>지급 상태</th><th>제출</th><th>신청자</th><th>팀</th><th class="r">항목</th><th class="r">금액</th><th>자동 검사</th><th>지급일</th></tr></thead><tbody>${list.length ? list.map((s) => {
       const e = effective(s), r = reviewOf(s.key), st = statusOf(s);
-      return `<tr class="link" data-exp="${esc(s.key)}"><td>${fs === "deleted" ? '<span class="stt bad">삭제됨</span>' : payPill(st)}${isChanged(s) ? '<span class="changed">검토 후 변경됨</span>' : ""}</td>
+      return `<tr class="link" tabindex="0" data-exp="${esc(s.key)}"><td>${fs === "deleted" ? '<span class="stt bad">삭제됨</span>' : payPill(st)}${isChanged(s) ? '<span class="changed">검토 후 변경됨</span>' : ""}</td>
         <td class="num">${esc(fmtWhen(s.submittedAt))}</td>
         <td><b>${esc(e.applicant || s.by || "이름 없음")}</b>${s.by && e.applicant && s.by !== e.applicant ? ` <span class="dim" style="font-size:12px">· ${esc(s.by)} 등록</span>` : ""}</td>
         <td>${esc((e.teams || []).join(", ") || "–")}</td><td class="r num">${(e.items || []).length}</td><td class="r num"><b>${won(e.total || 0)}</b></td>
@@ -2616,7 +2652,7 @@ window.FSKExpenseRules = (() => {
     (state.xDraft?.previews || []).forEach((p) => p.url && URL.revokeObjectURL(p.url));
     state.xDraft = null;
     $("xFile").value = ""; $("xFileName").textContent = "선택한 파일 없음"; $("xResult").innerHTML = ""; $("xApplicantWrap").hidden = true;
-    const b = $("btnXSubmit"); b.disabled = true; b.textContent = "제출"; b.classList.remove("armed"); $("xSubmitHint").textContent = "";
+    const b = $("btnXSubmit"); b.disabled = true; b.textContent = "제출"; b.classList.remove("armed"); $("xSubmitHint").textContent = ""; $("xAgree").checked = false;
     $("xNewTitle").textContent = isManager() ? "사비 내역서 등록" : "사비 내역서 제출";
     dlgXN.showModal();
   }
@@ -2657,6 +2693,7 @@ window.FSKExpenseRules = (() => {
     e.preventDefault();
     const d = state.xDraft, btn = $("btnXSubmit");
     if (!d || !canSubmit()) return;
+    if (!$("xAgree").checked) { $("xSubmitHint").textContent = "개인정보 제공에 동의해야 제출할 수 있어요."; $("xAgree").focus(); return; }
     if (!assets) { toast("이 화면에서는 파일을 올릴 수 없어요. 편집자 권한이 필요해요."); return; }
     if (liveSubs().some((s) => s.hash === d.hash) && !btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = "같은 파일이에요. 그래도 제출"; return; }
     btn.disabled = true; btn.textContent = "올리는 중…";
@@ -2705,12 +2742,12 @@ window.FSKExpenseRules = (() => {
       ${e.overridden ? `<p class="banner" style="margin:0">총무가 올린 수정본(${esc(e.replacedBy || "")}, ${esc(fmtWhen(e.replacedAt))}) 기준으로 보여요.</p>` : ""}
       ${r && r.note ? `<p class="goal"><b>총무 메모</b> · ${esc(r.note)}</p>` : ""}
       ${r && r.paidAt && st === "paid" ? `<p class="hint">지급일 ${esc(fmtDate(r.paidAt))}${num(r.paidAmount) !== null ? ` · 지급액 ${won(num(r.paidAmount))}` : ""}</p>` : ""}
-      <div class="txt"><span>입금 계좌</span><div class="acct">${acct ? `<b>${esc(acct)}</b><button class="btn ghost sm" type="button" data-xcopy>복사</button>` : `<span>${esc(e.accountMasked || "–")}</span>${mgr ? '<button class="btn ghost sm" type="button" data-xacct>전체 번호 보기</button>' : ""}`}</div></div>
+      <div class="txt"><span>입금 계좌</span><div class="acct">${acct ? `<b>${esc(acct)}</b><button class="btn ghost sm" type="button" data-xcopy>복사</button>` : `<span>${esc(e.accountMasked || (e.filesPurgedAt ? "지움" : "–"))}</span>${mgr && e.fileAsset ? '<button class="btn ghost sm" type="button" data-xacct>전체 번호 보기</button>' : ""}`}</div></div>
       ${statementView({ ...(e.check || {}), items: e.items || [], total: e.total }, receipts)}
-      ${hideFiles && (e.receipts || []).length ? `<p class="hint">영수증 사진 ${(e.receipts || []).length}장은 제출자와 총무만 볼 수 있어요.</p>` : ""}
+      ${hideFiles && (e.receipts || []).length ? `<p class="hint">영수증 사진 ${(e.receipts || []).length}장은 제출자·총무·개발자만 볼 수 있어요.</p>` : ""}
       ${mgr ? actionPanel(r, e, st) : ""}
       ${r && (r.log || []).length ? `<div class="txt"><span>처리 기록</span><div class="xlog">${r.log.slice().reverse().map((l) => `<div><span class="mono">${esc(fmtWhen(l.at))}</span> · ${esc(l.by || "이름 미입력")} · ${esc(l.text)}</div>`).join("")}</div></div>` : ""}
-      <div class="dlg-foot"><div class="toolbar">${mgr || s.ownerUid === state.uid ? '<button class="btn" type="button" data-xdl>원본 파일 내려받기</button>' : '<span class="hint">원본 파일은 제출자와 총무만 내려받을 수 있어요.</span>'}
+      <div class="dlg-foot"><div class="toolbar">${!e.fileAsset ? `<span class="hint">${e.filesPurgedAt ? `원본 파일·영수증·계좌 정보는 보관 기간이 지나거나 삭제 요청으로 지웠어요 (${esc(fmtDate(e.filesPurgedAt))}).` : "원본 파일이 없어요."}</span>` : mgr || s.ownerUid === state.uid ? '<button class="btn" type="button" data-xdl>원본 파일 내려받기</button>' : '<span class="hint">원본 파일은 제출자·총무·개발자만 내려받을 수 있어요.</span>'}
         ${mgr && !(r && r.deleted) ? '<button class="btn danger" type="button" data-xdel>내역서 삭제</button>' : ""}
         ${mgr && r && r.deleted ? '<button class="btn" type="button" data-xrestore>복구</button>' : ""}
         ${state.isOwner ? '<button class="btn danger" type="button" data-xpurge>완전 삭제</button>' : ""}</div><div class="right"><button class="btn" type="button" data-xclose>닫기</button></div></div>`;

@@ -70,10 +70,10 @@ switch (cmd) {
     try {
       db.exec("DELETE FROM sessions; DELETE FROM notifications; DELETE FROM users;");
       // v1.0 backups have no position column: old treasurers become 부팀장, like the server's own migration
-      const ins = db.prepare("INSERT INTO users (id, username, name, dept, role, position, status, pw_hash, must_change_pw, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      const ins = db.prepare("INSERT INTO users (id, username, name, dept, role, position, status, pw_hash, must_change_pw, created_at, last_login, privacy_ack, delete_requested_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       for (const u of json.users || []) {
         const role = u.role === "developer" ? "developer" : "member", position = u.position !== undefined ? u.position || "" : u.role === "treasurer" ? "vice_lead" : "";
-        ins.run(u.id, u.username, u.name, u.dept || "", role, position, u.status, u.pw_hash, u.must_change_pw || 0, u.created_at, u.last_login || null);
+        ins.run(u.id, u.username, u.name, u.dept || "", role, position, u.status, u.pw_hash, u.must_change_pw || 0, u.created_at, u.last_login || null, u.privacy_ack || null, u.delete_requested_at || null);
       }
       const set = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
       for (const [k, v] of Object.entries(json.settings || {})) set.run(k, JSON.stringify(v));

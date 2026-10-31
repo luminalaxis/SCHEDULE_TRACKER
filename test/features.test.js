@@ -25,7 +25,7 @@ before(async () => {
   hookPort = hook.address().port;
   srv = await startServer({ WEBHOOK_HOSTS: "127.0.0.1" });
   dev = new Client(srv.base);
-  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자" });
+  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자", agree: true });
   dev.id = (await dev.get("/api/me")).json.id;
   vice = await member(srv.base, dev, "vice", "총무", { position: "vice_lead", dept: "battery" });
   a = await member(srv.base, dev, "aaa", "에이", { dept: "chassis" });
@@ -356,6 +356,6 @@ test("login and sign-up are rate limited", async () => {
   const blocked = await x.post("/api/auth/login", { username: "dev", password: "password1" });
   assert.equal(blocked.status, 429, "even the right password waits once the address is blocked");
   let last;
-  for (let i = 0; i < 12; i++) { last = await x.post("/api/auth/signup", { username: `flood${i}`, password: "password-x", name: "flood", dept: "aero" }); if (last.status === 429) break; }
+  for (let i = 0; i < 12; i++) { last = await x.post("/api/auth/signup", { username: `flood${i}`, password: "password-x", name: "flood", dept: "aero", agree: true }); if (last.status === 429) break; }
   assert.equal(last.status, 429);
 });

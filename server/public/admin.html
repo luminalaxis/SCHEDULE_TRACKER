@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>피트보드 관리 창</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/fonts/fonts.css">
 <style>
 /* Layout: dark control-room header strip → tab bar → one panel per tab. Same workshop tokens as the pit board, with the header inverted so the admin console is never mistaken for the team page. */
 :root {
@@ -83,7 +81,8 @@ td.r, th.r { text-align: right; }
 td.wrap { white-space: normal; min-width: 220px; overflow-wrap: anywhere; }
 tr.sel td { background: var(--accent-soft); }
 tr.link { cursor: pointer; }
-tr.link:hover td { background: var(--surface-2); }
+tr.link:hover td, tr.link:focus-visible td { background: var(--surface-2); }
+tr.link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
 .pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); } .pill.bad { background: var(--bad-soft); color: var(--bad); } .pill.none { background: var(--surface-2); color: var(--muted); } .pill.acc { background: var(--accent-soft); color: var(--accent); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
@@ -249,6 +248,17 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
         <div class="toolbar" id="whKinds"></div>
         <div class="toolbar"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="btnWhTest">테스트 보내기</button><button class="btn" type="button" id="btnNotifyRun">지금 마감·일정 알림 확인</button><span class="hint" id="whStatus"></span></div>
       </form>
+      <form class="card" id="formPrivacy">
+        <h3>개인정보</h3>
+        <p class="hint">이 값들은 <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침</a>에 그대로 보여요.</p>
+        <label class="f">개인정보 문의처 (비우면 "피트보드 개발자(관리자)")<input id="pvContact" maxlength="200" placeholder="예: 개발자 홍길동 · 동아리 단톡방"></label>
+        <div class="grid2">
+          <label class="f">감사 로그 보관 (일, IP 포함)<input id="pvAudit" type="number" min="30" max="3650"></label>
+          <label class="f">사비 원본·영수증 보관 (제출일부터 년)<input id="pvExpense" type="number" min="1" max="10"></label>
+        </div>
+        <p class="hint">감사 로그는 기간이 지나면 서버가 지워요. 사비 내역서는 기간이 지나면 개요 탭에 알려 주고, "정리하기"를 누르면 원본·영수증·계좌 정보를 지워요.</p>
+        <div class="toolbar"><button class="btn primary" type="submit">저장</button></div>
+      </form>
       <form class="card" id="formPw">
         <h3>내 비밀번호 바꾸기</h3>
         <label class="f">현재 비밀번호<input id="pCur" type="password" autocomplete="current-password" required></label>
@@ -271,6 +281,21 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     <label class="check"><input type="checkbox" id="nuDev"> 개발자 권한 (관리 창, 모든 데이터)</label>
     <p class="hint">임시 비밀번호가 만들어져요. 처음 로그인할 때 새 비밀번호로 바꾸게 돼요.</p>
     <div class="toolbar" style="justify-content:flex-end"><button class="btn" type="button" data-close>취소</button><button class="btn primary" type="submit">만들기</button></div>
+  </form>
+</dialog>
+<dialog id="dlgDelUser">
+  <form class="dlg" id="formDelUser">
+    <h3>계정 삭제</h3>
+    <p><b id="duName"></b> 계정을 지워요. 되돌릴 수 없어요.</p>
+    <p class="hint" id="duReq" hidden></p>
+    <label class="check"><input type="checkbox" id="duPurge" checked> 개인정보도 정리하기 (권장)</label>
+    <ul class="hint">
+      <li>사비 내역서 원본 파일·영수증 사진·계좌 정보를 지우고, 금액과 항목만 남겨요.</li>
+      <li>부품·기록·의견·점검·변경 이력에 남은 이름을 "탈퇴한 팀원"으로 바꿔요.</li>
+      <li>감사 로그에서 이 사람의 IP 주소를 지워요. 로그인 세션과 알림도 지워요.</li>
+      <li>이미 만든 백업과 외부 복사본에는 남아 있어요. 자동 백업은 보관 개수가 지나면 사라지고, 수동 백업·외부 복사본은 직접 지워야 해요.</li>
+    </ul>
+    <div class="toolbar" style="justify-content:flex-end"><button class="btn" type="button" data-close>취소</button><button class="btn danger" type="submit">삭제</button></div>
   </form>
 </dialog>
 <dialog id="dlgSecret">
@@ -296,6 +321,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     "role.change": "역할 변경", "settings.update": "설정 변경", "data.edit": "데이터 수정", "data.create": "데이터 생성", "data.delete": "데이터 삭제", "data.import": "데이터 가져오기",
     "backup.create": "백업", "backup.download": "백업 내려받기", "backup.restore": "백업 복원", "backup.delete": "백업 삭제", "asset.delete": "파일 삭제", "asset.cleanup": "파일 정리",
     "backup.full": "전체 백업 내려받기", "backup.restore_full": "전체 백업 복원", "backup.mirror": "외부 복사", "notify.webhook_test": "웹훅 테스트",
+    "privacy.ack": "개인정보 처리방침 확인", "privacy.delete_request": "개인정보 삭제 요청", "privacy.delete_cancel": "삭제 요청 취소", "privacy.expense_purge": "사비 원본 보관 기간 정리",
     "expense.review": "사비 정산 처리", "expense.delete": "사비 내역서 삭제", "expense.restore": "사비 내역서 복구", "expense.replace": "사비 수정본 교체" };
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -349,13 +375,16 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
       tile("디스크", s.disk ? `${diskUsed}<small>%</small>` : "–", s.disk ? `남은 공간 ${bytes(s.disk.free)} / ${bytes(s.disk.total)}` : "확인할 수 없어요", diskUsed ?? undefined) +
       tile("메모리", `${memUsed}<small>%</small>`, `서버 ${bytes(s.memory.rss)} · 부하 ${s.loadavg.map((x) => x.toFixed(2)).join(" / ")}`, memUsed);
     $("sysLine").textContent = `피트보드 ${s.version} · Node ${s.node} · ${s.platform} · ${s.hostname} · 데이터 ${s.dataDir}`;
-    $("colBody").innerHTML = s.collections.length ? s.collections.map((c) => `<tr class="link" data-col="${esc(c.collection)}"><td class="mono">${esc(c.collection)}</td><td>${esc(COLL[c.collection.split("/")[0]] || "")}</td><td class="r num">${c.n}</td><td class="r num">${bytes(c.bytes)}</td><td>${esc(when(c.last))}</td></tr>`).join("") : `<tr><td colspan="5" class="dim">아직 데이터가 없어요.</td></tr>`;
+    $("colBody").innerHTML = s.collections.length ? s.collections.map((c) => `<tr class="link" tabindex="0" data-col="${esc(c.collection)}"><td class="mono">${esc(c.collection)}</td><td>${esc(COLL[c.collection.split("/")[0]] || "")}</td><td class="r num">${c.n}</td><td class="r num">${bytes(c.bytes)}</td><td>${esc(when(c.last))}</td></tr>`).join("") : `<tr><td colspan="5" class="dim">아직 데이터가 없어요.</td></tr>`;
     const al = [];
     if (s.users.pending) al.push(["warn", `가입 승인을 기다리는 사람이 ${s.users.pending}명 있어요.`, '<button class="btn sm" type="button" data-go="users">사용자 탭으로</button>']);
     if (!s.users.org.viceLead.length) al.push(["warn", "부팀장(총무)이 지정되지 않았어요. 지금은 개발자만 사비 정산 지급 처리를 할 수 있어요.", '<button class="btn sm" type="button" data-go="users">지정하기</button>']);
     if (!s.lastBackup || Date.now() - new Date(s.lastBackup.createdAt) > 2 * 86400000) al.push(["bad", s.lastBackup ? `마지막 백업이 ${ago(s.lastBackup.createdAt)}이에요.` : "백업이 하나도 없어요.", '<button class="btn sm" type="button" data-go="backups">백업 만들기</button>']);
     if (s.disk && s.disk.free / s.disk.total < 0.1) al.push(["bad", `디스크 남은 공간이 ${bytes(s.disk.free)}뿐이에요. 오래된 백업이나 안 쓰는 첨부 파일을 정리하세요.`, ""]);
     if (!s.cookieSecure) al.push(["info", "지금 HTTPS가 아닌 주소로 접속 중이에요. 외부에 공개할 때는 Cloudflare Tunnel 같은 HTTPS 경로를 쓰고 TRUST_PROXY=1로 실행하세요.", ""]);
+    const pv = s.privacy || {};
+    if ((pv.deleteRequests || []).length) al.push(["bad", `개인정보 삭제 요청이 ${pv.deleteRequests.length}건 있어요: ${pv.deleteRequests.map((r) => `${r.name} (${ago(r.at)})`).join(", ")}. 사용자 탭에서 "개인정보 정리"를 켜고 계정을 삭제하세요.`, '<button class="btn sm" type="button" data-go="users">사용자 탭으로</button>']);
+    if (pv.expiredExpenses) al.push(["warn", `보관 기간(${s.settings.expenseKeepYears}년)이 지난 사비 내역서가 ${pv.expiredExpenses}건 있어요. 원본·영수증·계좌 정보를 지우고 금액만 남겨요.`, '<button class="btn sm danger" type="button" data-purge-expired>정리하기</button>']);
     if (!s.settings.autoBackup) al.push(["warn", "자동 백업이 꺼져 있어요.", '<button class="btn sm" type="button" data-go="settings">설정</button>']);
     const ml = s.settings.mirrorLast;
     if (!s.settings.mirrorDir) al.push(["info", "외부 복사가 설정되지 않았어요. 라즈베리파이가 고장 나면 데이터가 함께 사라질 수 있어요. USB 드라이브로 복사하도록 정해 두세요.", '<button class="btn sm" type="button" data-go="backups">설정하기</button>']);
@@ -364,16 +393,25 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     $("alerts").innerHTML = al.map(([k, t, b]) => `<div class="alert ${k}"><span>${esc(t)}</span>${b}</div>`).join("");
     $("pendingBadge").hidden = !s.users.pending; $("pendingBadge").textContent = s.users.pending;
   };
+  // rows that open something work from the keyboard too (Tab to the row, Enter or Space)
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("tr.link[tabindex]")) { e.preventDefault(); e.target.click(); }
+  });
   document.addEventListener("click", (e) => {
     const go = e.target.closest("[data-go]"); if (go) show(go.dataset.go);
     const col = e.target.closest("tr[data-col]"); if (col) { state.col = col.dataset.col; show("data"); }
+    const px = e.target.closest("[data-purge-expired]");
+    if (px) {
+      if (!arm(px, "파일을 지울까요? 한 번 더")) return;
+      api("POST", "/api/admin/expenses/purge-expired", {}).then((r) => { toast(`내역서 ${r.entries}건의 파일 ${r.files}개를 지웠어요`); loaders.overview(); }).catch(fail);
+    }
   });
 
   // ---------- users ----------
   const state = { users: [], col: null, docs: [], doc: null, files: [], backups: [] };
   const opt = (map, v) => Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? " selected" : ""}>${l}</option>`).join("");
   loaders.users = async () => {
-    try { state.users = (await api("GET", "/api/admin/users")).users; } catch (e) { return fail(e); }
+    try { const r = await api("GET", "/api/admin/users"); state.users = r.users; state.privacyVersion = r.privacyVersion; } catch (e) { return fail(e); }
     renderUsers();
   };
   function renderUsers() {
@@ -388,7 +426,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     const list = state.users.filter((u) => u.status !== "pending" && (!q || (u.name + u.username).toLowerCase().includes(q)));
     $("userBody").innerHTML = list.map((u) => `<tr>
       <td><span class="dot ${u.online ? "on" : ""}" title="${u.online ? "지금 접속 중" : "오프라인"}"></span></td>
-      <td><b>${esc(u.name)}</b> <span class="pill ${u.tier === "developer" ? "acc" : u.tier === "executive" ? "ok" : "none"}">${TIER[u.tier]}</span>${u.treasurer ? ' <span class="pill warn">총무</span>' : ""}${u.mustChangePassword ? ' <span class="pill warn">임시 비밀번호</span>' : ""}</td>
+      <td><b>${esc(u.name)}</b> <span class="pill ${u.tier === "developer" ? "acc" : u.tier === "executive" ? "ok" : "none"}">${TIER[u.tier]}</span>${u.treasurer ? ' <span class="pill warn">총무</span>' : ""}${u.mustChangePassword ? ' <span class="pill warn">임시 비밀번호</span>' : ""}${u.deleteRequestedAt ? ` <span class="pill bad" title="${esc(when(u.deleteRequestedAt))} 요청">삭제 요청</span>` : ""}${u.privacyAck !== state.privacyVersion ? ' <span class="pill none" title="개인정보 처리방침을 아직 확인하지 않았어요. 다음에 피트보드를 열 때 확인 창이 떠요.">방침 미확인</span>' : ""}</td>
       <td class="mono">${esc(u.username)}</td>
       <td><select class="field" data-field="dept" data-id="${u.id}" aria-label="부서"><option value="">없음</option>${opt(DEPT, u.dept)}</select></td>
       <td><select class="field" data-field="position" data-id="${u.id}" aria-label="직책">${opt(POS, u.position || "")}</select></td>
@@ -420,13 +458,23 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     const ap = t.closest("[data-approve]");
     if (ap) { const position = document.querySelector(`[data-approve-pos="${ap.dataset.approve}"]`).value; return patchUser(ap.dataset.approve, { status: "active", position }, `${userById(ap.dataset.approve).name}님을 ${POS[position]}(으)로 승인했어요`); }
     const rj = t.closest("[data-reject]");
-    if (rj) { if (!arm(rj, "거절하고 삭제")) return; try { await api("DELETE", `/api/admin/users/${rj.dataset.reject}`); toast("가입 신청을 거절했어요"); } catch (er) { fail(er); } return loaders.users(); }
+    if (rj) { if (!arm(rj, "거절하고 삭제")) return; try { await api("DELETE", `/api/admin/users/${rj.dataset.reject}?purge=1`); toast("가입 신청을 거절했어요"); } catch (er) { fail(er); } return loaders.users(); }
     const rs = t.closest("[data-reset]");
     if (rs) { if (!arm(rs, "초기화할까요?")) return; try { const r = await api("POST", `/api/admin/users/${rs.dataset.reset}/reset-password`); secret("비밀번호 초기화", `${userById(rs.dataset.reset).name}님의 임시 비밀번호예요. 로그인하면 새 비밀번호를 정하게 돼요.`, r.tempPassword); } catch (er) { fail(er); } return loaders.users(); }
     const kk = t.closest("[data-kick]");
     if (kk) { try { await api("POST", `/api/admin/users/${kk.dataset.kick}/logout`); toast("모든 기기에서 로그아웃시켰어요"); } catch (er) { fail(er); } return loaders.users(); }
     const du = t.closest("[data-deluser]");
-    if (du) { if (!arm(du, "계정을 지울까요?")) return; try { await api("DELETE", `/api/admin/users/${du.dataset.deluser}`); toast("계정을 삭제했어요. 그 사람이 남긴 기록은 그대로 있어요."); } catch (er) { fail(er); } return loaders.users(); }
+    if (du) { const u = userById(du.dataset.deluser); state.delUser = u.id; $("duName").textContent = `${u.name} (${u.username})`; $("duPurge").checked = true; $("duReq").hidden = !u.deleteRequestedAt; $("duReq").textContent = u.deleteRequestedAt ? `${when(u.deleteRequestedAt)}에 본인이 삭제를 요청했어요.` : ""; $("dlgDelUser").showModal(); }
+  });
+  $("formDelUser").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const purge = $("duPurge").checked;
+    try {
+      const r = await api("DELETE", `/api/admin/users/${state.delUser}${purge ? "?purge=1" : ""}`);
+      $("dlgDelUser").close();
+      toast(r.purged ? `계정을 삭제하고 개인정보를 정리했어요 (파일 ${r.purged.files}개, 문서 ${r.purged.docs}개). 백업 파일에는 아직 남아 있어요.` : "계정을 삭제했어요. 그 사람이 남긴 기록은 그대로 있어요.");
+    } catch (er) { fail(er); }
+    loaders.users();
   });
   function secret(title, text, value) { $("secTitle").textContent = title; $("secText").textContent = text; $("secValue").textContent = value; $("dlgSecret").showModal(); }
   $("btnSecCopy").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("secValue").textContent); toast("복사했어요"); } catch { toast("직접 선택해서 복사해 주세요"); } });
@@ -458,7 +506,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   async function loadDocs() {
     if (!state.col) { $("docBody").innerHTML = `<tr><td colspan="4" class="dim">컬렉션을 고르세요.</td></tr>`; return; }
     try { state.docs = (await api("GET", `/api/admin/docs?collection=${encodeURIComponent(state.col)}&q=${encodeURIComponent($("dq").value.trim())}`)).docs; } catch (e) { return fail(e); }
-    $("docBody").innerHTML = state.docs.map((d) => `<tr class="link${state.doc && state.doc.path === d.path ? " sel" : ""}" data-doc="${esc(d.path)}"><td class="mono">${esc(d.id)}</td><td class="wrap dim mono" style="font-size:11px">${esc(d.preview)}</td><td class="r num">${bytes(d.bytes)}</td><td>${esc(when(d.updatedAt))}<br><span class="dim" style="font-size:12px">${esc(d.updatedByName || "")}</span></td></tr>`).join("") || `<tr><td colspan="4" class="dim">문서가 없어요.</td></tr>`;
+    $("docBody").innerHTML = state.docs.map((d) => `<tr class="link${state.doc && state.doc.path === d.path ? " sel" : ""}" tabindex="0" data-doc="${esc(d.path)}"><td class="mono">${esc(d.id)}</td><td class="wrap dim mono" style="font-size:11px">${esc(d.preview)}</td><td class="r num">${bytes(d.bytes)}</td><td>${esc(when(d.updatedAt))}<br><span class="dim" style="font-size:12px">${esc(d.updatedByName || "")}</span></td></tr>`).join("") || `<tr><td colspan="4" class="dim">문서가 없어요.</td></tr>`;
   }
   $("colList").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (!b) return; state.col = b.dataset.pick; state.doc = null; $("editor").hidden = true; loaders.data(); });
   let dqT; $("dq").addEventListener("input", () => { clearTimeout(dqT); dqT = setTimeout(loadDocs, 250); });
@@ -601,7 +649,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     const list = state.files.filter((a) => !orphanOnly || !a.referenced);
     const total = state.files.reduce((s, a) => s + a.size, 0), orphans = state.files.filter((a) => !a.referenced);
     $("fSummary").textContent = `전체 ${state.files.length}개 · ${bytes(total)} · 어디에서도 쓰지 않는 파일 ${orphans.length}개 (${bytes(orphans.reduce((s, a) => s + a.size, 0))}). 정리는 올린 지 하루가 지난 파일만 지워요.`;
-    $("fileBody").innerHTML = list.map((a) => `<tr><td>${a.contentType.startsWith("image/") ? `<a href="/_blob/${a.id}" target="_blank" rel="noopener"><img class="thumb" src="/_blob/${a.id}" alt="" loading="lazy"></a>` : ""}</td>
+    $("fileBody").innerHTML = list.map((a) => `<tr><td>${a.contentType.startsWith("image/") ? `<a href="/_blob/${a.id}" target="_blank" rel="noopener"><img class="thumb" src="/_blob/${a.id}" alt="${esc(a.name || "첨부 이미지")} 미리보기" loading="lazy"></a>` : ""}</td>
       <td class="wrap"><a href="/_blob/${a.id}" target="_blank" rel="noopener">${esc(a.name || a.id)}</a></td><td class="dim">${esc(a.contentType.split("/").pop())}</td><td class="r num">${bytes(a.size)}</td>
       <td>${esc(a.uploaderName || "–")}</td><td>${esc(when(a.createdAt))}</td><td>${a.referenced ? '<span class="pill ok">사용 중</span>' : '<span class="pill warn">안 씀</span>'}</td>
       <td><button class="btn sm danger" type="button" data-delfile="${a.id}">삭제</button></td></tr>`).join("") || `<tr><td colspan="8" class="dim">파일이 없어요.</td></tr>`;
@@ -637,6 +685,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     document.querySelectorAll('input[name="sm"]').forEach((r) => (r.checked = r.value === s.signupMode));
     $("inviteCode").textContent = s.inviteCode; $("sAuto").checked = !!s.autoBackup; $("sAllowSubmit").checked = s.allowMemberSubmit !== false; $("sHour").value = String(s.backupHour); $("sKeep").value = s.backupKeep;
     $("whUrl").value = s.webhookUrl || "";
+    $("pvContact").value = s.privacyContact || ""; $("pvAudit").value = s.auditKeepDays; $("pvExpense").value = s.expenseKeepYears;
     $("whKinds").innerHTML = Object.entries(s.webhookKindLabels || {}).map(([k, l]) => `<label class="check"><input type="checkbox" name="whk" value="${esc(k)}"${(s.webhookKinds || []).includes(k) ? " checked" : ""}> ${esc(l)}</label>`).join("");
     const wl = s.webhookLast;
     $("whStatus").textContent = !s.webhookUrl ? "채널 알림 꺼짐" : wl ? `마지막 전송 ${when(wl.at)} · ${wl.ok ? "성공" : "실패"} (${wl.status})` : "아직 보낸 적 없음";
@@ -668,6 +717,10 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   $("formExpense").addEventListener("submit", async (e) => {
     e.preventDefault();
     try { await api("POST", "/api/admin/settings", { allowMemberSubmit: $("sAllowSubmit").checked }); toast("사비 정산 설정을 저장했어요"); } catch (er) { fail(er); }
+  });
+  $("formPrivacy").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try { await api("POST", "/api/admin/settings", { privacyContact: $("pvContact").value.trim(), auditKeepDays: Number($("pvAudit").value), expenseKeepYears: Number($("pvExpense").value) }); toast("개인정보 설정을 저장했어요"); } catch (er) { fail(er); }
   });
   $("formPw").addEventListener("submit", async (e) => {
     e.preventDefault();

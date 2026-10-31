@@ -21,7 +21,7 @@ before(async () => {
   if (skip) return;
   srv = await startServer();
   dev = new Client(srv.base);
-  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "김개발" });
+  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "김개발", agree: true });
   vice = await member(srv.base, dev, "vice", "박총무", { position: "vice_lead", dept: "battery" });
   a = await member(srv.base, dev, "aaa", "이에이", { dept: "chassis" });
   await dev.post("/api/db/set", { path: "config/car", data: { carName: "KR-27", compDate: "2026-11-20", targetMass: 220, budget: 30000000 } });
@@ -98,6 +98,12 @@ test("phone: 사비 내역서 submission, 총무 approval arrives under the bell
   assert.match(await page.textContent("#xResult"), /63,000원/);
   await shot(page, "phone-expense-check");
   await page.click("#btnXSubmit");
+  assert.equal(await page.evaluate(() => document.getElementById("xAgree").validity.valueMissing), true, "the consent box is required");
+  assert.equal(await page.isVisible("#dlgExpNew"), true, "not sent without consent");
+  assert.match(await page.textContent("#xAgreeText"), /나·총무·개발자만 열 수 있고/, "the self-hosted wording");
+  assert.match(await page.textContent("#xLockHint"), /총무와 개발자만 고칠 수 있어요/);
+  await page.check("#xAgree");
+  await page.click("#btnXSubmit");
   assert.ok(await until(async () => (await serverDoc(`expenses/${a.id}`)).exists), "submitted");
   const subs = (await serverDoc(`expenses/${a.id}`)).data.subs, key = `${a.id}:${Object.keys(subs)[0]}`;
   assert.equal(Object.values(subs)[0].total, total);
@@ -115,6 +121,12 @@ test("phone: 사비 내역서 submission, 총무 approval arrives under the bell
   assert.match(await page.textContent("#expDetail"), /다음 주 화요일 지급/);
   await shot(page, "phone-expense-detail");
   assert.ok(await page.locator(".acct-count").isHidden(), "read");
+  // the 내역서 list works from the keyboard: Tab to a row, Enter opens it
+  await page.click("#dlgExp [data-xclose]");
+  await page.waitForSelector("#dlgExp[open]", { state: "detached" });
+  await page.focus("tr.link[data-exp]");
+  await page.keyboard.press("Enter");
+  await page.waitForSelector("#dlgExp[open]");
   await ctx.close();
 });
 
@@ -203,6 +215,10 @@ test("sign-up needs a department, and only a developer changes it later", { skip
   await login.click("#sBtn");
   assert.equal(await login.evaluate(() => document.getElementById("sDept").validity.valueMissing), true);
   assert.equal(await login.isVisible("#signupForm"), true, "the form is not sent without a department");
+  await login.selectOption("#sDept", "aero");
+  await login.click("#sBtn");
+  assert.equal(await login.evaluate(() => document.getElementById("sAgree").validity.valueMissing), true, "nor without consent");
+  assert.equal(await login.getAttribute(".consent a", "href"), "/privacy");
   await login.close();
 
   const page = await signIn(ctx, "aaa", "password-aaa");
@@ -258,5 +274,40 @@ test("담당 is picked from accounts; a locked part is read-only for 팀원; pro
   await dev.post(`/api/admin/users/${a.id}`, { dept: "aero" });
   assert.ok(await until(async () => (await page.textContent("#meDeptBadge")) === "에어로"), "the new department shows without a reload");
   await dev.post(`/api/admin/users/${a.id}`, { dept: "chassis" });
+  await ctx.close();
+});
+
+test("개인정보: accounts made by a developer confirm the policy once; /privacy takes a deletion request", { skip, timeout: 90000 }, async () => {
+  const made = await dev.post("/api/admin/users", { username: "newmade", name: "정만듦", dept: "aero" });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  await page.goto("/login");
+  await page.fill("#lUser", "newmade"); await page.fill("#lPw", made.json.tempPassword);
+  await page.click("#loginForm button[type=submit]");
+  await page.waitForSelector("#changeForm:not([hidden])");
+  await page.fill("#cNew", "password-newmade");
+  await page.click("#changeForm button[type=submit]");
+  await page.waitForURL((u) => u.pathname === "/");
+  await page.waitForSelector("dialog[aria-labelledby=fskPvTitle][open]");
+  await shot(page, "phone-privacy-confirm");
+  await page.keyboard.press("Escape");
+  assert.equal(await page.isVisible("dialog[aria-labelledby=fskPvTitle]"), true, "Esc does not dismiss it");
+  await page.click("dialog[aria-labelledby=fskPvTitle] [data-ack]");
+  await page.waitForSelector("dialog[aria-labelledby=fskPvTitle]", { state: "detached" });
+  await page.reload();
+  await page.waitForSelector(".acct-bar");
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator("dialog[aria-labelledby=fskPvTitle]").count(), 0, "not asked again");
+  assert.equal(await page.getAttribute("#pvLink", "href"), "/privacy", "the footer links to the server's policy");
+
+  await page.goto("/privacy");
+  await page.waitForSelector("#reqIn:not([hidden])");
+  await page.fill("#reqNote", "졸업");
+  await page.click("#reqBtn");
+  await page.waitForSelector("#reqCancel:not([hidden])");
+  assert.match(await page.textContent("#reqState"), /삭제를 요청했어요/);
+  await shot(page, "phone-privacy-page", true);
+  const users = (await dev.get("/api/admin/users")).json.users;
+  assert.ok(users.find((u) => u.username === "newmade").deleteRequestedAt);
   await ctx.close();
 });

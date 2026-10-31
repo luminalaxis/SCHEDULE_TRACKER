@@ -40,7 +40,7 @@ before(async () => {
 after(() => { proc.kill(); rmSync(dataDir, { recursive: true, force: true }); });
 
 test("first signup becomes the developer", async () => {
-  const r = await dev.req("POST", "/api/auth/signup", { username: "dev", password: "password1", name: "개발자" });
+  const r = await dev.req("POST", "/api/auth/signup", { username: "dev", password: "password1", name: "개발자", agree: true });
   assert.equal(r.status, 200); assert.equal(r.json.role, "developer"); assert.equal(r.json.status, "active");
   devId = (await dev.req("GET", "/api/me")).json.id;
   const roles = (await dev.req("GET", "/api/db/doc?path=config/roles")).json;
@@ -48,7 +48,7 @@ test("first signup becomes the developer", async () => {
 });
 
 test("later signups wait for approval", async () => {
-  const r = await mem.req("POST", "/api/auth/signup", { username: "mem", password: "password2", name: "팀원", dept: "aero" });
+  const r = await mem.req("POST", "/api/auth/signup", { username: "mem", password: "password2", name: "팀원", dept: "aero", agree: true });
   assert.equal(r.json.status, "pending");
   const l = await mem.req("POST", "/api/auth/login", { username: "mem", password: "password2" });
   assert.equal(l.status, 403); assert.equal(l.json.code, "pending");
@@ -65,7 +65,7 @@ test("developer approves; member can log in", async () => {
 test("later signups must pick a department", async () => {
   const c = new Client();
   for (const dept of [undefined, "", "nope"]) {
-    const r = await c.req("POST", "/api/auth/signup", { username: "nodept", password: "password3", name: "부서없음", dept });
+    const r = await c.req("POST", "/api/auth/signup", { username: "nodept", password: "password3", name: "부서없음", dept, agree: true });
     assert.equal(r.status, 400); assert.equal(r.json.code, "invalid_argument");
   }
   assert.equal((await dev.req("GET", "/api/admin/users")).json.users.some((u) => u.username === "nodept"), false);

@@ -44,7 +44,7 @@ export class Client {
 // Signs up `username` and, when a developer client is given, approves it with the given position/department.
 export async function member(base, dev, username, name, { position = "", dept = "" } = {}) {
   const c = new Client(base);
-  const r = await c.post("/api/auth/signup", { username, password: "password-" + username, name, dept });
+  const r = await c.post("/api/auth/signup", { username, password: "password-" + username, name, dept, agree: true });
   if (r.status !== 200) throw new Error(`signup ${username}: ${r.status} ${r.text}`);
   if (dev) {
     const users = (await dev.get("/api/admin/users")).json.users;

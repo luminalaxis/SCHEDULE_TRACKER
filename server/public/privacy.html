@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>개인정보 처리방침 · FSK 피트보드</title>
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+:root {
+  --bg: #EDF0F3; --surface: #FFFFFF; --surface-2: #F5F7F9; --ink: #131A24; --muted: #5A6575; --line: #D3D9E1;
+  --accent: #1E4CCB; --accent-ink: #FFFFFF; --accent-soft: #E2E9FA; --bad: #C2352B; --bad-soft: #FBE9E7; --ok: #1B8049; --ok-soft: #E3F3E9;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443;
+    --accent: #7D9CFF; --accent-ink: #0E131A; --accent-soft: #1F2A45; --bad: #F07A6E; --bad-soft: #3A1E1D; --ok: #4CC07F; --ok-soft: #16301F; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.65;
+  padding: 24px max(16px, env(safe-area-inset-left, 0px)) 48px max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 760px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 28px 28px 32px; }
+.brand { font-size: 12px; letter-spacing: .08em; color: var(--muted); margin: 0; }
+h1 { margin: 2px 0 6px; font-family: var(--font-display); font-weight: 700; font-size: 34px; line-height: 1.1; }
+h2 { font-size: 17px; margin: 28px 0 8px; padding-top: 18px; border-top: 1px solid var(--line); }
+p, li { margin: 6px 0; }
+ul { padding-left: 20px; margin: 6px 0; }
+.lead { color: var(--muted); margin: 0 0 4px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.box { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; margin-top: 10px; }
+.btn { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--r); padding: 9px 14px; cursor: pointer; }
+.btn.danger { border-color: var(--bad); background: var(--bad); color: #fff; }
+.btn:disabled { opacity: .6; cursor: default; }
+textarea { font: inherit; width: 100%; min-height: 64px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; margin: 6px 0 10px; }
+label { font-size: 13px; color: var(--muted); }
+.msg { padding: 9px 12px; border-radius: var(--r); background: var(--accent-soft); margin: 8px 0; }
+.msg.ok { background: var(--ok-soft); }
+.msg.bad { background: var(--bad-soft); }
+.foot { color: var(--muted); font-size: 12px; margin-top: 28px; }
+@media (max-width: 600px) { main { padding: 20px 16px 24px; } h1 { font-size: 28px; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="brand">FSK 차량 제작 현황 · 피트보드</p>
+  <h1>개인정보 처리방침</h1>
+  <p class="lead">피트보드는 FSK 차량 제작동아리 팀원끼리 쓰는 현황판이에요. 어떤 정보를 왜 모으고, 누가 보고, 언제 지우는지 적었어요. 시행일 {{version}}.</p>
+
+  <h2 id="items">1. 모으는 정보와 이유</h2>
+  <div class="scroll"><table>
+    <thead><tr><th scope="col">언제</th><th scope="col">무엇을</th><th scope="col">왜</th></tr></thead>
+    <tbody>
+      <tr><td>가입할 때</td><td>이름, 부서, 아이디, 비밀번호 (비밀번호는 되돌릴 수 없는 형태(scrypt 해시)로만 저장)</td><td>팀원 확인, 로그인, 부서·직책별 권한</td></tr>
+      <tr><td>쓰는 동안 자동으로</td><td>로그인 시각, 접속 IP 주소, 브라우저 정보, 누가 언제 무엇을 바꿨는지(변경 이력·감사 로그), 알림</td><td>로그인 유지, 계정 도용 확인, 기록의 작성자 표시</td></tr>
+      <tr><td>직접 적을 때</td><td>부품·테스트 기록, 의견, 점검 체크, 일정, 첨부 파일</td><td>차량 제작·테스트 기록을 팀이 함께 보기</td></tr>
+      <tr><td>사비 내역서를 낼 때 (내는 사람만)</td><td>신청자 이름, 내역서 원본 파일(입금 은행·계좌번호 포함), 구매 내역·금액, 영수증 사진</td><td>사비 정산 확인과 지급</td></tr>
+    </tbody>
+  </table></div>
+  <p>주민등록번호, 연락처, 이메일은 묻지 않아요.</p>
+
+  <h2 id="keep">2. 보관 기간</h2>
+  <div class="scroll"><table>
+    <thead><tr><th scope="col">정보</th><th scope="col">보관 기간</th></tr></thead>
+    <tbody>
+      <tr><td>계정 정보 (이름·부서·아이디·비밀번호)</td><td>계정을 삭제할 때까지</td></tr>
+      <tr><td>로그인 세션 (IP 주소·브라우저 정보)</td><td>최대 {{sessionDays}}일, 로그아웃하면 바로 삭제</td></tr>
+      <tr><td>감사 로그 (IP 주소 포함)</td><td>{{auditDays}}일</td></tr>
+      <tr><td>변경 이력</td><td>{{historyDays}}일</td></tr>
+      <tr><td>알림</td><td>{{notifyDays}}일</td></tr>
+      <tr><td>사비 내역서 원본·영수증 사진·계좌 정보</td><td>제출일로부터 {{expenseYears}}년. 지나면 개발자가 지우고, 동아리 회계 기록으로 금액과 항목만 남겨요</td></tr>
+      <tr><td>팀 작업 기록 (부품, 테스트 기록, 의견, 일정)</td><td>동아리 기록으로 계속 보관. 계정을 지울 때 이름은 "탈퇴한 팀원"으로 바꿔요</td></tr>
+      <tr><td>백업</td><td>자동 백업은 하루 한 번, 최근 {{backupKeep}}개만 남겨요. 백업은 통째로 만든 사본이라 그 안의 일부만 지울 수는 없고, 새 백업으로 바뀌면서 사라져요. 수동 백업과 외부 복사본(USB 등)은 개발자가 관리하고, 필요 없어지면 지워요</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="who">3. 누가 볼 수 있나요</h2>
+  <ul>
+    <li><b>로그인한 팀원 모두:</b> 이름, 부서, 직책, 팀 작업 기록, 사비 내역서 목록과 금액</li>
+    <li><b>제출자 본인, 총무(부팀장), 개발자만:</b> 사비 내역서 원본 파일, 영수증 사진, 전체 계좌번호</li>
+    <li><b>개발자만:</b> 감사 로그(IP 주소), 관리 창의 모든 데이터와 백업</li>
+  </ul>
+
+  <h2 id="out">4. 외부로 나가는 정보</h2>
+  <ul>
+    <li>개인정보를 팔거나 다른 곳에 넘기지 않아요. 데이터는 동아리가 운영하는 서버와, 개발자가 정한 외부 복사 장치(USB 등)에 저장해요.</li>
+    <li>밖에서 접속할 수 있게 Cloudflare Tunnel을 쓰면, 접속 내용이 암호화된 채로 Cloudflare를 거쳐 서버에 와요.</li>
+    <li><b>팀 채널 알림</b>(지금 {{webhook}}): 켜져 있으면 Discord 또는 Slack 팀 채널로 일정 알림, 마감 지난 부품 요약, 테스트 주의·문제 판정을 보내요. 부품 담당자 이름이 들어갈 수 있어요. 돈과 관련된 알림은 보내지 않아요.</li>
+    <li>글꼴을 포함한 화면 파일은 모두 이 서버에서 받아요. 광고, 방문 분석, 추적 도구는 쓰지 않아요.</li>
+  </ul>
+
+  <h2 id="device">5. 기기에 저장하는 것 (쿠키 등)</h2>
+  <ul>
+    <li><b>로그인 쿠키(fsk_session):</b> 로그인을 유지하는 데 꼭 필요해요. {{sessionDays}}일 동안 유지되고, 로그아웃하면 지워요.</li>
+    <li><b>기기 저장소:</b> 인터넷이 끊겨도 열 수 있게 마지막으로 본 데이터와 아직 올리지 못한 변경을 저장해요. 로그아웃하면 지워요. 일반/TV 화면 선택, 닫은 안내 같은 화면 설정은 남아요.</li>
+    <li>광고·분석·추적 쿠키는 없어요. 그래서 쿠키 동의 창을 띄우지 않아요.</li>
+  </ul>
+
+  <h2 id="rights">6. 내 정보 확인·수정·삭제</h2>
+  <p>내 정보를 확인하거나, 고치거나, 지우거나, 처리를 멈춰 달라고 요청할 수 있어요. 이름과 부서는 개발자가 고쳐요.</p>
+  <p>삭제를 요청하면 개발자가 계정을 지우면서 <b>개인정보 정리</b>를 해요.</p>
+  <ul>
+    <li>사비 내역서 원본 파일, 영수증 사진, 계좌 정보 삭제 (금액·항목은 이름 없이 동아리 회계 기록으로 남아요)</li>
+    <li>팀 작업 기록에 남은 내 이름을 "탈퇴한 팀원"으로 변경</li>
+    <li>감사 로그의 내 IP 주소 삭제, 로그인 세션·알림 삭제</li>
+  </ul>
+  <div class="box" id="req">
+    <b>내 정보 삭제 요청</b>
+    <p id="reqOut">로그인한 뒤에 여기서 요청할 수 있어요. <a href="/login?next=/privacy%23req">로그인하기</a></p>
+    <div id="reqIn" hidden>
+      <p id="reqState"></p>
+      <div id="reqForm">
+        <label for="reqNote">남길 말 (선택)</label>
+        <textarea id="reqNote" maxlength="300" placeholder="예: 졸업해서 더 이상 쓰지 않아요"></textarea>
+        <button class="btn danger" type="button" id="reqBtn">삭제 요청 보내기</button>
+      </div>
+      <button class="btn" type="button" id="reqCancel" hidden>요청 취소</button>
+      <p class="msg" id="reqMsg" role="status" hidden></p>
+    </div>
+  </div>
+  <p>로그인할 수 없으면 아래 문의처로 직접 요청하세요.</p>
+
+  <h2 id="safety">7. 안전하게 지키는 방법</h2>
+  <ul>
+    <li>비밀번호는 되돌릴 수 없는 해시로만 저장해요.</li>
+    <li>계좌번호가 든 원본 파일과 영수증은 제출자·총무·개발자만 열 수 있게 서버가 막아요.</li>
+    <li>데이터 폴더와 파일은 서버 계정만 읽을 수 있고, HTTPS로 접속하면 연결이 암호화돼요.</li>
+    <li>로그인, 권한 변경, 데이터 직접 수정은 감사 로그에 남아요.</li>
+  </ul>
+
+  <h2 id="contact">8. 문의처</h2>
+  <p>개인정보 담당: {{contact}}</p>
+  <p>이 방침이 바뀌면 피트보드를 열 때 바뀐 내용을 다시 확인해 달라고 안내해요.</p>
+
+  <p class="foot"><a href="/">피트보드로 돌아가기</a> · 시행일 {{version}}</p>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const call = async (method, body) => {
+    const r = await fetch("/api/me/delete-request", { method, credentials: "same-origin", headers: body ? { "content-type": "application/json", "x-fsk": "1" } : {}, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(j, { status: r.status });
+    return j;
+  };
+  const say = (text, kind) => { const m = $("reqMsg"); m.textContent = text; m.className = "msg" + (kind ? " " + kind : ""); m.hidden = !text; };
+  const show = (at) => {
+    $("reqOut").hidden = true; $("reqIn").hidden = false;
+    $("reqState").textContent = at ? `${new Date(at).toLocaleString("ko-KR")}에 삭제를 요청했어요. 개발자가 처리하면 계정과 개인정보가 지워져요.` : "요청하면 개발자에게 알림이 가요. 처리되면 이 계정으로 더 이상 로그인할 수 없어요.";
+    $("reqForm").hidden = !!at; $("reqCancel").hidden = !at;
+  };
+  call("GET").then((r) => show(r.requestedAt)).catch(() => {});
+  $("reqBtn").addEventListener("click", async (e) => {
+    const b = e.currentTarget; b.disabled = true;
+    try { show((await call("POST", { note: $("reqNote").value })).requestedAt); say("삭제 요청을 보냈어요.", "ok"); }
+    catch (err) { say(err.message || "요청을 보내지 못했어요.", "bad"); }
+    finally { b.disabled = false; }
+  });
+  $("reqCancel").addEventListener("click", async () => {
+    try { show((await call("POST", { cancel: true })).requestedAt); say("삭제 요청을 취소했어요.", "ok"); }
+    catch (err) { say(err.message || "취소하지 못했어요.", "bad"); }
+  });
+})();
+</script>
+</body>
+</html>

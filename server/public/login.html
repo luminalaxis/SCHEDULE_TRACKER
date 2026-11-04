@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>FSK 피트보드 로그인</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/fonts/fonts.css">
 <style>
 :root {
   --bg: #EDF0F3; --surface: #FFFFFF; --surface-2: #F5F7F9; --ink: #131A24; --muted: #5A6575; --line: #D3D9E1;
@@ -40,6 +38,14 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 .msg.bad { background: var(--bad-soft); color: var(--ink); }
 .msg.ok { background: var(--ok-soft); }
 .hint { font-size: 12px; color: var(--muted); margin: 0; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.consent { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); padding: 10px 12px; margin: 0; font-size: 12px; color: var(--muted); }
+.consent legend { padding: 0 4px; font-weight: 600; color: var(--ink); }
+.consent ul { margin: 4px 0 8px; padding-left: 18px; }
+.consent label.check { flex-direction: row; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink); }
+.consent label.check input { width: auto; margin: 3px 0 0; }
+.foot { text-align: center; margin: 0; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -65,6 +71,17 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
     <label>아이디 (영문 소문자·숫자 3~32자)<input id="sUser" autocomplete="username" autocapitalize="none" pattern="[a-z0-9._\-]{3,32}" required></label>
     <label>비밀번호 (8자 이상)<input id="sPw" type="password" autocomplete="new-password" minlength="8" required></label>
     <label id="sInviteWrap" hidden>초대 코드<input id="sInvite" autocomplete="off" autocapitalize="none"></label>
+    <fieldset class="consent">
+      <legend>개인정보 수집·이용 안내</legend>
+      <ul>
+        <li>모으는 것: 이름, 부서, 아이디, 비밀번호(되돌릴 수 없는 해시로 저장), 로그인할 때의 IP 주소·브라우저 정보</li>
+        <li>쓰는 곳: 팀원 확인, 로그인, 부서·직책별 권한, 기록의 작성자 표시</li>
+        <li>보관: 계정을 삭제할 때까지 (IP 주소가 남는 감사 로그는 정해진 기간만)</li>
+        <li>사비 내역서를 낼 때 계좌번호와 영수증을 따로 받아요. 제출자·총무·개발자만 볼 수 있어요.</li>
+      </ul>
+      동의하지 않으면 가입할 수 없어요. <a href="/privacy" target="_blank" rel="noopener">개인정보 처리방침 전체 보기</a>
+      <label class="check"><input type="checkbox" id="sAgree" required> (필수) 위 개인정보 수집·이용에 동의해요</label>
+    </fieldset>
     <button class="btn" type="submit" id="sBtn">가입 신청</button>
     <p class="hint" id="sHint">가입하면 개발자가 승인한 뒤에 쓸 수 있어요. 부서는 가입 뒤에 개발자만 바꿀 수 있으니 정확히 골라 주세요.</p>
   </form>
@@ -75,6 +92,7 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
     <label>새 비밀번호 (8자 이상)<input id="cNew" type="password" autocomplete="new-password" minlength="8" required></label>
     <button class="btn" type="submit">비밀번호 바꾸고 시작하기</button>
   </form>
+  <p class="foot"><a href="/privacy">개인정보 처리방침</a></p>
 </main>
 <script>
 (() => {
@@ -123,7 +141,7 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
     e.preventDefault();
     const btn = $("sBtn"); btn.disabled = true;
     try {
-      const r = await post("/api/auth/signup", { name: $("sName").value.trim(), dept: $("sDept").value, username: $("sUser").value.trim().toLowerCase(), password: $("sPw").value, invite: $("sInvite").value.trim() });
+      const r = await post("/api/auth/signup", { name: $("sName").value.trim(), dept: $("sDept").value, username: $("sUser").value.trim().toLowerCase(), password: $("sPw").value, invite: $("sInvite").value.trim(), agree: $("sAgree").checked });
       if (r.status === "active") { location.href = r.role === "developer" ? "/admin" : next; return; }
       show("login"); $("lUser").value = $("sUser").value.trim().toLowerCase();
       say("가입 신청을 보냈어요. 개발자가 승인하면 로그인할 수 있어요.", "ok");

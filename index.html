@@ -2,45 +2,57 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: one-line sticky header (car · D-day pill · account · 일반/TV switch) → pill tabs. 오늘 = today's cards + my department's parts. TV = read-only workshop screen (full-window overlay).
+/* Layout (pit-wall redesign): dark left sidebar (car · tabs · 일반/TV · 차량 설정; a bottom tab bar on phones) + sticky top bar (D-day chip · account). Red only for D-day / overdue / problems, part stages as a grey → green ramp, condensed racing numerals.
+   Previous layout: one-line sticky header (car · D-day pill · account · 일반/TV switch) → pill tabs. 오늘 = today's cards + my department's parts. TV = read-only workshop screen (full-window overlay).
    Earlier layout notes: pit-board header (car + D-day + next deadline + who am I) → tabs. 부품 현황 = gauges, department matrix, parts sheet. 테스트 세션 = list + pre-run checklist + per-department cards. 추이 분석 = metric chart + verdict matrix. 이슈, 일정 (timeline), 변경 이력 (activity log). Workshop-drawing neutrals, CAD-selection blue accent, part stages as a sequential ramp ending in green, departments as fixed categorical hues. */
 :root {
-  --bg: #F5F6FA; --surface: #FFFFFF; --surface-2: #F3F4F8; --ink: #161A23; --muted: #667085; --line: #E2E5EC; --grid: #EEF0F5;
-  --accent: #4F46E5; --accent-ink: #FFFFFF; --accent-soft: #EEEDFD;
-  --ok: #16833F; --ok-soft: #E6F5EC; --warn: #B45309; --warn-soft: #FDF1E3; --bad: #C2352B; --bad-soft: #FBE9E7;
-  --s0: #DDE1EA; --s1: #C7C4F7; --s2: #A29BF1; --s3: #7C72EA; --s4: #5146E0; --s5: #16833F;
-  --card-border: transparent; --card-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 2px 8px rgba(16, 24, 40, .06);
-  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4;
+  --bg: #EFEFEC; --surface: #FFFFFF; --surface-2: #F5F5F2; --ink: #131415; --muted: #5C5E63; --line: #E0E0DB; --line-2: #CFCFC9; --grid: #ECECE8;
+  --accent: #131415; --accent-ink: #FFFFFF; --accent-soft: #EBEBE7;
+  --race: #CC2A1F; --race-soft: #FBE8E5; --info: #2A5FC4; --info-soft: #E6EEFB;
+  --ok: #1C7A45; --ok-soft: #E3F3E8; --warn: #9A5A00; --warn-soft: #FBF0DC; --bad: #CC2A1F; --bad-soft: #FBE8E5;
+  --s0: #D9DAD6; --s1: #B5B7B3; --s2: #8B8E8B; --s3: #5E6161; --s4: #2E3031; --s5: #2A9D5C; --track-bg: #E7E7E3;
+  --card-border: var(--line); --card-shadow: none;
+  --c1: #2F6BDB; --c2: #D48A00; --c3: #11907A; --c4: #7A5AE0; --c5: #C04B95;
+  --side: #121315; --side-ink: #C9CACD; --side-muted: #9A9CA1; --side-hover: #1C1D20; --side-active: #26272B; --side-line: #2A2B2F; --side-red: #FF5A4E;
+  --chip: #131415; --chip-ink: #F4F4F1; --chip-muted: #A6A8AD; --chip-line: #131415; --chip-red: #FF6A5E;
   --font-display: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  --font-num: "Barlow Condensed", "Arial Narrow", "IBM Plex Sans KR", sans-serif;
+  --font-num: "Saira Condensed", "Arial Narrow", "IBM Plex Sans KR", sans-serif;
   --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --r: 10px;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, Menlo, monospace;
+  --r: 8px; --r-card: 12px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443; --grid: #232C39;
-    --accent: #9A94FF; --accent-ink: #0E131A; --accent-soft: #262452; --card-border: var(--line); --card-shadow: none;
-    --ok: #4CC07F; --ok-soft: #16301F; --warn: #E0A84B; --warn-soft: #33270F; --bad: #F07A6E; --bad-soft: #3A1E1D;
-    --s0: #3A4555; --s1: #3B3A7A; --s2: #5550B8; --s3: #7A74F0; --s4: #A7A2FF; --s5: #4CC07F;
-    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
+    --bg: #0D0E10; --surface: #16171A; --surface-2: #1D1E22; --ink: #ECECE9; --muted: #A0A2A8; --line: #2A2B30; --line-2: #383A40; --grid: #222327;
+    --accent: #ECECE9; --accent-ink: #0D0E10; --accent-soft: #26272B;
+    --race: #FF5A4E; --race-soft: #3A1714; --info: #7FA6F5; --info-soft: #18233A;
+    --ok: #45C27F; --ok-soft: #12291B; --warn: #F2A93B; --warn-soft: #33240C; --bad: #FF6A5E; --bad-soft: #3A1714;
+    --s0: #34363B; --s1: #4F5258; --s2: #72757C; --s3: #9A9DA3; --s4: #CDCFD2; --s5: #45C27F; --track-bg: #24252A;
+    --card-border: var(--line); --card-shadow: none;
+    --c1: #5B8DF0; --c2: #E8A21C; --c3: #2DB596; --c4: #9B82F5; --c5: #DB6BB0;
+    --side: #08090A; --side-hover: #141518; --side-active: #1C1D21; --side-line: #1E1F22;
+    --chip: #1F2024; --chip-ink: #ECECE9; --chip-muted: #A0A2A8; --chip-line: #383A40;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0E131A; --surface: #161D27; --surface-2: #1B2330; --ink: #E5EAF1; --muted: #95A1B2; --line: #2A3443; --grid: #232C39;
-  --accent: #9A94FF; --accent-ink: #0E131A; --accent-soft: #262452; --card-border: var(--line); --card-shadow: none;
-  --ok: #4CC07F; --ok-soft: #16301F; --warn: #E0A84B; --warn-soft: #33270F; --bad: #F07A6E; --bad-soft: #3A1E1D;
-  --s0: #3A4555; --s1: #3B3A7A; --s2: #5550B8; --s3: #7A74F0; --s4: #A7A2FF; --s5: #4CC07F;
-  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
+  --bg: #0D0E10; --surface: #16171A; --surface-2: #1D1E22; --ink: #ECECE9; --muted: #A0A2A8; --line: #2A2B30; --line-2: #383A40; --grid: #222327;
+  --accent: #ECECE9; --accent-ink: #0D0E10; --accent-soft: #26272B;
+  --race: #FF5A4E; --race-soft: #3A1714; --info: #7FA6F5; --info-soft: #18233A;
+  --ok: #45C27F; --ok-soft: #12291B; --warn: #F2A93B; --warn-soft: #33240C; --bad: #FF6A5E; --bad-soft: #3A1714;
+  --s0: #34363B; --s1: #4F5258; --s2: #72757C; --s3: #9A9DA3; --s4: #CDCFD2; --s5: #45C27F; --track-bg: #24252A;
+  --card-border: var(--line); --card-shadow: none;
+  --c1: #5B8DF0; --c2: #E8A21C; --c3: #2DB596; --c4: #9B82F5; --c5: #DB6BB0;
+  --side: #08090A; --side-hover: #141518; --side-active: #1C1D21; --side-line: #1E1F22;
+  --chip: #1F2024; --chip-ink: #ECECE9; --chip-muted: #A0A2A8; --chip-line: #383A40;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.55; }
-.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1240px; padding-left: 28px; padding-right: max(28px, env(safe-area-inset-right, 0px)); }
 .num { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--font-mono); }
 h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
@@ -49,48 +61,64 @@ button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* controls */
-.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 7px 12px; border-radius: var(--r); cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--surface); padding: 8px 14px; border-radius: var(--r); cursor: pointer; font-weight: 600; white-space: nowrap; }
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.btn.primary:hover { filter: brightness(1.08); }
-.btn.sm { padding: 4px 9px; font-size: 12px; }
+.btn.primary:hover { opacity: .86; }
+.btn.sm { padding: 4px 10px; font-size: 12px; }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
 .btn.ghost:hover { color: var(--ink); border-color: var(--line); }
 .btn.danger { color: var(--bad); }
 .btn.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
 .btn:disabled { opacity: .5; cursor: default; }
-.field { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 7px 10px; min-width: 0; }
+.field { border: 1px solid var(--line-2); background: var(--surface); border-radius: var(--r); padding: 8px 10px; min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .toolbar input[type="search"] { flex: 1 1 200px; }
 .dim { color: var(--muted); }
 .late { color: var(--bad); font-weight: 600; }
 
-/* header */
-.top { position: sticky; top: 0; z-index: 6; background: var(--surface); box-shadow: 0 1px 0 var(--line); }
-.top-in { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-block: 10px 0; }
-.ident { flex: 0 1 auto; min-width: 0; }
-.eyebrow { font-size: 12px; letter-spacing: .08em; color: var(--muted); font-weight: 500; }
-.ident h1 { font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.15; letter-spacing: -.01em; overflow-wrap: anywhere; }
-.pit { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 6px 16px; border-radius: 999px; background: var(--accent-soft); max-width: 100%; }
-.pit-label { font-size: 12px; color: var(--muted); }
-.pit-num { font-family: var(--font-num); font-weight: 700; font-size: 24px; line-height: 1; letter-spacing: .02em; color: var(--accent); }
-.pit-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
-.pit.unset .pit-num { color: var(--muted); font-family: var(--font-body); font-size: 15px; }
-.pit-next { font-size: 12px; color: var(--muted); border: 0; border-left: 1px solid var(--s1); background: none; padding: 0 0 0 10px; text-align: left; cursor: pointer; }
-.pit-next b { color: var(--ink); font-weight: 600; }
-.pit-next .soon { color: var(--bad); }
+/* shell: dark sidebar (always dark) + sticky top bar */
+.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
+.main-col { min-width: 0; display: flex; flex-direction: column; }
+.side { position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 24px; padding: 22px 14px 18px max(14px, env(safe-area-inset-left, 0px)); background: var(--side); color: var(--side-ink); }
+.side :focus-visible { outline-color: #FFFFFF; }
+.brand { display: flex; flex-direction: column; gap: 6px; padding: 0 10px; min-width: 0; }
+.eyebrow { font-size: 11px; letter-spacing: .12em; color: var(--side-muted); font-weight: 600; }
+.car { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mark { display: inline-flex; gap: 3px; flex: none; }
+.mark i { width: 6px; height: 22px; background: var(--side-red); transform: skewX(-14deg); }
+.mark i + i { opacity: .55; }
+.car h1 { font-family: var(--font-num); font-weight: 700; font-size: 28px; line-height: 1.05; letter-spacing: .02em; color: #FFFFFF; overflow-wrap: anywhere; min-width: 0; }
+.tabs { display: flex; flex-direction: column; gap: 2px; }
+.tab { position: relative; display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--side-ink); font-weight: 500; text-align: left; cursor: pointer; white-space: nowrap; }
+.tab::before { content: ""; flex: none; width: 4px; height: 16px; margin-right: -2px; transform: skewX(-14deg); background: transparent; }
+.tab:hover { background: var(--side-hover); color: #FFFFFF; }
+.tab[aria-selected="true"] { background: var(--side-active); color: #FFFFFF; font-weight: 700; }
+.tab[aria-selected="true"]::before { background: var(--side-red); }
+.tab svg, .side-btn svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab .tl { flex: 1; min-width: 0; }
+.tab .ts { display: none; }
+.badge { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; background: #CC2A1F; color: #FFFFFF; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px 10px 0; border-top: 1px solid var(--side-line); }
+.viewsw { display: inline-flex; border: 1px solid var(--side-line); border-radius: 999px; padding: 2px; background: var(--side-hover); }
+.viewsw button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--side-muted); padding: 5px 14px; border-radius: 999px; cursor: pointer; }
+.viewsw button[aria-pressed="true"] { background: #FFFFFF; color: #121315; }
+.side .btn.side-btn { gap: 10px; padding: 8px 0; border: 0; background: none; color: var(--side-ink); font-weight: 500; }
+.side .btn.side-btn:hover { color: #FFFFFF; }
+.top { position: sticky; top: 0; z-index: 6; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top-in { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; min-height: 64px; padding: 10px max(28px, env(safe-area-inset-right, 0px)) 10px 28px; }
+.pit { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; min-height: 40px; padding: 4px 14px; border-radius: var(--r); background: var(--chip); border: 1px solid var(--chip-line); color: var(--chip-ink); max-width: 100%; }
+.pit-label { font-size: 12px; color: var(--chip-muted); }
+.pit-num { font-family: var(--font-num); font-weight: 700; font-size: 24px; line-height: 1; letter-spacing: .02em; }
+.pit-date { font-family: var(--font-mono); font-size: 12px; color: var(--chip-muted); }
+.pit.unset .pit-num { color: var(--chip-muted); font-family: var(--font-body); font-size: 14px; font-weight: 600; }
+.pit-next { font: inherit; font-size: 12px; color: var(--chip-muted); border: 0; border-left: 1px solid rgba(255, 255, 255, .18); background: none; padding: 0 0 0 12px; text-align: left; cursor: pointer; }
+.pit-next b { color: var(--chip-ink); font-weight: 600; }
+.pit-next span { font-family: var(--font-num); font-size: 16px; font-weight: 700; color: var(--chip-ink); margin-left: 2px; }
+.pit-next .soon { color: var(--chip-red); }
 .top-side { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 10px; }
 .me { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-.me input { width: 120px; }
-.viewsw { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--surface-2); }
-.viewsw button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); padding: 4px 12px; border-radius: 999px; cursor: pointer; }
-.viewsw button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
-.tabs { order: 9; display: flex; align-items: center; gap: 4px; width: 100%; overflow-x: auto; padding: 8px 0 10px; scrollbar-width: none; }
-.tab { border: 0; background: none; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.tab:hover { color: var(--ink); background: var(--surface-2); }
-.tab[aria-selected="true"] { color: var(--surface); background: var(--ink); }
-.tabs-end { margin-left: auto; flex: none; }
-.badge { font-size: 11px; background: var(--bad-soft); color: var(--bad); border-radius: 999px; padding: 0 7px; margin-left: 4px; }
+.me input { width: 140px; }
 
 main { padding-block: 20px 72px; }
 .view { display: flex; flex-direction: column; gap: 24px; }
@@ -115,24 +143,24 @@ main { padding-block: 20px 72px; }
 .lock-note { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); color: var(--ink); }
 
 /* gauges */
-.gauges { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.gauge { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.g-label { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
-.g-value { font-family: var(--font-display); font-weight: 600; font-size: 32px; line-height: 1; }
-.g-value small { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 16px; }
+.gauge { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.g-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.g-value { font-family: var(--font-num); font-weight: 700; font-size: 42px; line-height: .95; }
+.g-value small { font-size: 20px; font-weight: 600; color: var(--muted); margin-left: 3px; }
 .g-value.alert { color: var(--bad); }
 .g-value.calm { color: var(--ok); }
 .g-sub { font-size: 12px; color: var(--muted); }
 .g-sub b { font-weight: 600; color: var(--ink); }
-.track { height: 8px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; display: flex; gap: 2px; }
+.track { height: 8px; background: var(--track-bg); overflow: hidden; display: flex; gap: 2px; }
 .track > span { display: block; height: 100%; }
 .fill { background: var(--accent); }
 .fill.over { background: var(--bad); }
-.fill.ok { background: var(--ok); }
+.fill.ok { background: var(--s5); }
 
 .sec { display: flex; flex-direction: column; gap: 12px; }
 .sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
-.sec-head h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: .02em; }
+.sec-head h2 { font-family: var(--font-display); font-weight: 700; font-size: 20px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
@@ -147,6 +175,8 @@ tbody tr:last-child td { border-bottom: 0; }
 td.r, th.r { text-align: right; }
 tbody tr:hover td { background: var(--surface-2); }
 tr.link { cursor: pointer; }
+tr.link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+tr.link:focus-visible td { background: var(--surface-2); }
 .sys-bar { width: 100%; min-width: 160px; }
 .issue-link { background: none; border: 0; padding: 0; cursor: pointer; color: var(--bad); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .count { font-size: 12px; color: var(--muted); }
@@ -174,14 +204,14 @@ tr.link { cursor: pointer; }
 .slist-head h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; }
 .sitem { text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; width: 100%; }
 .sitem:hover { border-color: var(--muted); }
-.sitem[aria-current="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.sitem[aria-current="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .sitem-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .sitem-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
 .sitem-ev { font-weight: 600; }
 .sitem-meta { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cover { display: flex; gap: 4px; align-items: center; }
-.cover i { width: 18px; height: 6px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--line); }
-.cover i.ok { background: var(--ok); border-color: var(--ok); }
+.cover i { width: 16px; height: 8px; background: var(--track-bg); border: 1px solid var(--line); transform: skewX(-14deg); }
+.cover i.ok { background: var(--s5); border-color: var(--s5); }
 .cover i.warn { background: var(--warn); border-color: var(--warn); }
 .cover i.bad { background: var(--bad); border-color: var(--bad); }
 .detail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -192,7 +222,7 @@ tr.link { cursor: pointer; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px 16px; }
 .fact { display: flex; flex-direction: column; min-width: 0; }
 .fact span { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
-.fact b { font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fact b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .goal { font-size: 13px; background: var(--surface-2); border-radius: var(--r); padding: 8px 12px; white-space: pre-wrap; }
 
 /* checklist */
@@ -220,7 +250,7 @@ tr.link { cursor: pointer; }
 .dcard.mine { border-color: var(--accent); }
 .dcard-h { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 .dcard-h h3 { font-size: 15px; font-weight: 600; flex: 1; }
-.dcard-h .you { font-size: 11px; color: var(--accent); font-weight: 600; }
+.dcard-h .you { font-size: 11px; color: var(--muted); font-weight: 600; border: 1px solid var(--line-2); border-radius: 4px; padding: 0 7px; }
 .dcard-empty { padding: 16px 14px; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .log { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--line); }
 .log:last-child { border-bottom: 0; }
@@ -291,13 +321,13 @@ details.tbl summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 /* schedule */
 .ms-list { display: flex; flex-direction: column; gap: 8px; }
 .ms { display: grid; grid-template-columns: 112px 74px minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
-.ms.next { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.ms.next { border-color: var(--race); box-shadow: none; background: var(--race-soft); }
 .ms.done { opacity: .62; }
 .ms.done .ms-title { text-decoration: line-through; }
 .ms-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
-.ms-d { font-family: var(--font-display); font-weight: 600; font-size: 20px; line-height: 1; }
-.ms-d.soon { color: var(--bad); }
-.ms-d.past { color: var(--muted); font-size: 15px; }
+.ms-d { font-family: var(--font-num); font-weight: 700; font-size: 26px; line-height: 1; }
+.ms-d.soon { color: var(--race); }
+.ms-d.past { color: var(--muted); font-size: 18px; }
 .ms-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ms-title { font-weight: 600; overflow-wrap: anywhere; }
 .ms-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--muted); }
@@ -319,7 +349,7 @@ details.tbl summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .mini-hist .mono { color: var(--muted); flex: none; }
 
 /* dialogs */
-dialog { border: 1px solid var(--line); border-radius: 10px; padding: 0; background: var(--surface); color: var(--ink); width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+dialog { border: 1px solid var(--line); border-radius: var(--r-card); padding: 0; background: var(--surface); color: var(--ink); width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
 dialog::backdrop { background: rgba(8, 12, 18, .45); }
 .dlg { display: flex; flex-direction: column; gap: 16px; padding: 20px; }
 .dlg h3 { font-family: var(--font-display); font-weight: 600; font-size: 24px; }
@@ -346,6 +376,13 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .seg input { margin: 0; }
 .seg label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.check.xagree { align-items: flex-start; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); padding: 10px 12px; line-height: 1.5; }
+.check.xagree input { margin-top: 3px; flex: none; }
+.site-foot { max-width: 1280px; margin: 0 auto; padding: 8px 16px 28px; font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.site-foot a { color: var(--muted); }
+.site-foot a:hover { color: var(--ink); }
+.dlg a, .check.xagree a { color: var(--accent); }
+.pv-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
 .filebtn { position: relative; overflow: hidden; }
 .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .dlg-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
@@ -355,15 +392,15 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .linked > div { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; }
 
 /* expense */
-.stt.info { background: var(--accent-soft); color: var(--accent); }
+.stt.info { background: var(--info-soft); color: var(--info); }
 .role { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .role b { color: var(--ink); font-weight: 600; border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; background: var(--surface); }
 .role b.mgr { border-color: var(--accent); color: var(--accent); }
 .pay { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 10px 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
 .pay i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.pay.pending { background: var(--surface-2); color: var(--muted); border-color: var(--line); }
+.pay.pending { background: var(--info-soft); color: var(--info); }
 .pay.fix { background: var(--warn-soft); color: var(--warn); }
-.pay.approved { background: var(--accent-soft); color: var(--accent); }
+.pay.approved { background: var(--surface-2); color: var(--ink); border-color: var(--line-2); }
 .pay.paid { background: var(--ok-soft); color: var(--ok); }
 .pay.rejected { background: var(--bad-soft); color: var(--bad); }
 .pay.lg { font-size: 14px; padding: 4px 14px 4px 10px; }
@@ -391,7 +428,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: var(--r); font-size: 13px; max-width: calc(100vw - 32px); z-index: 10; }
 
 /* cards: soft shadows in light mode, borders in dark mode */
-.gauge, .scroll, .dcard, .ck, .panel, .dhead, .sitem, .ms, .issue, .hist { border-color: var(--card-border); box-shadow: var(--card-shadow); }
+.gauge, .scroll, .dcard, .ck, .panel, .dhead, .sitem, .ms, .issue, .hist, .tlist, .empty { border-color: var(--card-border); box-shadow: var(--card-shadow); border-radius: var(--r-card); }
 
 /* 오늘 */
 .today-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
@@ -399,42 +436,44 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .today-dept { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .dept-badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-weight: 600; }
 .dept-badge.none { color: var(--muted); font-weight: 500; }
-.tgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.tcard { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--card-border); border-top: 4px solid var(--c); box-shadow: var(--card-shadow); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.tcard:hover { border-color: var(--line); border-top-color: var(--c); }
-.tcard > span { font-size: 13px; color: var(--muted); }
-.tcard b { font-size: 30px; line-height: 1; font-weight: 700; color: var(--c); }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 14px; }
+.tcard { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 140px; }
+.tcard:hover { border-color: var(--muted); }
+.tcard > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.tcard > span::after { content: ""; flex: none; width: 6px; height: 6px; margin-right: 3px; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: rotate(45deg); }
+.tcard b { font-family: var(--font-num); font-size: 44px; line-height: .9; font-weight: 700; color: var(--c); }
 .tcard em { font-style: normal; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
-.tlist { background: var(--surface); border: 1px solid var(--card-border); box-shadow: var(--card-shadow); border-radius: var(--r); overflow: hidden; }
-.tlist-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; padding: 12px 16px 8px; }
-.tlist-h h3 { font-size: 15px; font-weight: 600; }
-.trow { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto 64px; gap: 12px; align-items: center; width: 100%; padding: 10px 16px; border: 0; border-top: 1px solid var(--grid); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.tlist { background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.tlist-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; padding: 16px 20px 12px; }
+.tlist-h h3 { font-size: 17px; font-weight: 700; }
+.trow { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto 64px; gap: 12px; align-items: center; width: 100%; min-height: 52px; padding: 10px 20px; border: 0; border-top: 1px solid var(--line); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .trow:hover { background: var(--surface-2); }
-.tstage { justify-self: start; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.tstage { justify-self: start; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.tstage::before { content: ""; flex: none; width: 8px; height: 8px; background: var(--sc, var(--s0)); box-shadow: inset 0 0 0 1px rgba(127, 127, 127, .3); }
 .towner { color: var(--muted); font-size: 13px; }
-.tme { font-size: 11px; font-weight: 700; color: var(--accent); margin-left: 6px; }
-.tdue { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
-.tdue.late { color: var(--bad); } .tdue.soon { color: var(--warn); } .tdue.none { color: var(--muted); font-weight: 500; font-size: 12px; }
+.tme { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 8px; padding: 1px 7px; border: 1px solid var(--line-2); border-radius: 4px; white-space: nowrap; }
+.tdue { font-family: var(--font-num); font-size: 19px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.tdue.late { color: var(--bad); } .tdue.soon { color: var(--warn); } .tdue.none { color: var(--muted); font-family: var(--font-body); font-weight: 500; font-size: 12px; }
 
 /* TV: read-only workshop screen, always dark, sized to the screen */
 body.tv-on { overflow: hidden; }
-.tv { position: fixed; inset: 0; z-index: 50; background: #0A0C0F; color: #F3F5F8; display: grid; grid-template-columns: 1fr 1.25fr 1.2fr; grid-template-rows: 1fr auto; gap: clamp(16px, 2.2vw, 36px); padding: clamp(18px, 3vw, 52px) clamp(18px, 3.4vw, 60px) clamp(14px, 1.6vw, 28px); overflow: auto; font-family: var(--font-body); }
+.tv { position: fixed; inset: 0; z-index: 50; background: #08090A; color: #F3F5F8; display: grid; grid-template-columns: 1fr 1.25fr 1.2fr; grid-template-rows: 1fr auto; gap: clamp(16px, 2.2vw, 36px); padding: clamp(18px, 3vw, 52px) clamp(18px, 3.4vw, 60px) clamp(14px, 1.6vw, 28px); overflow: auto; font-family: var(--font-body); }
 .tv h4 { font-size: clamp(11px, .85vw, 15px); letter-spacing: .14em; color: #8A93A2; margin: 0 0 clamp(8px, .8vw, 14px); font-weight: 600; }
 .tv-car { font-family: var(--font-num); font-size: clamp(26px, 2.6vw, 52px); font-weight: 700; letter-spacing: .03em; overflow-wrap: anywhere; }
-.tv-dday { font-family: var(--font-num); font-size: clamp(84px, 10.5vw, 220px); line-height: .9; font-weight: 700; color: #FFD21F; margin: clamp(8px, 1vw, 18px) 0 6px; }
+.tv-dday { font-family: var(--font-num); font-size: clamp(84px, 10.5vw, 220px); line-height: .9; font-weight: 700; color: #FF5A4E; margin: clamp(8px, 1vw, 18px) 0 6px; }
 .tv-dday.unset { font-size: clamp(36px, 4vw, 80px); color: #8A93A2; }
 .tv-sub { font-size: clamp(14px, 1.2vw, 22px); color: #B8C0CC; }
 .tv-block { margin-top: clamp(18px, 2.2vw, 40px); }
 .tv-ms { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(14px, 1.15vw, 22px); border-bottom: 1px solid #262B34; padding: 8px 0; }
 .tv-ms b, .tv-li b, .tv-dep b, .tv-big b { font-family: var(--font-num); font-weight: 700; }
-.tv-ms b { font-size: clamp(18px, 1.5vw, 28px); color: #FFD21F; white-space: nowrap; }
+.tv-ms b { font-size: clamp(18px, 1.5vw, 28px); color: #FF5A4E; white-space: nowrap; }
 .tv-big { display: flex; gap: clamp(14px, 2vw, 34px); margin-bottom: clamp(16px, 1.8vw, 32px); }
 .tv-big div { flex: 1; min-width: 0; }
 .tv-big b { display: block; font-size: clamp(40px, 4.2vw, 80px); line-height: 1; }
 .tv-big span { font-size: clamp(12px, .95vw, 17px); color: #8A93A2; }
 .tv-dep { display: grid; grid-template-columns: minmax(80px, 8vw) 1fr 64px; gap: 14px; align-items: center; font-size: clamp(14px, 1.1vw, 20px); margin-bottom: clamp(10px, .9vw, 16px); }
-.tv-dep .t { height: clamp(10px, 1vw, 18px); background: #1E232B; border-radius: 9px; overflow: hidden; }
-.tv-dep .t i { display: block; height: 100%; background: linear-gradient(90deg, #FFD21F, #2BD576); }
+.tv-dep .t { height: clamp(10px, 1vw, 18px); background: #1E1F23; overflow: hidden; }
+.tv-dep .t i { display: block; height: 100%; background: #45C27F; }
 .tv-dep b { text-align: right; font-size: clamp(18px, 1.4vw, 26px); }
 .tv-li { display: flex; flex-direction: column; gap: 8px; margin-bottom: clamp(16px, 1.6vw, 28px); }
 .tv-li div { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: clamp(14px, 1.1vw, 20px); background: #13161B; border-radius: 8px; padding: clamp(8px, .7vw, 12px) 16px; border-left: 5px solid var(--c); }
@@ -446,6 +485,94 @@ body.tv-on { overflow: hidden; }
 .tv-foot button { font: inherit; font-size: 13px; color: #B8C0CC; background: #13161B; border: 1px solid #262B34; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
 .tv-foot button:hover { color: #fff; border-color: #5F6876; }
 
+/* toast with an action (되돌리기) */
+.toast { display: flex; align-items: center; gap: 14px; }
+.toast button { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 2px 0; white-space: nowrap; }
+
+/* 일정 목록 / 달력 switch (the sidebar's TV switch, on a light surface) */
+.msview { border-color: var(--line); background: var(--surface-2); }
+.msview button { color: var(--muted); }
+.msview button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+/* parts: multi-select and bulk edit */
+th.sel, td.sel { width: 34px; padding-right: 0; }
+td.sel input, th.sel input { width: 16px; height: 16px; margin: 0; vertical-align: middle; cursor: pointer; }
+table.ro .sel { display: none; }
+tr.picked td { background: var(--accent-soft); }
+.bulk { position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--r); box-shadow: 0 8px 28px rgba(16, 24, 40, .18); }
+.bulk > b { font-weight: 700; color: var(--accent); margin-right: 4px; }
+.bulk .field { padding: 5px 8px; font-size: 13px; }
+.bulk input.field { width: 110px; }
+.bulk label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.bulk .right { margin-left: auto; display: flex; gap: 6px; }
+
+/* CSV import preview */
+.imp-sum { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--r); }
+.imp-table { max-height: 320px; overflow: auto; }
+.imp-table td, .imp-table th { padding: 6px 10px; font-size: 12px; }
+.imp-warn { color: var(--warn); white-space: normal; min-width: 160px; }
+.act-new { color: var(--ok); font-weight: 600; }
+.act-upd { color: var(--accent); font-weight: 600; }
+.act-skip { color: var(--muted); }
+
+/* schedule calendar */
+.cal { background: var(--surface); border-radius: var(--r); box-shadow: var(--card-shadow); border: 1px solid var(--card-border); overflow: hidden; }
+.cal-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 14px; }
+.cal-h h3 { font-size: 18px; font-weight: 700; min-width: 7.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.cal-h .legend { margin-left: auto; }
+.cal-dow, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-dow span { font-size: 12px; color: var(--muted); padding: 6px 8px; background: var(--surface-2); border-top: 1px solid var(--line); }
+.cal-dow span:first-child, .cal-day.sun .cal-n { color: var(--bad); }
+.cal-day { min-height: 108px; border-top: 1px solid var(--grid); border-left: 1px solid var(--grid); padding: 4px 5px 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: pointer; }
+.cal-day:nth-child(7n+1) { border-left: 0; }
+.cal-day:hover { background: var(--surface-2); }
+.cal-day.out { background: var(--surface-2); }
+.cal-day.out .cal-n { color: var(--muted); font-weight: 400; }
+.cal-day[aria-selected="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-n { font-size: 12px; font-weight: 600; width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 999px; flex: none; }
+.cal-day.today .cal-n { background: var(--accent); color: var(--accent-ink); }
+.cal-ev { display: block; width: 100%; border: 0; font: inherit; text-align: left; font-size: 11px; line-height: 1.4; padding: 1px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface-2); color: var(--ink); cursor: pointer; }
+.cal-ev.ms { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.cal-ev.comp { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.cal-ev.part { box-shadow: inset 3px 0 0 var(--dc, var(--muted)); }
+.cal-ev.part.late { color: var(--bad); font-weight: 600; }
+.cal-ev.done { text-decoration: line-through; color: var(--muted); }
+.cal-more { font-size: 11px; color: var(--muted); padding-left: 6px; }
+.cal-dots { display: none; gap: 3px; flex-wrap: wrap; padding-left: 4px; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--dc, var(--accent)); }
+.cal-list { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.cal-list h4 { font-size: 14px; font-weight: 600; }
+.cal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; border: 0; background: none; font: inherit; color: inherit; text-align: left; padding: 6px 0; border-top: 1px solid var(--grid); width: 100%; }
+button.cal-row { cursor: pointer; }
+button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.cal-t { font-weight: 600; }
+.cal-load { font-size: 12px; color: var(--muted); }
+.cal-load b { color: var(--warn); }
+
+@media (max-width: 860px) {
+  /* phones & small tablets: the sidebar becomes a slim top band + a bottom tab bar */
+  .shell { display: block; }
+  .side { position: static; height: auto; overflow: visible; flex-direction: row; align-items: center; gap: 10px; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); }
+  .brand { flex: 1; padding: 0; }
+  .eyebrow { display: none; }
+  .car h1 { font-size: 22px; }
+  .mark i { width: 5px; height: 18px; }
+  .side-foot { margin: 0; flex-direction: row; align-items: center; gap: 6px; padding: 0; border: 0; }
+  .side .btn.side-btn { min-width: 40px; min-height: 40px; justify-content: center; padding: 0; }
+  .side-btn span { display: none; }
+  .tabs { position: fixed; z-index: 8; left: 0; right: 0; bottom: 0; flex-direction: row; gap: 2px; padding: 4px max(4px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)); background: var(--side); border-top: 1px solid var(--side-line); }
+  .tab { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 3px; min-height: 52px; padding: 4px 0; font-size: 11px; }
+  .tab::before { position: absolute; top: 0; left: 50%; width: 18px; height: 3px; margin: 0 0 0 -9px; }
+  .tab svg { width: 20px; height: 20px; }
+  .tab .tl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tab .ts { display: block; }
+  .badge { position: absolute; top: 3px; left: 50%; margin-left: 5px; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
+  .top-in { min-height: 56px; padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px)); }
+  .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .bulk { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+}
 @media (max-width: 900px) { .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } .slist { max-height: 360px; overflow-y: auto; }
   .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tgrid .tcard:last-child { grid-column: 1 / -1; }
   .tv { grid-template-columns: 1fr; grid-template-rows: none; } }
@@ -464,26 +591,23 @@ body.tv-on { overflow: hidden; }
   input, select, textarea, .field, label.f input, label.f select, label.f textarea { font-size: 16px; }
   .btn { min-height: 40px; }
   .btn.sm { min-height: 34px; padding: 6px 10px; }
-  .top-in { padding-block: 8px 0; gap: 8px 10px; }
-  .ident h1 { font-size: 19px; }
-  .pit { padding: 3px 12px; }
-  .pit-num { font-size: 19px; }
-  .pit-label, .pit-date, .pit-next { display: none; }
+  .top-in { gap: 8px 10px; }
+  .pit { padding: 3px 12px; min-height: 36px; }
+  .pit-num { font-size: 20px; }
+  .pit-date, .pit-next { display: none; }
   .me input { width: 96px; }
-  .tabs { padding: 6px 0 8px; }
-  .tab { padding: 8px 12px; }
-  .tabs-end { display: none; }
   .today-h h2 { font-size: 21px; }
   .today-dept { margin-left: 0; width: 100%; }
   .today-dept select { flex: 1; }
   .tcard { padding: 12px 14px; }
-  .tcard b { font-size: 26px; }
-  .trow { grid-template-columns: 56px minmax(0, 1fr) 56px; padding: 11px 14px; }
+  .tcard { min-height: 0; }
+  .tcard b { font-size: 34px; }
+  .trow { grid-template-columns: 60px minmax(0, 1fr) 52px; padding: 11px 16px; }
   .towner { display: none; }
-  main { padding-block: 14px 88px; }
+  main { padding-block: 14px calc(96px + env(safe-area-inset-bottom, 0px)); }
   .view { gap: 18px; }
-  .gauge { padding: 10px 12px; gap: 6px; }
-  .g-value { font-size: 26px; }
+  .gauge { padding: 12px 14px; gap: 6px; }
+  .g-value { font-size: 32px; }
   .g-sub { font-size: 11px; }
   .ckgrid { grid-template-columns: minmax(0, 1fr); padding-inline: 12px; }
   .ckitem { padding: 9px 0; font-size: 15px; border-bottom: 1px solid var(--grid); }
@@ -492,24 +616,52 @@ body.tv-on { overflow: hidden; }
   .ck > summary { padding: 12px; }
   .action input, .issue-side input, .ms-side input, .check input { width: 20px; height: 20px; }
   .cform .btn { min-height: 40px; }
-  #partsList th:nth-child(4), #partsList td:nth-child(4), #partsList th:nth-child(5), #partsList td:nth-child(5) { display: none; }
+  #partsList th:nth-child(5), #partsList td:nth-child(5), #partsList th:nth-child(6), #partsList td:nth-child(6) { display: none; }
+  .bulk input.field { width: 96px; }
+  /* calendar: dots in the cells, the chosen day's list below */
+  .cal-day { min-height: 54px; padding: 3px 2px 5px; align-items: center; }
+  .cal-day .cal-ev, .cal-day .cal-more { display: none; }
+  .cal-dots { display: flex; justify-content: center; padding: 0; }
+  .cal-h .legend { margin-left: 0; width: 100%; }
   dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
   .dlg { padding: 16px 16px 0; min-height: 100%; }
   .dlg h3 { font-size: 22px; }
   .dlg-foot { position: sticky; bottom: 0; z-index: 1; background: var(--surface); border-top: 1px solid var(--line); margin: 0 -16px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); margin-top: auto; }
   .dlg-foot .right { flex: 1; justify-content: flex-end; }
   .seg label { padding: 8px 14px; }
-  .toast { bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (pointer: coarse) { .ckitem input, .action input { width: 22px; height: 22px; } }
 @media (prefers-reduced-motion: no-preference) { .track > span { transition: width .4s ease; } }
 </style>
 
-<header class="top">
-  <div class="wrap top-in">
-    <div class="ident">
-      <h1 id="carName" title="FSK 차량 제작 현황">우리 팀 차량</h1>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <span class="eyebrow">FSK 피트보드</span>
+      <div class="car"><span class="mark" aria-hidden="true"><i></i><i></i></span><h1 id="carName" title="FSK 차량 제작 현황">우리 팀 차량</h1></div>
     </div>
+    <nav class="tabs" role="tablist" aria-label="화면">
+      <button class="tab" role="tab" id="tab-today" data-tab="today" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 17.5a8.5 8.5 0 1 1 15 0M12 17l3.5-5"/></svg><span class="tl">오늘</span><span class="ts" aria-hidden="true">오늘</span></button>
+      <button class="tab" role="tab" id="tab-parts" data-tab="parts" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span class="tl">부품 현황</span><span class="ts" aria-hidden="true">부품</span></button>
+      <button class="tab" role="tab" id="tab-sessions" data-tab="sessions" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg><span class="tl">테스트 세션</span><span class="ts" aria-hidden="true">세션</span></button>
+      <button class="tab" role="tab" id="tab-trend" data-tab="trend" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16M7 15l4-4 3 3 5-6"/></svg><span class="tl">추이 분석</span><span class="ts" aria-hidden="true">추이</span></button>
+      <button class="tab" role="tab" id="tab-issues" data-tab="issues" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l9 16H3zM12 10v4M12 17.5v.5"/></svg><span class="tl">이슈</span><span class="ts" aria-hidden="true">이슈</span><span class="badge" id="issueBadge" hidden></span></button>
+      <button class="tab" role="tab" id="tab-schedule" data-tab="schedule" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/></svg><span class="tl">일정</span><span class="ts" aria-hidden="true">일정</span></button>
+      <button class="tab" role="tab" id="tab-expense" data-tab="expense" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/></svg><span class="tl">사비 정산</span><span class="ts" aria-hidden="true">정산</span><span class="badge" id="expBadge" hidden></span></button>
+      <button class="tab" role="tab" id="tab-history" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2"/></svg><span class="tl">변경 이력</span><span class="ts" aria-hidden="true">이력</span></button>
+    </nav>
+    <div class="side-foot">
+      <div class="viewsw" role="group" aria-label="화면 전환">
+        <button type="button" data-view="normal" aria-pressed="true">일반</button>
+        <button type="button" data-view="tv" aria-pressed="false" title="작업실 모니터용 읽기 전용 화면">TV</button>
+      </div>
+      <button class="btn ghost side-btn" id="btnSettings" type="button" aria-label="차량 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg><span>차량 설정</span></button>
+    </div>
+  </aside>
+  <div class="main-col">
+<header class="top">
+  <div class="top-in">
     <div class="pit unset" id="pit">
       <span class="pit-label">대회까지</span>
       <span class="pit-num" id="ddayNum">날짜 미정</span>
@@ -517,25 +669,10 @@ body.tv-on { overflow: hidden; }
       <button class="pit-next" id="pitNext" type="button" hidden></button>
     </div>
     <div class="top-side">
-      <div class="viewsw" role="group" aria-label="화면 전환">
-        <button type="button" data-view="normal" aria-pressed="true">일반</button>
-        <button type="button" data-view="tv" aria-pressed="false" title="작업실 모니터용 읽기 전용 화면">TV</button>
-      </div>
       <div class="me" aria-label="내 이름">
         <input class="field" id="meName" maxlength="20" placeholder="내 이름" aria-label="내 이름">
       </div>
     </div>
-    <nav class="tabs" role="tablist">
-      <button class="tab" role="tab" id="tab-today" data-tab="today" aria-selected="true">오늘</button>
-      <button class="tab" role="tab" id="tab-parts" data-tab="parts" aria-selected="false">부품 현황</button>
-      <button class="tab" role="tab" id="tab-sessions" data-tab="sessions" aria-selected="false">테스트 세션</button>
-      <button class="tab" role="tab" id="tab-trend" data-tab="trend" aria-selected="false">추이 분석</button>
-      <button class="tab" role="tab" id="tab-issues" data-tab="issues" aria-selected="false">이슈<span class="badge" id="issueBadge" hidden></span></button>
-      <button class="tab" role="tab" id="tab-schedule" data-tab="schedule" aria-selected="false">일정</button>
-      <button class="tab" role="tab" id="tab-expense" data-tab="expense" aria-selected="false">사비 정산<span class="badge" id="expBadge" hidden></span></button>
-      <button class="tab" role="tab" id="tab-history" data-tab="history" aria-selected="false">변경 이력</button>
-      <button class="btn ghost sm tabs-end" id="btnSettings" type="button">⚙ 차량 설정</button>
-    </nav>
   </div>
 </header>
 
@@ -598,6 +735,7 @@ body.tv-on { overflow: hidden; }
         <h2>부품 목록</h2>
         <div class="toolbar">
           <span class="count num" id="count"></span>
+          <button class="btn" id="btnImport" type="button" hidden>CSV 가져오기</button>
           <button class="btn" id="btnExport" type="button" hidden>BOM 내보내기 (CSV)</button>
           <button class="btn primary" id="btnAdd" type="button" hidden>+ 부품 추가</button>
         </div>
@@ -608,6 +746,7 @@ body.tv-on { overflow: hidden; }
         <div class="toolbar" id="partsEmptyActions" hidden>
           <button class="btn primary" type="button" id="btnTemplate">기본 부품 목록 넣기 (EV)</button>
           <button class="btn" type="button" id="btnAddEmpty">직접 추가</button>
+          <button class="btn" type="button" id="btnImportEmpty">CSV에서 가져오기</button>
         </div>
         <p class="hint" id="partsEmptyHint" hidden>기본 목록은 프레임, 업라이트, 어큐뮬레이터, TSAL처럼 대부분의 EV 팀이 만드는 부품 이름만 다섯 부서에 나눠 넣어요. 질량, 비용, 담당자는 비워 두니 팀에 맞게 고치거나 지우면 돼요.</p>
       </div>
@@ -624,10 +763,22 @@ body.tv-on { overflow: hidden; }
           </select>
         </div>
         <div class="scroll">
-          <table>
-            <thead><tr><th>단계</th><th>부품</th><th>부서</th><th>구분</th><th class="r">수량</th><th class="r">질량</th><th class="r">금액</th><th>담당</th><th>마감</th></tr></thead>
+          <table id="partTable">
+            <thead><tr><th class="sel"><input type="checkbox" id="pickAll" aria-label="보이는 부품 모두 선택"></th><th>단계</th><th>부품</th><th>부서</th><th>구분</th><th class="r">수량</th><th class="r">질량</th><th class="r">금액</th><th>담당</th><th>마감</th></tr></thead>
             <tbody id="partBody"></tbody>
           </table>
+        </div>
+        <div class="bulk" id="bulkBar" role="region" aria-label="선택한 부품 한꺼번에 바꾸기" hidden>
+          <b id="bulkCount">0개 선택</b>
+          <select class="field" id="bStage" aria-label="단계"></select>
+          <select class="field" id="bDept" aria-label="부서"></select>
+          <input class="field" id="bOwner" maxlength="40" placeholder="담당 그대로" aria-label="담당">
+          <label>마감<input class="field" type="date" id="bDue" aria-label="마감일"></label>
+          <button class="btn primary sm" type="button" id="bApply">적용</button>
+          <div class="right">
+            <button class="btn danger sm" type="button" id="bDelete">삭제</button>
+            <button class="btn ghost sm" type="button" id="bClear">선택 해제</button>
+          </div>
         </div>
       </div>
     </section>
@@ -689,6 +840,10 @@ body.tv-on { overflow: hidden; }
     <div class="sec-head">
       <h2 class="sec-title" style="font-family:var(--font-display);font-weight:600;font-size:22px">대회 준비 일정</h2>
       <div class="toolbar">
+        <div class="viewsw msview" role="group" aria-label="일정 보기 방식">
+          <button type="button" data-msview="list" aria-pressed="true">목록</button>
+          <button type="button" data-msview="cal" aria-pressed="false">달력</button>
+        </div>
         <select class="field" id="msDept" aria-label="부서"></select>
         <button class="btn primary" type="button" id="btnAddMs" hidden>+ 일정 추가</button>
       </div>
@@ -704,7 +859,7 @@ body.tv-on { overflow: hidden; }
       <div class="toolbar">
         <span class="role" id="expRole"></span>
         <button class="btn" type="button" id="btnRoles" hidden>권한 관리</button>
-        <button class="btn" type="button" id="btnExpCsv" hidden>정산 내역 CSV</button>
+        <button class="btn" type="button" id="btnExpCsv" hidden>정산 내역 엑셀</button>
         <button class="btn primary" type="button" id="btnExpNew" hidden>+ 사비 내역서 제출</button>
       </div>
     </div>
@@ -729,15 +884,18 @@ body.tv-on { overflow: hidden; }
       <div class="toolbar">
         <select class="field" id="hType" aria-label="종류">
           <option value="">모든 변경</option><option value="part">부품</option><option value="session">테스트 세션</option><option value="log">부서 기록</option>
-          <option value="comment">의견</option><option value="check">출주 전 점검</option><option value="milestone">일정</option><option value="expense">사비 정산</option><option value="config">설정</option>
+          <option value="comment">의견</option><option value="check">주행 전 점검</option><option value="milestone">일정</option><option value="expense">사비 정산</option><option value="config">설정</option>
         </select>
         <select class="field" id="hDept" aria-label="부서"></select>
       </div>
     </div>
-    <p class="hint">최근 90일 동안의 변경 중 최신 300건을 보여줘요. 이름은 각자 오른쪽 위에 입력한 이름으로 남아요.</p>
+    <p class="hint">최근 90일 동안의 변경 중 최신 300건을 보여줘요. <span id="hNameHint">이름은 각자 오른쪽 위에 입력한 이름으로 남아요.</span></p>
     <div id="histBody"></div>
   </section>
 </main>
+<footer class="site-foot"><a href="#" id="pvLink" data-privacy>개인정보 처리 안내</a></footer>
+  </div>
+</div>
 
 <dialog id="dlgPart">
   <form class="dlg" id="formPart">
@@ -768,6 +926,7 @@ body.tv-on { overflow: hidden; }
     <div class="txt" id="pHist" hidden><span>최근 변경</span><div class="mini-hist" id="pHistList"></div></div>
     <div class="dlg-foot">
       <button class="btn danger" type="button" id="btnDelPart" hidden>삭제</button>
+      <button class="btn ghost sm" type="button" data-copylink id="btnPartLink" hidden>링크 복사</button>
       <div class="right">
         <button class="btn" type="button" data-close>취소</button>
         <button class="btn primary" type="submit" id="btnSavePart">저장</button>
@@ -808,7 +967,7 @@ body.tv-on { overflow: hidden; }
       <label class="f">주행 랩 수<div class="unit"><input id="sLaps" type="number" min="0" step="1" inputmode="numeric"><span>랩</span></div></label>
       <label class="f full">테스트 목적<textarea id="sGoal" maxlength="600" placeholder="이번 세션에서 확인할 것 (예: 리어 캠버 -1.5° → -2.0° 변경 효과, 배터리 열 관리)"></textarea></label>
     </div>
-    <p class="hint" id="sCkHint">새 세션에는 현재 출주 전 점검 항목이 복사돼요.</p>
+    <p class="hint" id="sCkHint">새 세션에는 현재 주행 전 점검 항목이 복사돼요.</p>
     <div class="dlg-foot">
       <button class="btn danger" type="button" id="btnDelSession" hidden>세션 삭제</button>
       <div class="right">
@@ -868,7 +1027,7 @@ body.tv-on { overflow: hidden; }
 
 <dialog id="dlgCk">
   <form class="dlg" id="formCk">
-    <h3>출주 전 점검 항목 편집</h3>
+    <h3>주행 전 점검 항목 편집</h3>
     <p class="hint">한 줄에 한 항목씩 적어요. 여기서 바꾼 항목은 앞으로 만드는 세션부터 적용돼요.</p>
     <div class="grid2" id="ckEdit"></div>
     <label class="check" id="ckApplyWrap"><input type="checkbox" id="ckApply" checked> 지금 보고 있는 세션에도 적용 (이미 체크한 항목은 유지)</label>
@@ -905,10 +1064,11 @@ body.tv-on { overflow: hidden; }
 <dialog id="dlgExpNew">
   <form class="dlg" id="formExpNew">
     <h3 id="xNewTitle">사비 내역서 제출</h3>
-    <p class="hint">동아리 양식(개인사비사용내역서_이름_날짜.xlsx)을 올리면 양식에 맞는지 바로 확인해요. 제출한 뒤에는 총무와 개발자만 수정할 수 있어요.</p>
+    <p class="hint">동아리 양식(개인사비사용내역서_이름_날짜.xlsx)을 올리면 양식에 맞는지 바로 확인해요. <span id="xLockHint">제출한 뒤 내용이 바뀌면 총무 화면에 "검토 후 변경됨"으로 표시돼요.</span></p>
     <div class="toolbar"><span class="btn filebtn">xlsx 파일 선택<input type="file" id="xFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></span><span class="hint" id="xFileName">선택한 파일 없음</span></div>
     <label class="f" id="xApplicantWrap" hidden>신청자 이름 (돈을 받을 사람)<input id="xApplicant" maxlength="20"></label>
     <div id="xResult"></div>
+    <label class="check xagree"><input type="checkbox" id="xAgree" required> <span><b>(필수) 개인정보 제공에 동의해요.</b> <span id="xAgreeText">입금 계좌번호와 영수증 사진이 담긴 원본 파일을 제출해요. 이 페이지는 claude.ai에 저장되고, 페이지를 열 수 있는 사람은 기술적으로 원본을 열어 볼 수 있어요. 화면에서 전체 계좌번호는 총무와 소유자에게만 보여요.</span> <a href="#" data-privacy>자세히</a></span></label>
     <div class="dlg-foot">
       <span class="hint" id="xSubmitHint"></span>
       <div class="right">
@@ -936,7 +1096,39 @@ body.tv-on { overflow: hidden; }
   </form>
 </dialog>
 
+<dialog id="dlgImport">
+  <form class="dlg" id="formImport">
+    <h3>CSV에서 부품 가져오기</h3>
+    <p class="hint">'BOM 내보내기'로 받은 파일이나 엑셀·구글 시트에서 CSV로 저장한 파일을 올려요. 첫 줄은 머리글이어야 하고, <b>부품명</b> 열만 있으면 돼요. 부서 · 부품번호 · 구분 · 제작 단계 · 수량 · 개당 질량(g) · 개당 비용(원) · 공급처 · 담당자 · 마감일 · 메모 열을 알아봐요. 엑셀의 한글 CSV(EUC-KR)도 읽어요.</p>
+    <div class="toolbar"><span class="btn filebtn">CSV 파일 선택<input type="file" id="impFile" accept=".csv,.tsv,.txt,text/csv"></span><span class="hint" id="impFileName">선택한 파일 없음</span></div>
+    <label class="check"><input type="checkbox" id="impOverwrite" checked> 이미 있는 부품(부품번호, 또는 부서와 이름이 같은 것)은 파일 내용으로 고치기</label>
+    <div id="impResult"></div>
+    <div class="dlg-foot">
+      <span class="hint" id="impHint"></span>
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit" id="btnImpGo" disabled>가져오기</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
 <div class="tv" id="tv" role="region" aria-label="공방 TV 화면" hidden></div>
+
+<dialog id="dlgPrivacy" aria-labelledby="pvTitle">
+  <div class="dlg">
+    <h3 id="pvTitle">개인정보 처리 안내</h3>
+    <ul class="pv-list">
+      <li>이 페이지는 claude.ai Artifact에서 돌아가요. 데이터는 Artifact의 공유 저장소에 있고, 페이지를 열 수 있는 사람이 함께 봐요. 사람 구분은 claude.ai 계정 기준이고, 계정 정보는 claude.ai(Anthropic)의 개인정보 처리방침을 따라요.</li>
+      <li>저장하는 것: 각자 적은 이름·부서, 부품·테스트 기록·의견·점검·일정, 변경 이력(90일), 사비 내역서(신청자 이름, 계좌번호가 든 원본 파일, 영수증 사진, 금액).</li>
+      <li>사비 내역서 원본과 영수증은 페이지를 열 수 있는 사람이 기술적으로 열어 볼 수 있어요. 화면에서 전체 계좌번호는 총무와 소유자에게만 보여요. 계좌 정보를 더 안전하게 다루려면 자체 서버 버전을 쓰세요.</li>
+      <li>이 기기의 브라우저 저장소에는 내 이름·부서와 화면 설정(일반/TV, 닫은 안내)만 저장해요. 광고·분석·추적 쿠키는 없어요.</li>
+      <li>글꼴(Google Fonts)과 xlsx 읽기 도구(JSZip, cdnjs)를 외부에서 불러와요. 이때 접속 IP 주소가 Google과 Cloudflare에 전달돼요.</li>
+      <li>내 정보를 지우고 싶으면 페이지 소유자(개발자)에게 요청하세요. 소유자는 사비 내역서를 "완전 삭제"로 파일까지 지울 수 있어요.</li>
+    </ul>
+    <div class="dlg-foot"><div class="right"><button class="btn primary" type="button" data-close>닫기</button></div></div>
+  </div>
+</dialog>
 
 <div class="toast" id="toast" role="status" hidden></div>
 
@@ -1114,6 +1306,109 @@ window.FSKExpenseRules = (() => {
 })();
 </script>
 <script>
+// BOM CSV 가져오기 규칙: pure functions with no DOM access, used by the page below and by test/bom-import.test.js.
+window.FSKBom = (() => {
+  // Excel in Korean saves "CSV" as EUC-KR (CP949); everything else is UTF-8, often with a BOM.
+  function decode(bytes) {
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^﻿/, ""); }
+    catch { try { return new TextDecoder("euc-kr").decode(bytes); } catch { return new TextDecoder().decode(bytes); } }
+  }
+  // RFC 4180 with the delimiter guessed from the first line (comma, tab from a sheet, or semicolon).
+  function parseCsv(text) {
+    const first = String(text).split(/\r?\n/, 1)[0] || "";
+    const count = (ch) => first.split(ch).length - 1;
+    const delim = [",", "\t", ";"].sort((a, b) => count(b) - count(a))[0];
+    const rows = []; let row = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; continue; }
+      if (c === '"' && cell === "") q = true;
+      else if (c === delim) { row.push(cell); cell = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+      else cell += c;
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter((r) => r.some((v) => v.trim() !== ""));
+  }
+  const norm = (s) => String(s ?? "").toLowerCase().replace(/[\s·_\-]/g, "");
+  const HEAD = {
+    name: ["부품명", "부품", "부품이름", "이름", "품명", "품목", "name", "part", "partname"],
+    partNo: ["부품번호", "번호", "도면번호", "partno", "partnumber", "p/n", "pn"],
+    dept: ["부서", "팀", "파트", "시스템", "dept", "department", "team", "system"],
+    make: ["구분", "제작/구매", "제작구매", "makebuy", "make/buy", "make", "type"],
+    stage: ["제작단계", "단계", "진행단계", "상태", "stage", "status"],
+    qty: ["수량", "개수", "qty", "quantity"],
+    unitMass: ["개당질량(g)", "개당질량", "질량(g)", "질량", "무게(g)", "무게", "mass(g)", "mass", "weight(g)", "weight"],
+    unitMassKg: ["개당질량(kg)", "질량(kg)", "무게(kg)", "mass(kg)", "weight(kg)"],
+    unitCost: ["개당비용(원)", "개당비용", "단가(원)", "단가", "비용(원)", "비용", "가격", "cost", "unitcost", "price"],
+    supplier: ["공급처/가공처", "공급처", "가공처", "구매처", "업체", "supplier", "vendor"],
+    owner: ["담당자", "담당", "owner", "assignee"],
+    due: ["마감일", "마감", "납기", "due", "duedate", "deadline"],
+    note: ["메모", "비고", "note", "notes", "memo"]
+  };
+  const HEAD_OF = new Map(); Object.entries(HEAD).forEach(([k, list]) => list.forEach((h) => HEAD_OF.set(norm(h), k)));
+  const DEPT_ALIAS = {
+    battery: ["배터리", "어큐뮬레이터", "축전", "battery", "accumulator", "bat"],
+    circuit: ["회로", "전장", "전기", "전자", "하네스", "circuit", "electrical", "electronics", "lv", "hv"],
+    chassis: ["프레임현가", "프레임", "현가", "섀시", "샤시", "차체", "서스펜션", "조향", "제동", "chassis", "frame", "suspension"],
+    aero: ["에어로", "공력", "바디", "aero", "aerodynamics", "body"],
+    powertrain: ["파워트레인", "구동", "동력", "구동계", "powertrain", "drivetrain", "pt"]
+  };
+  const DEPT_OF = new Map(); Object.entries(DEPT_ALIAS).forEach(([k, list]) => list.forEach((h) => DEPT_OF.set(norm(h), k)));
+  const STAGE_ALIAS = { design: ["설계", "design", "cad"], order: ["발주", "구매중", "order", "ordered"], machining: ["가공", "제작중", "제작", "machining", "manufacturing"], inspect: ["검수", "검사", "inspect", "inspection"], assembly: ["조립", "assembly"], done: ["완료", "완성", "done", "complete", "completed"] };
+  const STAGE_OF = new Map(); Object.entries(STAGE_ALIAS).forEach(([k, list]) => list.forEach((h) => STAGE_OF.set(norm(h), k)));
+  const toNumber = (v) => { const s = String(v ?? "").replace(/[,\s원₩g]|kg$/gi, ""); return s !== "" && isFinite(Number(s)) ? Number(s) : null; };
+  function toDate(v, year = new Date().getFullYear()) {
+    const s = String(v ?? "").trim();
+    const pad = (n) => String(n).padStart(2, "0"), ok = (y, m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(m)}-${pad(d)}` : null;
+    let m = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*일?\.?$/); if (m) return ok(+m[1], +m[2], +m[3]);
+    m = s.match(/^(\d{1,2})\s*[/.월]\s*(\d{1,2})\s*일?$/); if (m) return ok(year, +m[1], +m[2]);
+    return null;
+  }
+  // rows: parseCsv output. Returns the columns found and one entry per data row with only the fields that row sets.
+  function toParts(rows) {
+    if (!rows.length) return { error: "파일이 비어 있어요.", cols: [], items: [] };
+    const head = rows[0].map((h) => HEAD_OF.get(norm(h)) || null);
+    if (!head.includes("name")) return { error: "'부품명' 열을 찾을 수 없어요. 첫 줄에 머리글(부품명, 부서, 수량 …)이 있어야 해요.", cols: [], items: [] };
+    const cols = [...new Set(head.filter(Boolean).map((k) => k === "unitMassKg" ? "unitMass" : k))];
+    const items = [];
+    rows.slice(1).forEach((r, i) => {
+      const data = {}, warns = [], cell = (k) => { const at = head.indexOf(k); return at < 0 ? undefined : String(r[at] ?? "").trim(); };
+      const name = cell("name");
+      if (!name) { items.push({ line: i + 2, skip: true, data, warns: ["부품명이 비어 있어 건너뛰어요"] }); return; }
+      data.name = name.slice(0, 80);
+      const text = (k, max) => { const v = cell(k); if (v !== undefined) data[k] = v.slice(0, max); };
+      text("partNo", 40); text("supplier", 60); text("owner", 40); text("note", 1000);
+      const dept = cell("dept");
+      if (dept) { const k = DEPT_OF.get(norm(dept)); if (k) data.dept = k; else warns.push(`부서 '${dept}'를 알 수 없어요`); }
+      const make = cell("make");
+      if (make) { if (/구매|구입|buy|purchase|cots/i.test(make)) data.make = "buy"; else if (/제작|가공|자작|make|fab/i.test(make)) data.make = "make"; else warns.push(`구분 '${make}'를 알 수 없어요`); }
+      const stage = cell("stage");
+      if (stage) { const k = STAGE_OF.get(norm(stage)); if (k) data.stage = k; else warns.push(`단계 '${stage}'를 알 수 없어요`); }
+      const qty = cell("qty");
+      if (qty !== undefined && qty !== "") { const n = toNumber(qty); if (n !== null && n >= 1) data.qty = Math.round(n); else warns.push(`수량 '${qty}'가 숫자가 아니에요`); }
+      const num = (raw, label, scale) => { if (raw === undefined) return undefined; if (raw === "") return null; const n = toNumber(raw); if (n === null || n < 0) { warns.push(`${label} '${raw}'가 숫자가 아니에요`); return undefined; } return n * scale; };
+      const g = num(cell("unitMass"), "질량", 1), kgv = num(cell("unitMassKg"), "질량", 1000);
+      if (kgv !== undefined && kgv !== null) data.unitMass = kgv; else if (g !== undefined) data.unitMass = g; else if (kgv === null) data.unitMass = null;
+      const cost = num(cell("unitCost"), "비용", 1); if (cost !== undefined) data.unitCost = cost === null ? null : Math.round(cost);
+      const due = cell("due");
+      if (due !== undefined) { if (due === "") data.due = ""; else { const d = toDate(due); if (d) data.due = d; else warns.push(`마감일 '${due}'를 읽을 수 없어요`); } }
+      items.push({ line: i + 2, data, warns });
+    });
+    return { cols, items };
+  }
+  const key = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  // Which existing part a row updates: same 부품번호, else same 부서 + 이름 (or a unique name when the row has no 부서).
+  function matchPart(data, parts, deptOf) {
+    if (data.partNo) { const p = parts.find((x) => key(x.partNo) && key(x.partNo) === key(data.partNo)); if (p) return p; }
+    const same = parts.filter((x) => key(x.name) === key(data.name));
+    if (data.dept) return same.find((x) => deptOf(x) === data.dept) || null;
+    return same.length === 1 ? same[0] : null;
+  }
+  return Object.freeze({ decode, parseCsv, toParts, toDate, matchPart });
+})();
+</script>
+<script>
 (() => {
   // ---------- domain ----------
   const DEPTS = [
@@ -1236,8 +1531,68 @@ window.FSKExpenseRules = (() => {
     parts: [], cfg: {}, ckCfg: null, sessions: [], logs: [], comments: [], checks: [], milestones: [], history: [],
     sel: null, editPart: null, editSession: null, editLog: null, editMs: null, ckOpen: true,
     att: { keep: [], add: [], remove: [] }, linkDraft: [],
-    me: { dept: store.get("fsk.me.dept"), name: store.get("fsk.me.name") }
+    me: { dept: store.get("fsk.me.dept"), name: store.get("fsk.me.name") },
+    picked: new Set(), pendingOpen: null, expLoaded: false,
+    msView: store.get("fsk.ms.view") === "cal" ? "cal" : "list", calMonth: todayStr().slice(0, 7), calDay: todayStr(), calParts: store.get("fsk.cal.parts") !== "0"
   };
+  const TABS = ["today", "parts", "sessions", "trend", "issues", "schedule", "expense", "history"];
+
+  // ---------- address (#parts, #sessions/<id>, #parts/<id>, #expense/<key>) ----------
+  // Switching tabs adds a history entry (the phone's back button goes to the previous tab); picking a session or
+  // opening a part only rewrites the address so it can be copied and shared.
+  function readRoute() {
+    const raw = location.hash.replace(/^#\/?/, ""), at = raw.indexOf("/");
+    const tab = at < 0 ? raw : raw.slice(0, at);
+    let id = "";
+    try { id = at < 0 ? "" : decodeURIComponent(raw.slice(at + 1)); } catch {}
+    return TABS.includes(tab) ? { tab, id } : null;
+  }
+  function routeHash() {
+    if ($("dlgPart").open && state.editPart) return "#parts/" + encodeURIComponent(state.editPart);
+    if ($("dlgExp").open && state.xOpen) return "#expense/" + encodeURIComponent(state.xOpen);
+    if (state.tab === "sessions" && state.sel) return "#sessions/" + encodeURIComponent(state.sel);
+    return state.tab === "today" ? "" : "#" + state.tab;
+  }
+  // routedHash is the address this page last wrote or applied. When the address differs from it, someone navigated
+  // (a link, the back button) and the hashchange handler has not run yet: leave the address alone until it does.
+  let routedTab = null, routedHash = location.hash;
+  function syncRoute() {
+    if (location.hash !== routedHash) return;
+    const h = routeHash(), push = routedTab !== null && routedTab !== state.tab;
+    routedTab = state.tab;
+    if (h === location.hash || (!h && !location.hash)) return;
+    try { history[push ? "pushState" : "replaceState"](null, "", h || location.pathname + location.search); } catch {}
+    routedHash = location.hash;
+  }
+  function applyRoute(r) {
+    if (!r) return;
+    state.tab = r.tab; routedTab = r.tab;
+    if (r.tab === "sessions" && r.id) state.sel = r.id;
+    state.pendingOpen = r.id && (r.tab === "parts" || r.tab === "expense") ? { tab: r.tab, id: r.id } : null;
+    if (!state.pendingOpen) { if ($("dlgPart").open) $("dlgPart").close(); if ($("dlgExp").open) $("dlgExp").close(); }
+  }
+  // a part or 사비 내역서 named in the address opens once its data has arrived
+  function openPending() {
+    const o = state.pendingOpen;
+    if (!o || !live()) return;
+    if (o.tab === "parts") {
+      state.pendingOpen = null;
+      if (state.parts.some((p) => p.id === o.id)) { if (!($("dlgPart").open && state.editPart === o.id)) openPart(o.id); }
+      else toast("링크의 부품을 찾을 수 없어요. 지워졌을 수 있어요.");
+    } else if (o.tab === "expense" && state.expLoaded) {
+      state.pendingOpen = null;
+      if (allSubs().some((s) => s.key === o.id)) { if (!$("dlgExp").open) openExp(o.id); }
+      else toast("링크의 사비 내역서를 찾을 수 없거나 볼 권한이 없어요.");
+    }
+  }
+  function shareUrl(hash) { return location.origin + location.pathname + hash; }
+  async function copyLink(hash) {
+    const url = shareUrl(hash);
+    try { await navigator.clipboard.writeText(url); toast("링크를 복사했어요. 팀 채팅에 붙여 넣으면 이 화면이 바로 열려요."); }
+    catch { toast(url); }
+  }
+
+  applyRoute(readRoute());
   const live = () => state.phase === "live";
   const sessionIds = () => new Set(state.sessions.map((s) => s.id));
   const isIssue = (l) => l.status === "warn" || l.status === "bad";
@@ -1306,7 +1661,7 @@ window.FSKExpenseRules = (() => {
     // Expense settlement: each person writes only their own expenses/<id> and reviews/<id>; config/roles is owner-only (see db rules).
     colPeople = db.collection("people"); colExp = db.collection("expenses"); colRev = db.collection("reviews"); rolesRef = db.doc("config/roles");
     colPeople.onSnapshot((s) => { state.people = rows(s); if (!state.registered) registerMe(); }, () => {});
-    colExp.onSnapshot((s) => { state.expenseDocs = rows(s); renderExpenseIfOpen(); }, () => {});
+    colExp.onSnapshot((s) => { state.expenseDocs = rows(s); state.expLoaded = true; renderExpenseIfOpen(); openPending(); }, () => {});
     colRev.onSnapshot((s) => { state.reviewDocs = rows(s); renderExpenseIfOpen(); }, () => {});
     rolesRef.onSnapshot((s) => {
       state.roles = s.exists ? s.data() : null; state.rolesLoaded = true;
@@ -1330,6 +1685,8 @@ window.FSKExpenseRules = (() => {
   $("mKind").innerHTML = MS_KINDS.map((k) => `<option>${k}</option>`).join("");
   $("fst").innerHTML = `<option value="all">모든 단계</option><option value="open">미완료만</option><option value="late">마감 지남</option><option value="issue">테스트 이슈 있음</option>` + STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   $("pStage").innerHTML = STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+  $("bStage").innerHTML = `<option value="">단계 그대로</option>` + STAGES.map(([k, l]) => `<option value="${k}">단계 → ${l}</option>`).join("");
+  $("bDept").innerHTML = `<option value="">부서 그대로</option>` + DEPTS.map((d) => `<option value="${d.k}">부서 → ${d.l}</option>`).join("");
   $("sEvent").innerHTML = EVENTS.map((e) => `<option>${e}</option>`).join("");
   $("tEvent").innerHTML = `<option value="">모든 종목</option>` + EVENTS.map((e) => `<option>${e}</option>`).join("");
   $("stageLegend").innerHTML = STAGES.map(([, l], i) => `<span><i style="background:var(--s${i})"></i>${l}</span>`).join("");
@@ -1382,7 +1739,7 @@ window.FSKExpenseRules = (() => {
     const waiting = isManager() ? liveSubs().filter((s) => ["pending", "fix"].includes(statusOf(s)) || isChanged(s)).length : 0;
     $("expBadge").hidden = !waiting; $("expBadge").textContent = waiting;
 
-    ["today", "parts", "sessions", "trend", "issues", "schedule", "expense", "history"].forEach((t) => {
+    TABS.forEach((t) => {
       $("view-" + t).hidden = state.tab !== t;
       $("tab-" + t).setAttribute("aria-selected", String(state.tab === t));
     });
@@ -1392,6 +1749,8 @@ window.FSKExpenseRules = (() => {
     document.body.classList.toggle("tv-on", tv);
     $("tv").hidden = !tv;
     if (tv) renderTV();
+    syncRoute();
+    openPending();
   }
 
   // ---------- 오늘 ----------
@@ -1435,8 +1794,8 @@ window.FSKExpenseRules = (() => {
       card("late", late.length ? "var(--bad)" : "var(--ok)", "마감 지난 부품", late.length, partNames(late))
       + card("soon", soon.length ? "var(--warn)" : "var(--ok)", "3일 안 마감", soon.length, partNames(soon))
       + card("issues", issues.length ? "var(--bad)" : "var(--ok)", "미해결 이슈", issues.length, issues.length ? `문제 ${bad} · 주의 ${issues.length - bad} · ${esc([...new Set(issues.map((l) => DEPT[l.dept]?.l || ""))].filter(Boolean).slice(0, 3).join(", "))}` : "없어요")
-      + card("schedule", "var(--accent)", "다음 일정", ms[0] ? dLabel(daysUntil(ms[0].date)) : "–", ms[0] ? esc(ms[0].title) + (ms[1] ? ` · 그다음 ${esc(ms[1].title)} ${dLabel(daysUntil(ms[1].date))}` : "") : "남은 일정이 없어요")
-      + card("check", "var(--ok)", last ? `출주 전 점검 · ${esc(last.event || "주행")}` : "출주 전 점검", cp ? `${cp.n}/${cp.total}` : "–",
+      + card("schedule", "var(--race)", "다음 일정", ms[0] ? dLabel(daysUntil(ms[0].date)) : "–", ms[0] ? esc(ms[0].title) + (ms[1] ? ` · 그다음 ${esc(ms[1].title)} ${dLabel(daysUntil(ms[1].date))}` : "") : "남은 일정이 없어요")
+      + card("check", "var(--ok)", last ? `주행 전 점검 · ${esc(last.event || "주행")}` : "주행 전 점검", cp ? `${cp.n}/${cp.total}` : "–",
         cp ? (cp.total && cp.n === cp.total ? `${esc(fmtShort(last.date))} 세션 · 출주 준비 완료` : `${esc(fmtShort(last.date))} 세션 · ${cp.total - cp.n}개 남았어요 →`) : "테스트 세션을 만들면 보여요",
         cp ? `<div class="track"><span class="fill ok" style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></span></div>` : "");
     const dk = DEPT[state.me.dept] ? state.me.dept : "";
@@ -1444,7 +1803,7 @@ window.FSKExpenseRules = (() => {
     const list = state.parts.filter((p) => deptOf(p) === dk && p.stage !== "done").sort(byDue);
     const row = (p) => {
       const n = p.due ? daysUntil(p.due) : null;
-      return `<button type="button" class="trow" data-part="${esc(p.id)}"><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span><span>${esc(p.name || "(이름 없음)")}${isMine(p) ? '<span class="tme">내 담당</span>' : ""}</span><span class="towner">${esc(ownerName(p) || "–")}</span><span class="tdue ${n === null ? "none" : n < 0 ? "late" : n <= 3 ? "soon" : ""}">${n === null ? "마감 없음" : dLabel(n)}</span></button>`;
+      return `<button type="button" class="trow" data-part="${esc(p.id)}"><span class="tstage" style="--sc:var(--s${STAGE_INDEX[p.stage] ?? 0})">${STAGE_LABEL[p.stage] || "설계"}</span><span>${esc(p.name || "(이름 없음)")}${isMine(p) ? '<span class="tme">내 담당</span>' : ""}</span><span class="towner">${esc(ownerName(p) || "–")}</span><span class="tdue ${n === null ? "none" : n < 0 ? "late" : n <= 3 ? "soon" : ""}">${n === null ? "마감 없음" : dLabel(n)}</span></button>`;
     };
     $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일 · ${DEPT[dk].l}</h3>${list.length > 8 ? `<button class="btn ghost sm" type="button" data-today="dept">남은 부품 ${list.length}개 모두 보기 →</button>` : ""}</div>`
       + (list.length ? list.slice(0, 8).map(row).join("") : `<p class="hint" style="padding:0 16px 14px">남은 부품이 없어요. 모두 완료됐어요.</p>`);
@@ -1482,7 +1841,7 @@ window.FSKExpenseRules = (() => {
         <div class="tv-dday${d === null ? " unset" : ""}">${d === null ? "날짜 미정" : d > 0 ? "D-" + d : d === 0 ? "D-DAY" : "대회 종료"}</div>
         <div class="tv-sub">${c.compDate ? esc(fmtDate(c.compDate)) + " 대회" : "차량 설정에서 대회 날짜를 정해요"}</div>
         <div class="tv-block"><h4>다가오는 일정</h4>${ms.length ? ms.slice(0, 4).map((m) => `<div class="tv-ms"><span>${esc(m.title)}</span><b>${dLabel(daysUntil(m.date))}</b></div>`).join("") : '<div class="tv-none">남은 일정이 없어요</div>'}</div>
-        ${cp ? `<div class="tv-block"><h4>오늘 출주 전 점검 · ${esc(last.event || "주행")}</h4><div class="tv-dep"><span>${cp.n}/${cp.total}</span><div class="t"><i style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></i></div><b>${cp.total ? Math.round((cp.n / cp.total) * 100) : 0}%</b></div></div>` : ""}
+        ${cp ? `<div class="tv-block"><h4>오늘 주행 전 점검 · ${esc(last.event || "주행")}</h4><div class="tv-dep"><span>${cp.n}/${cp.total}</span><div class="t"><i style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></i></div><b>${cp.total ? Math.round((cp.n / cp.total) * 100) : 0}%</b></div></div>` : ""}
       </div>
       <div><h4>제작 현황</h4>
         <div class="tv-big"><div><b>${total ? Math.round((done / total) * 100) : 0}%</b><span>${total}개 중 ${done}개 완료</span></div>
@@ -1528,6 +1887,7 @@ window.FSKExpenseRules = (() => {
     const total = parts.length;
     $("btnAdd").hidden = !(live() && canWrite && total);
     $("btnExport").hidden = !(live() && total);
+    $("btnImport").hidden = !(live() && canWrite && total);
 
     const counts = stageCounts(parts), done = counts[STAGE_INDEX.done];
     if (total) {
@@ -1612,11 +1972,17 @@ window.FSKExpenseRules = (() => {
     list.sort(by[sort] || by.dept);
     $("count").textContent = list.length === state.parts.length ? `${list.length}개` : `${state.parts.length}개 중 ${list.length}개`;
     const dis = state.canWrite ? "" : " disabled";
+    // selection only covers parts that are on screen, so a filter change never leaves hidden parts selected
+    const shown = new Set(list.map((p) => p.id));
+    [...state.picked].forEach((id) => { if (!shown.has(id)) state.picked.delete(id); });
+    $("partTable").classList.toggle("ro", !state.canWrite);
     $("partBody").innerHTML = list.length ? list.map((p) => {
       const si = STAGE_INDEX[p.stage] ?? 0, q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost), dk = deptOf(p);
       const opts = STAGES.map(([k, l]) => `<option value="${k}"${k === (p.stage || "design") ? " selected" : ""}>${l}</option>`).join("");
       const iss = issueMap[p.id], natt = (p.attachments || []).length;
-      return `<tr>
+      const on = state.picked.has(p.id);
+      return `<tr${on ? ' class="picked"' : ""}>
+        <td class="sel"><input type="checkbox" data-pick="${esc(p.id)}" aria-label="${esc(p.name || "부품")} 선택"${on ? " checked" : ""}${lockedFor(p) ? " disabled" : ""}></td>
         <td><span class="dot" style="background:var(--s${si})"></span><select class="st" data-stage="${esc(p.id)}" aria-label="제작 단계"${dis || (lockedFor(p) ? " disabled" : "")}>${opts}</select></td>
         <td class="pcell"><button class="pname" type="button" data-part="${esc(p.id)}">${esc(p.name || "(이름 없음)")}</button>${iss ? `<button class="flag" type="button" data-part="${esc(p.id)}" title="미해결 테스트 이슈">⚠ 이슈 ${iss}</button>` : ""}${natt ? `<span class="clip">첨부 ${natt}</span>` : ""}${p.locked ? `<span class="lock" title="${esc(p.locked.by || "")} 잠금">🔒 잠김</span>` : ""}${p.partNo ? `<span class="pno">${esc(p.partNo)}</span>` : ""}</td>
         <td><span class="dname">${dmark(dk)}${DEPT[dk].l}</span></td>
@@ -1627,7 +1993,16 @@ window.FSKExpenseRules = (() => {
         <td>${ownerName(p) ? esc(ownerName(p)) : '<span class="dim">–</span>'}</td>
         <td class="num ${isLate(p) ? "late" : ""}">${p.due ? esc(fmtDate(p.due)) : '<span class="dim">–</span>'}</td>
       </tr>`;
-    }).join("") : `<tr><td colspan="9" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
+    }).join("") : `<tr><td colspan="10" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
+    renderBulk(list.filter((p) => !lockedFor(p)).length);
+  }
+  function renderBulk(visible) {
+    const n = state.picked.size, all = $("pickAll");
+    all.checked = !!n && n === visible; all.indeterminate = !!n && n < visible;
+    $("bulkBar").hidden = !(n && state.canWrite);
+    $("bulkCount").textContent = `${n}개 선택`;
+    const del = $("bDelete");
+    if (!del.classList.contains("armed")) del.textContent = "삭제";
   }
 
   // ---------- sessions ----------
@@ -1656,7 +2031,7 @@ window.FSKExpenseRules = (() => {
       $("btnFirstSession").hidden = !(live() && state.canWrite);
       if (state.phase === "loading") { $("sessEmptyTitle").textContent = "불러오는 중…"; $("sessEmptyText").textContent = "팀 저장소에 연결하고 있어요."; }
       else if (!live()) { $("sessEmptyTitle").textContent = "기록을 표시할 수 없어요"; $("sessEmptyText").textContent = "저장소에 연결되면 테스트 세션과 부서별 기록이 여기에 나타나요."; }
-      else { $("sessEmptyTitle").textContent = "아직 테스트 세션이 없어요"; $("sessEmptyText").textContent = "주행 테스트를 하는 날 세션을 하나 만드세요. 출주 전 점검을 부서별로 체크하고, 주행 뒤에는 배터리 · 회로 · 프레임·현가 · 에어로 · 파워트레인이 각자 결과를 남겨 서로의 분석을 한 화면에서 볼 수 있어요."; }
+      else { $("sessEmptyTitle").textContent = "아직 테스트 세션이 없어요"; $("sessEmptyText").textContent = "주행 테스트를 하는 날 세션을 하나 만드세요. 주행 전 점검을 부서별로 체크하고, 주행 뒤에는 배터리 · 회로 · 프레임·현가 · 에어로 · 파워트레인이 각자 결과를 남겨 서로의 분석을 한 화면에서 볼 수 있어요."; }
       return;
     }
     $("sessEmpty").hidden = true; $("sessSplit").hidden = false;
@@ -1688,7 +2063,7 @@ window.FSKExpenseRules = (() => {
       </div>`;
     }).join("");
     return `<details class="ck" id="ckPanel"${state.ckOpen ? " open" : ""}>
-      <summary><h3>출주 전 점검</h3>${ready ? '<span class="stt ok">✓ 출주 준비 완료</span>' : `<span class="stt ${n ? "warn" : "none"}">${n ? "점검 중" : "점검 전"}</span>`}
+      <summary><h3>주행 전 점검</h3>${ready ? '<span class="stt ok">✓ 출주 준비 완료</span>' : `<span class="stt ${n ? "warn" : "none"}">${n ? "점검 중" : "점검 전"}</span>`}
         <div class="track"><span class="fill ${ready ? "ok" : ""}" style="width:${total ? (n / total) * 100 : 0}%"></span></div><span class="num dim" style="font-size:12px">${n}/${total}</span><span class="caret"></span></summary>
       <div class="ckgrid">${blocks}</div>
       ${cw && state.canManageTeam ? `<div class="ck-foot"><button class="btn ghost sm" type="button" id="btnEditCk">점검 항목 편집</button></div>` : ""}
@@ -1723,7 +2098,7 @@ window.FSKExpenseRules = (() => {
       <div class="dhead">
         <div class="dhead-top">
           <div><h2>${esc(s.event || "주행")}</h2><span class="sub">${esc(fmtDate(s.date))}${s.location ? " · " + esc(s.location) : ""}</span></div>
-          ${cw ? `<div class="toolbar"><button class="btn sm" type="button" id="btnEditSession">세션 수정</button><button class="btn primary sm" type="button" data-addlog="${esc(state.me.dept || "")}">+ 부서 기록</button></div>` : ""}
+          <div class="toolbar">${window.FSK_SELF_HOSTED ? `<button class="btn ghost sm" type="button" data-copylink="#sessions/${esc(encodeURIComponent(s.id))}">링크 복사</button>` : ""}${cw ? `<button class="btn sm" type="button" id="btnEditSession">세션 수정</button><button class="btn primary sm" type="button" data-addlog="${esc(state.me.dept || "")}">+ 부서 기록</button>` : ""}</div>
         </div>
         <div class="facts">${facts}</div>
         ${s.goal ? `<p class="goal"><b>테스트 목적</b> · ${esc(s.goal)}</p>` : ""}
@@ -1785,7 +2160,7 @@ window.FSKExpenseRules = (() => {
 
     const desc = sess.slice().reverse();
     $("mxHead").innerHTML = `<tr><th>세션</th>${DEPTS.map((x) => `<th><span class="dname">${dmark(x.k)}${x.l}</span></th>`).join("")}<th class="r">점검</th></tr>`;
-    $("mxBody").innerHTML = desc.length ? desc.map((s) => { const cp = checkProgress(s); return `<tr class="link" data-goto="${esc(s.id)}"><td><span class="mono dim">${esc(fmtShort(s.date))}</span> ${esc(s.event || "주행")}</td>${DEPTS.map((x) => `<td>${verdictChip(worst(logsOf(s.id, x.k)))}</td>`).join("")}<td class="r num">${cp.n}/${cp.total}</td></tr>`; }).join("")
+    $("mxBody").innerHTML = desc.length ? desc.map((s) => { const cp = checkProgress(s); return `<tr class="link" tabindex="0" data-goto="${esc(s.id)}"><td><span class="mono dim">${esc(fmtShort(s.date))}</span> ${esc(s.event || "주행")}</td>${DEPTS.map((x) => `<td>${verdictChip(worst(logsOf(s.id, x.k)))}</td>`).join("")}<td class="r num">${cp.n}/${cp.total}</td></tr>`; }).join("")
       : `<tr><td colspan="${DEPTS.length + 2}" class="dim">${live() ? "선택한 종목의 세션이 없어요." : "저장소에 연결되면 표시돼요."}</td></tr>`;
     $("tvHead").innerHTML = `<tr><th>세션</th>${series.map((s) => `<th class="r">${esc(s.name)} (${esc(unit)})</th>`).join("")}</tr>`;
     $("tvBody").innerHTML = desc.length ? desc.map((s) => { const i = sess.indexOf(s); return `<tr><td>${esc(xs[i].long)}</td>${series.map((se) => `<td class="r num">${fmtN(se.values[i])}</td>`).join("")}</tr>`; }).join("")
@@ -1892,7 +2267,9 @@ window.FSKExpenseRules = (() => {
     const sugg = MS_SUGGEST.filter(([t]) => !have.has(t));
     $("msSugg").hidden = !(cw && sugg.length);
     $("msSugg").innerHTML = `<span>자주 쓰는 일정:</span>` + sugg.map(([t, k]) => `<button class="btn sm" type="button" data-msnew="${esc(t)}" data-mskind="${esc(k)}">+ ${esc(t)}</button>`).join("");
+    document.querySelectorAll("[data-msview]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msview === state.msView)));
     if (!live()) { $("msBody").innerHTML = `<div class="empty"><p>저장소에 연결되면 대회 준비 일정이 여기에 나타나요.</p></div>`; return; }
+    if (state.msView === "cal") { renderCalendar(); return; }
     const fd = $("msDept").value, t = todayStr();
     const list = state.milestones.filter((m) => !fd || !m.dept || m.dept === fd).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     if (!list.length) {
@@ -1903,6 +2280,80 @@ window.FSKExpenseRules = (() => {
     $("msBody").innerHTML = `<div class="ms-list">${upcoming.length ? upcoming.map((m, i) => msRow(m, i === 0)).join("") : '<p class="dim">남은 일정이 없어요.</p>'}</div>
       ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4><div class="ms-list">${rest.map((m) => msRow(m, false)).join("")}</div>` : ""}`;
   }
+
+  // month calendar: milestones and part deadlines together, so a crowded week shows up before it arrives
+  function renderCalendar() {
+    const fd = $("msDept").value, t = todayStr(), cw = state.canWrite && state.canManageTeam;
+    const [y, mo] = state.calMonth.split("-").map(Number);
+    const first = new Date(y, mo - 1, 1), lead = first.getDay(), cells = Math.ceil((lead + new Date(y, mo, 0).getDate()) / 7) * 7;
+    const byDay = {}, add = (date, ev) => { if (date) (byDay[date] = byDay[date] || []).push(ev); };
+    const ms = state.milestones.filter((m) => !fd || !m.dept || m.dept === fd);
+    const comp = state.cfg.compDate;
+    if (comp && !ms.some((m) => m.date === comp && m.kind === "대회")) add(comp, { kind: "comp", order: 0 });
+    ms.forEach((m) => add(m.date, { kind: "ms", m, order: 1 }));
+    if (state.calParts) state.parts.filter((p) => p.due && (!fd || deptOf(p) === fd)).forEach((p) => add(p.due, { kind: "part", p, order: p.stage === "done" ? 4 : isLate(p) ? 2 : 3 }));
+    Object.values(byDay).forEach((l) => l.sort((a, b) => a.order - b.order));
+    const partTitle = (p) => `${p.name || "(이름 없음)"} · ${DEPT[deptOf(p)].l} · ${STAGE_LABEL[p.stage] || "설계"}${p.owner ? " · " + p.owner : ""}`;
+    const chip = (e) => {
+      if (e.kind === "comp") return `<span class="cal-ev comp">🏁 대회</span>`;
+      if (e.kind === "ms") { const cls = `cal-ev ms${e.m.done ? " done" : ""}`, tt = esc(`${e.m.title} · ${e.m.kind || "기타"}`); return cw ? `<button type="button" class="${cls}" data-ms="${esc(e.m.id)}" title="${tt}">${esc(e.m.title)}</button>` : `<span class="${cls}" title="${tt}">${esc(e.m.title)}</span>`; }
+      const p = e.p;
+      return `<button type="button" class="cal-ev part${isLate(p) ? " late" : ""}${p.stage === "done" ? " done" : ""}" data-part="${esc(p.id)}" style="--dc:var(--c${DEPT[deptOf(p)].c})" title="${esc(partTitle(p))}">${esc(p.name || "(이름 없음)")}</button>`;
+    };
+    const dotColor = (e) => e.kind === "part" ? (isLate(e.p) ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : "var(--accent)";
+    let grid = "", monthParts = 0, monthMs = 0, busy = { n: 0, from: "", to: "" }, week = 0, weekFrom = "";
+    for (let i = 0; i < cells; i++) {
+      const d = new Date(y, mo - 1, 1 - lead + i), ds = ymd(d), evs = byDay[ds] || [], inMonth = d.getMonth() === mo - 1;
+      const openParts = evs.filter((e) => e.kind === "part" && e.p.stage !== "done").length;
+      if (inMonth) { monthParts += evs.filter((e) => e.kind === "part").length; monthMs += evs.filter((e) => e.kind === "ms").length; }
+      if (i % 7 === 0) { week = 0; weekFrom = ds; }
+      week += openParts;
+      if (i % 7 === 6 && week > busy.n) busy = { n: week, from: weekFrom, to: ds };
+      grid += `<div class="cal-day${inMonth ? "" : " out"}${ds === t ? " today" : ""}${d.getDay() === 0 ? " sun" : ""}" role="gridcell" tabindex="0" data-calday="${ds}" aria-selected="${ds === state.calDay}" aria-label="${d.getMonth() + 1}월 ${d.getDate()}일${evs.length ? `, ${evs.length}건` : ""}">
+        <span class="cal-n">${d.getDate()}</span>${evs.slice(0, 3).map(chip).join("")}${evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}건 더</span>` : ""}<span class="cal-dots">${evs.slice(0, 5).map((e) => `<i style="--dc:${dotColor(e)}"></i>`).join("")}</span></div>`;
+    }
+    const sel = byDay[state.calDay] || [];
+    const row = (e) => {
+      if (e.kind === "comp") return `<div class="cal-row"><span class="tag make">대회</span><span class="cal-t">${esc(state.cfg.carName || "우리 팀 차량")} 대회</span><span class="dim">${dLabel(daysUntil(comp))}</span></div>`;
+      if (e.kind === "ms") {
+        const m = e.m, inner = `<span class="tag">${esc(m.kind || "기타")}</span><span class="cal-t">${esc(m.title)}</span>${DEPT[m.dept] ? `<span class="dname">${dmark(m.dept)}${DEPT[m.dept].l}</span>` : '<span class="dim">팀 전체</span>'}<span class="dim">${m.done ? "완료" : dLabel(daysUntil(m.date))}</span>`;
+        return cw ? `<button type="button" class="cal-row" data-ms="${esc(m.id)}">${inner}</button>` : `<div class="cal-row">${inner}</div>`;
+      }
+      const p = e.p, dk = deptOf(p);
+      return `<button type="button" class="cal-row" data-part="${esc(p.id)}"><span class="dname">${dmark(dk)}${DEPT[dk].l}</span><span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${isLate(p) ? '<b class="late">마감 지남</b>' : ""}</button>`;
+    };
+    const [sy, sm, sd] = state.calDay.split("-").map(Number);
+    $("msBody").innerHTML = `<div class="cal">
+      <div class="cal-h">
+        <button class="btn sm" type="button" data-calnav="-1" aria-label="이전 달">‹</button><h3>${y}년 ${mo}월</h3><button class="btn sm" type="button" data-calnav="1" aria-label="다음 달">›</button>
+        <button class="btn ghost sm" type="button" data-calnav="0">오늘</button>
+        <label class="check"><input type="checkbox" id="calParts"${state.calParts ? " checked" : ""}> 부품 마감 보기</label>
+        <div class="legend"><span><i style="background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)"></i>일정</span><span><i style="background:var(--c3)"></i>부품 마감 (색 = 부서)</span><span><i style="background:var(--bad)"></i>마감 지남</span></div>
+      </div>
+      <p class="cal-load hint pad">이번 달 일정 ${monthMs}건${state.calParts ? ` · 부품 마감 ${monthParts}개${busy.n >= 3 ? ` · 가장 몰린 주 ${fmtShort(busy.from)}~${fmtShort(busy.to)} <b>남은 부품 ${busy.n}개</b>` : ""}` : ""}</p>
+      <div class="cal-dow" aria-hidden="true">${["일", "월", "화", "수", "목", "금", "토"].map((w) => `<span>${w}</span>`).join("")}</div>
+      <div class="cal-grid" role="grid" aria-label="${y}년 ${mo}월">${grid}</div>
+      <div class="cal-list"><h4>${new Date(sy, sm - 1, sd).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}</h4>
+        ${sel.length ? sel.map(row).join("") : '<p class="hint">이 날은 일정이나 부품 마감이 없어요.</p>'}</div>
+    </div>`;
+  }
+  function moveCalendar(step) {
+    if (step === 0) { state.calMonth = todayStr().slice(0, 7); state.calDay = todayStr(); }
+    else { const [y, m] = state.calMonth.split("-").map(Number), d = new Date(y, m - 1 + step, 1); state.calMonth = ymd(d).slice(0, 7); state.calDay = ymd(d); }
+    renderSchedule();
+  }
+  document.addEventListener("click", (e) => {
+    const v = e.target.closest("[data-msview]");
+    if (v) { state.msView = v.dataset.msview; store.set("fsk.ms.view", state.msView); renderSchedule(); return; }
+    const nav = e.target.closest("[data-calnav]"); if (nav) { moveCalendar(Number(nav.dataset.calnav)); return; }
+    const day = e.target.closest("[data-calday]");
+    if (day && !e.target.closest("[data-part],[data-ms]")) { state.calDay = day.dataset.calday; renderSchedule(); const c = document.querySelector(`[data-calday="${state.calDay}"]`); if (c) c.focus({ preventScroll: true }); }
+  });
+  document.addEventListener("keydown", (e) => {
+    const day = e.target.closest && e.target.closest(".cal-day");
+    if (day && e.target === day && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); day.click(); }
+  });
+  document.addEventListener("change", (e) => { if (e.target.id === "calParts") { state.calParts = e.target.checked; store.set("fsk.cal.parts", state.calParts ? "1" : "0"); renderSchedule(); } });
 
   // ---------- history ----------
   function renderHistory() {
@@ -1927,7 +2378,38 @@ window.FSKExpenseRules = (() => {
 
   // ---------- toast & delete arming ----------
   let toastTimer;
-  function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3400); }
+  // action: { label, run } shows a button in the toast (되돌리기) and keeps it up longer
+  function toast(msg, action) {
+    const t = $("toast"), text = document.createElement("span");
+    text.textContent = msg; t.replaceChildren(text);
+    if (action) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = action.label;
+      b.addEventListener("click", () => { t.hidden = true; clearTimeout(toastTimer); action.run(); }, { once: true });
+      t.append(b);
+    }
+    t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, action ? UNDO_MS : 3400);
+  }
+
+  // ---------- undo ----------
+  // Deleted documents are kept in memory for the undo window; their attachment files are removed only after it,
+  // or when the page is closed.
+  const UNDO_MS = 9000;
+  const strip = ({ id, ...rest }) => rest;
+  const pendingDrops = new Set();
+  function dropAssetsLater(list) {
+    const ids = (list || []).map((a) => a && a.id).filter(Boolean);
+    if (!assets || !ids.length) return () => {};
+    const job = { run() { clearTimeout(job.timer); pendingDrops.delete(job); ids.forEach((id) => { try { Promise.resolve(assets.delete(id)).catch(() => {}); } catch {} }); } };
+    job.timer = setTimeout(job.run, UNDO_MS + 2000);
+    pendingDrops.add(job);
+    return () => { clearTimeout(job.timer); pendingDrops.delete(job); };
+  }
+  addEventListener("pagehide", () => [...pendingDrops].forEach((j) => j.run()));
+  const undo = (what, restore) => ({ label: "되돌리기", run: async () => {
+    try { await restore(); toast(`${what} 되돌렸어요`); render(); }
+    catch (err) { toast(explain(err)); }
+  } });
   function armDelete(b, label) { if (b.classList.contains("armed")) return true; b.classList.add("armed"); b.textContent = label || "한 번 더 눌러 삭제"; return false; }
   function resetDelete(b, text, show) { b.hidden = !show; b.classList.remove("armed"); b.textContent = text; b.disabled = false; }
 
@@ -2045,8 +2527,11 @@ window.FSKExpenseRules = (() => {
     const ph = p ? state.history.filter((h) => h.targetId === p.id).slice(0, 5) : [];
     $("pHist").hidden = !ph.length;
     $("pHistList").innerHTML = ph.map((h) => `<div><span class="mono">${esc(fmtWhen(h.at))}</span><span>${esc(h.by || "이름 미입력")} · ${esc(h.action)}${h.detail ? " · " + esc(h.detail) : ""}</span></div>`).join("");
-    dlgP.showModal();
+    $("btnPartLink").hidden = !(p && window.FSK_SELF_HOSTED);
+    if (!dlgP.open) dlgP.showModal();
+    syncRoute();
   }
+  dlgP.addEventListener("close", () => { state.editPart = null; syncRoute(); });
   function partDiff(old, nw) {
     const ch = [];
     if ((old.stage || "design") !== nw.stage) ch.push(`단계 ${STAGE_LABEL[old.stage] || "설계"} → ${STAGE_LABEL[nw.stage]}`);
@@ -2103,12 +2588,13 @@ window.FSKExpenseRules = (() => {
     const b = e.currentTarget;
     if (!armDelete(b)) return;
     b.disabled = true;
-    const p = state.parts.find((x) => x.id === state.editPart);
+    const id = state.editPart, p = state.parts.find((x) => x.id === id);
     try {
-      await attempt(() => colP.doc(state.editPart).delete());
-      if (assets && p) for (const a of p.attachments || []) { try { await assets.delete(a.id); } catch {} }
-      hist("part", "부품 삭제", p?.name, state.editPart, "");
-      dlgP.close(); toast("부품을 삭제했어요");
+      await attempt(() => colP.doc(id).delete());
+      const keep = dropAssetsLater(p?.attachments);
+      hist("part", "부품 삭제", p?.name, id, "");
+      dlgP.close();
+      toast(`${p?.name || "부품"}을(를) 삭제했어요`, p && undo("삭제를", async () => { keep(); await attempt(() => colP.doc(id).set(strip(p))); hist("part", "부품 삭제 취소", p.name, id, ""); }));
     } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
@@ -2162,7 +2648,7 @@ window.FSKExpenseRules = (() => {
     try {
       await attempt(() => ref.set(body));
       hist("session", old ? "세션 수정" : "세션 생성", `${fmtShort(body.date)} ${body.event}`, ref.id, body.location);
-      state.sel = ref.id; dlgS.close(); toast(old ? "세션을 저장했어요" : "세션을 만들었어요. 출주 전 점검부터 체크하세요"); render();
+      state.sel = ref.id; dlgS.close(); toast(old ? "세션을 저장했어요" : "세션을 만들었어요. 주행 전 점검부터 체크하세요"); render();
     } catch (err) { toast(explain(err)); }
   });
   $("btnDelSession").addEventListener("click", async (e) => {
@@ -2170,16 +2656,24 @@ window.FSKExpenseRules = (() => {
     if (!armDelete(b, n ? `부서 기록 ${n}개도 함께 삭제돼요. 한 번 더 누르세요` : "한 번 더 눌러 삭제")) return;
     b.disabled = true;
     const s = state.sessions.find((x) => x.id === sid);
+    const comments = state.comments.filter((c) => c.sessionId === sid), checks = state.checks.filter((c) => c.sessionId === sid), logs = logsOf(sid);
     try {
-      for (const c of state.comments.filter((c) => c.sessionId === sid)) await attempt(() => colC.doc(c.id).delete());
-      for (const c of state.checks.filter((c) => c.sessionId === sid)) await attempt(() => colK.doc(c.id).delete());
-      for (const l of logsOf(sid)) {
-        await attempt(() => colL.doc(l.id).delete());
-        if (assets) for (const a of l.attachments || []) { try { await assets.delete(a.id); } catch {} }
-      }
+      for (const c of comments) await attempt(() => colC.doc(c.id).delete());
+      for (const c of checks) await attempt(() => colK.doc(c.id).delete());
+      for (const l of logs) await attempt(() => colL.doc(l.id).delete());
       await attempt(() => colS.doc(sid).delete());
+      const keep = dropAssetsLater(logs.flatMap((l) => l.attachments || []));
       hist("session", "세션 삭제", s ? `${fmtShort(s.date)} ${s.event}` : "", sid, n ? `부서 기록 ${n}개 포함` : "");
-      state.sel = null; dlgS.close(); toast("세션을 삭제했어요");
+      state.sel = null; dlgS.close();
+      toast("세션을 삭제했어요", s && undo("세션 삭제를", async () => {
+        keep();
+        await attempt(() => colS.doc(sid).set(strip(s)));
+        for (const l of logs) await attempt(() => colL.doc(l.id).set(strip(l)));
+        for (const c of comments) await attempt(() => colC.doc(c.id).set(strip(c)));
+        for (const c of checks) await attempt(() => colK.doc(c.id).set(strip(c)));
+        hist("session", "세션 삭제 취소", `${fmtShort(s.date)} ${s.event}`, sid, n ? `부서 기록 ${n}개 포함` : "");
+        state.sel = sid; state.tab = "sessions";
+      }));
     } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
@@ -2224,7 +2718,7 @@ window.FSKExpenseRules = (() => {
         await attempt(() => colS.doc(s.id).update({ checklist: next, updatedAt: stamp() }));
       }
       const n = DEPTS.reduce((a, d) => a + items[d.k].length, 0);
-      hist("config", "점검 항목 편집", "출주 전 점검", "checklist", `총 ${n}개 항목`);
+      hist("config", "점검 항목 편집", "주행 전 점검", "checklist", `총 ${n}개 항목`);
       dlgK.close(); toast("점검 항목을 저장했어요");
     } catch (err) { toast(explain(err)); }
   });
@@ -2305,13 +2799,19 @@ window.FSKExpenseRules = (() => {
     const b = e.currentTarget, id = state.editLog;
     if (!armDelete(b)) return;
     b.disabled = true;
-    const l = state.logs.find((x) => x.id === id);
+    const l = state.logs.find((x) => x.id === id), comments = state.comments.filter((c) => c.logId === id);
     try {
-      for (const c of state.comments.filter((c) => c.logId === id)) await attempt(() => colC.doc(c.id).delete());
+      for (const c of comments) await attempt(() => colC.doc(c.id).delete());
       await attempt(() => colL.doc(id).delete());
-      if (assets && l) for (const a of l.attachments || []) { try { await assets.delete(a.id); } catch {} }
+      const keep = dropAssetsLater(l?.attachments);
       hist("log", "부서 기록 삭제", l ? DEPT[l.dept]?.l : "", l?.sessionId, "");
-      dlgL.close(); toast("기록을 삭제했어요");
+      dlgL.close();
+      toast("기록을 삭제했어요", l && undo("기록 삭제를", async () => {
+        keep();
+        await attempt(() => colL.doc(id).set(strip(l)));
+        for (const c of comments) await attempt(() => colC.doc(c.id).set(strip(c)));
+        hist("log", "부서 기록 삭제 취소", DEPT[l.dept]?.l || "", l.sessionId, "");
+      }));
     } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
@@ -2344,13 +2844,23 @@ window.FSKExpenseRules = (() => {
     const b = e.currentTarget;
     if (!armDelete(b)) return;
     b.disabled = true;
-    const m = state.milestones.find((x) => x.id === state.editMs);
-    try { await attempt(() => colM.doc(state.editMs).delete()); hist("milestone", "일정 삭제", m?.title, state.editMs, m ? fmtDate(m.date) : ""); dlgM.close(); toast("일정을 삭제했어요"); }
-    catch (err) { toast(explain(err)); b.disabled = false; }
+    const id = state.editMs, m = state.milestones.find((x) => x.id === id);
+    try {
+      await attempt(() => colM.doc(id).delete()); hist("milestone", "일정 삭제", m?.title, id, m ? fmtDate(m.date) : ""); dlgM.close();
+      toast("일정을 삭제했어요", m && undo("일정 삭제를", async () => { await attempt(() => colM.doc(id).set(strip(m))); hist("milestone", "일정 삭제 취소", m.title, id, fmtDate(m.date)); }));
+    } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
   // ---------- events ----------
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+  // 개인정보 안내: the self-hosted server has its own /privacy page and its own rules (submitted 내역서 are locked,
+  // files are private, names come from the account); on claude.ai the notice is a dialog in this page.
+  if (window.FSK_SELF_HOSTED) {
+    document.querySelectorAll("a[data-privacy]").forEach((a) => { a.href = "/privacy"; if (a.closest("dialog")) { a.target = "_blank"; a.rel = "noopener"; } });
+    $("xLockHint").textContent = "제출한 뒤에는 총무와 개발자만 고칠 수 있어요.";
+    $("xAgreeText").textContent = "입금 계좌번호와 영수증 사진이 담긴 원본 파일을 제출해요. 원본과 영수증은 나·총무·개발자만 열 수 있고, 목록과 금액은 팀원 모두에게 보여요. 제출일로부터 정해진 기간이 지나면 원본은 지워요.";
+    $("hNameHint").textContent = "이름은 서버가 로그인한 계정 이름으로 기록해요.";
+  } else document.querySelectorAll("a[data-privacy]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); $("dlgPrivacy").showModal(); }));
   $("meDept").addEventListener("change", (e) => { state.me.dept = e.target.value; store.set("fsk.me.dept", state.me.dept); render(); });
   $("banner").addEventListener("click", (e) => { if (e.target.closest("[data-banner-close]")) { store.set("fsk.hint.me", "closed"); render(); } });
   // self-hosted server: a developer changed my name or department while this page was open
@@ -2358,6 +2868,64 @@ window.FSKExpenseRules = (() => {
   $("meName").addEventListener("change", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); render(); });
   $("meName").addEventListener("input", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); });
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { state.tab = t.dataset.tab; render(); }));
+  // links to a session or a part
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-copylink]");
+    if (b) copyLink(b.dataset.copylink || (state.editPart ? "#parts/" + encodeURIComponent(state.editPart) : location.hash));
+  });
+  addEventListener("hashchange", () => { routedHash = location.hash; applyRoute(readRoute() || { tab: "today", id: "" }); render(); window.scrollTo({ top: 0 }); });
+
+  // ---------- parts: multi-select and bulk edit ----------
+  document.addEventListener("change", (e) => {
+    const pick = e.target.closest("input[data-pick]");
+    if (pick) { if (pick.checked) state.picked.add(pick.dataset.pick); else state.picked.delete(pick.dataset.pick); pick.closest("tr").classList.toggle("picked", pick.checked); resetDelete($("bDelete"), "삭제", true); renderBulk($("partBody").querySelectorAll("input[data-pick]:not(:disabled)").length); return; }
+    if (e.target.id === "pickAll") {
+      $("partBody").querySelectorAll("input[data-pick]:not(:disabled)").forEach((c) => { if (e.target.checked) state.picked.add(c.dataset.pick); else state.picked.delete(c.dataset.pick); });
+      resetDelete($("bDelete"), "삭제", true); renderPartList();
+    }
+  });
+  function clearPicked() { state.picked.clear(); ["bStage", "bDept", "bOwner", "bDue"].forEach((id) => { $(id).value = ""; }); resetDelete($("bDelete"), "삭제", true); renderPartList(); }
+  $("bClear").addEventListener("click", clearPicked);
+  // writes one part at a time (the server has no batch call); stops at the first failure and says how far it got
+  async function eachPart(ids, btn, label, fn) {
+    let n = 0;
+    try { for (const id of ids) { btn.textContent = `${label} ${n + 1}/${ids.length}`; await fn(id); n++; } return { n }; }
+    catch (err) { return { n, err }; }
+  }
+  $("bApply").addEventListener("click", async (e) => {
+    const btn = e.currentTarget, patch = {};
+    if ($("bStage").value) patch.stage = $("bStage").value;
+    if ($("bDept").value) patch.dept = $("bDept").value;
+    if ($("bOwner").value.trim()) { patch.owner = $("bOwner").value.trim(); patch.ownerUid = ""; }
+    if ($("bDue").value) patch.due = $("bDue").value;
+    if (!Object.keys(patch).length) { toast("바꿀 단계, 부서, 담당, 마감 중 하나를 정해 주세요"); return; }
+    const ids = [...state.picked].filter((id) => state.parts.some((p) => p.id === id));
+    const before = Object.fromEntries(ids.map((id) => { const p = state.parts.find((x) => x.id === id); return [id, { stage: p.stage || "design", dept: deptOf(p), owner: p.owner || "", ownerUid: p.ownerUid || "", due: p.due || "" }]; }));
+    const desc = [patch.stage && `단계 → ${STAGE_LABEL[patch.stage]}`, patch.dept && `부서 → ${DEPT[patch.dept].l}`, patch.owner && `담당 → ${patch.owner}`, patch.due && `마감 → ${patch.due}`].filter(Boolean).join(", ");
+    btn.disabled = true;
+    const { n, err } = await eachPart(ids, btn, "적용 중", (id) => attempt(() => colP.doc(id).update({ ...patch, updatedAt: stamp() })));
+    btn.disabled = false; btn.textContent = "적용";
+    if (n) hist("part", "부품 일괄 수정", `${n}개`, "", desc);
+    const done = ids.slice(0, n);
+    const back = undo("일괄 수정을", async () => {
+      for (const id of done) if (state.parts.some((p) => p.id === id)) await attempt(() => colP.doc(id).update({ ...Object.fromEntries(Object.keys(patch).map((k) => [k, before[id][k]])), updatedAt: stamp() }));
+      hist("part", "부품 일괄 수정 취소", `${done.length}개`, "", desc);
+    });
+    if (err) toast(`${n}개까지 바꾸고 멈췄어요. ${explain(err)}`, n ? back : undefined);
+    else { clearPicked(); toast(`${n}개 부품을 바꿨어요 · ${desc}`, back); }
+  });
+  $("bDelete").addEventListener("click", async (e) => {
+    const btn = e.currentTarget, ids = [...state.picked];
+    if (!armDelete(btn, `${ids.length}개 삭제? 한 번 더`)) return;
+    const gone = ids.map((id) => state.parts.find((p) => p.id === id)).filter(Boolean);
+    btn.disabled = true;
+    const { n, err } = await eachPart(gone.map((p) => p.id), btn, "삭제 중", (id) => attempt(() => colP.doc(id).delete()));
+    const removed = gone.slice(0, n), keep = dropAssetsLater(removed.flatMap((p) => p.attachments || []));
+    if (n) hist("part", "부품 일괄 삭제", `${n}개`, "", removed.slice(0, 5).map((p) => p.name).join(", ") + (n > 5 ? ` 외 ${n - 5}개` : ""));
+    const back = undo("삭제를", async () => { keep(); for (const p of removed) await attempt(() => colP.doc(p.id).set(strip(p))); hist("part", "부품 일괄 삭제 취소", `${removed.length}개`, "", ""); });
+    clearPicked(); btn.disabled = false;
+    toast(err ? `${n}개까지 지우고 멈췄어요. ${explain(err)}` : `부품 ${n}개를 삭제했어요`, n ? back : undefined);
+  });
   $("pitNext").addEventListener("click", () => { state.tab = "schedule"; render(); });
   $("btnAdd").addEventListener("click", () => openPart(null));
   $("btnAddEmpty").addEventListener("click", () => openPart(null));
@@ -2393,6 +2961,8 @@ window.FSKExpenseRules = (() => {
   });
   document.addEventListener("keydown", (e) => {
     if ((e.key === "Enter" || e.key === " ") && e.target.matches(".chip.static[data-part]")) { e.preventDefault(); openPart(e.target.dataset.part); }
+    // table rows that open a 내역서 or a session: Tab to the row, then Enter or Space
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("tr.link[tabindex]")) { e.preventDefault(); e.target.click(); }
   });
   document.addEventListener("change", async (e) => {
     const sel = e.target.closest("select[data-stage]");
@@ -2477,6 +3047,89 @@ window.FSKExpenseRules = (() => {
     }
     try { await navigator.clipboard.writeText(csv); toast("파일로 저장할 수 없어 CSV를 클립보드에 복사했어요"); }
     catch { toast("이 화면에서는 내보낼 수 없어요"); }
+  });
+
+  // ---------- BOM CSV import ----------
+  const dlgI = $("dlgImport");
+  const FIELD_LABEL = { name: "이름", partNo: "번호", dept: "부서", make: "구분", stage: "단계", qty: "수량", unitMass: "질량", unitCost: "비용", supplier: "공급처", owner: "담당", due: "마감", note: "메모" };
+  // what a part holds for a field, with the same defaults the page shows
+  const partField = (p, k) => k === "owner" ? ownerName(p) : k === "ownerUid" ? (p.ownerUid || "") : k === "dept" ? deptOf(p) : k === "stage" ? (p.stage || "design") : k === "qty" ? qtyOf(p) : k === "make" ? (p.make || "make") : (k === "unitMass" || k === "unitCost") ? num(p[k]) : (p[k] || "");
+  function openImport() {
+    state.imp = null; state.impPlan = null; state.impFile = "";
+    $("impFile").value = ""; $("impFileName").textContent = "선택한 파일 없음"; $("impResult").innerHTML = ""; $("impHint").textContent = "";
+    $("btnImpGo").disabled = true; $("btnImpGo").textContent = "가져오기";
+    dlgI.showModal();
+  }
+  $("btnImport").addEventListener("click", openImport);
+  $("btnImportEmpty").addEventListener("click", openImport);
+  $("impFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    $("impFileName").textContent = `${f.name} · ${fmtBytes(f.size)}`;
+    state.impFile = f.name;
+    if (f.size > 2 * 1024 * 1024) state.imp = { error: "파일이 너무 커요 (2MB까지). 부품 목록만 들어 있는 CSV인지 확인해 주세요." };
+    else { const { decode, parseCsv, toParts } = window.FSKBom; state.imp = toParts(parseCsv(decode(new Uint8Array(await f.arrayBuffer())))); }
+    planImport();
+  });
+  $("impOverwrite").addEventListener("change", planImport);
+  function planImport() {
+    const res = state.imp, go = $("btnImpGo");
+    if (!res) return;
+    if (res.error) { $("impResult").innerHTML = `<div class="checks"><div><span class="e">✕</span><p>${esc(res.error)}</p></div></div>`; go.disabled = true; state.impPlan = null; return; }
+    const over = $("impOverwrite").checked, seen = new Set();
+    const plan = res.items.map((it) => {
+      if (it.skip) return { ...it, act: "skip" };
+      const match = window.FSKBom.matchPart(it.data, state.parts, deptOf);
+      const k = match ? "id:" + match.id : `${it.data.dept || ""}|${it.data.partNo || it.data.name.toLowerCase()}`;
+      if (seen.has(k)) return { ...it, act: "skip", warns: [...it.warns, "파일 안에서 같은 부품이 또 나와요"] };
+      seen.add(k);
+      if (!match) return { ...it, act: "new" };
+      if (!over) return { ...it, act: "skip", match, warns: [...it.warns, "이미 있는 부품이라 건너뛰어요"] };
+      if (lockedFor(match)) return { ...it, act: "skip", match, warns: [...it.warns, "잠긴 부품이라 그 부서 파트장만 고칠 수 있어요"] };
+      const patch = Object.fromEntries(Object.entries(it.data).filter(([f, v]) => partField(match, f) !== v));
+      if (patch.owner !== undefined) patch.ownerUid = "";
+      return Object.keys(patch).length ? { ...it, act: "upd", match, patch } : { ...it, act: "same", match };
+    });
+    state.impPlan = plan;
+    const count = (a) => plan.filter((p) => p.act === a).length, nNew = count("new"), nUpd = count("upd");
+    const ACT = { new: '<span class="act-new">추가</span>', upd: '<span class="act-upd">수정</span>', same: '<span class="act-skip">변경 없음</span>', skip: '<span class="act-skip">건너뜀</span>' };
+    const cols = res.cols.map((c) => FIELD_LABEL[c]).filter(Boolean).join(", ");
+    $("impResult").innerHTML = `<div class="imp-sum"><div class="fact"><span>새 부품</span><b>${nNew}개</b></div><div class="fact"><span>고칠 부품</span><b>${nUpd}개</b></div><div class="fact"><span>변경 없음</span><b>${count("same")}개</b></div><div class="fact"><span>건너뜀</span><b>${count("skip")}개</b></div><div class="fact"><span>읽은 열</span><b>${esc(cols)}</b></div></div>
+      <div class="scroll imp-table"><table><thead><tr><th>줄</th><th>처리</th><th>부서</th><th>부품명</th><th>바뀌는 칸</th><th>확인할 점</th></tr></thead><tbody>${plan.slice(0, 80).map((p) => {
+        const dk = p.data.dept || (p.match ? deptOf(p.match) : "");
+        return `<tr><td class="num dim">${p.line}</td><td>${ACT[p.act]}</td><td>${DEPT[dk] ? `<span class="dname">${dmark(dk)}${DEPT[dk].l}</span>` : '<span class="dim">내 부서</span>'}</td><td>${esc(p.data.name || "")}</td>
+          <td class="dim">${p.act === "upd" ? esc(Object.keys(p.patch).map((f) => FIELD_LABEL[f]).filter(Boolean).join(", ")) : ""}</td><td class="imp-warn">${esc(p.warns.join(" · "))}</td></tr>`;
+      }).join("")}${plan.length > 80 ? `<tr><td colspan="6" class="dim">외 ${plan.length - 80}줄</td></tr>` : ""}</tbody></table></div>`;
+    go.disabled = !(nNew + nUpd);
+    go.textContent = nNew + nUpd ? `${nNew + nUpd}개 가져오기` : "가져올 부품 없음";
+    $("impHint").textContent = plan.some((p) => p.act === "new" && !p.data.dept) ? `부서가 없는 새 부품은 ${DEPT[state.me.dept]?.l || "프레임·현가"}에 넣어요.` : "";
+  }
+  $("formImport").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const plan = state.impPlan; if (!plan || !state.canWrite) return;
+    const work = plan.filter((p) => p.act === "new" || p.act === "upd"), btn = $("btnImpGo"), fallback = DEPT[state.me.dept] ? state.me.dept : "chassis";
+    const added = [], before = [];
+    btn.disabled = true;
+    const { err } = await eachPart(work, btn, "가져오는 중", async (it) => {
+      if (it.act === "new") {
+        const d = it.data;
+        added.push(await savePart(null, { name: d.name, partNo: d.partNo || "", dept: d.dept || fallback, make: d.make || "make", stage: d.stage || "design", qty: d.qty || 1,
+          unitMass: d.unitMass ?? null, unitCost: d.unitCost ?? null, owner: d.owner || "", supplier: d.supplier || "", due: d.due || "", note: d.note || "", attachments: [] }));
+      } else {
+        const prev = Object.fromEntries(Object.keys(it.patch).map((f) => [f, partField(it.match, f)]));
+        await attempt(() => colP.doc(it.match.id).update({ ...it.patch, updatedAt: stamp() }));
+        before.push([it.match.id, prev]);
+      }
+    });
+    btn.disabled = false; btn.textContent = "가져오기";
+    const what = `${added.length}개 추가 · ${before.length}개 수정`;
+    if (added.length || before.length) hist("part", "CSV 가져오기", what, "", state.impFile || "");
+    const back = undo("가져오기를", async () => {
+      for (const id of added) await attempt(() => colP.doc(id).delete());
+      for (const [id, prev] of before) if (state.parts.some((p) => p.id === id)) await attempt(() => colP.doc(id).update({ ...prev, updatedAt: stamp() }));
+      hist("part", "CSV 가져오기 취소", what, "", state.impFile || "");
+    });
+    if (err) { toast(`${added.length + before.length}개까지 가져오고 멈췄어요. ${explain(err)}`, added.length + before.length ? back : undefined); return; }
+    dlgI.close(); toast(`부품을 가져왔어요 · ${what}`, back);
   });
 
   // ---------- 사비 정산 ----------
@@ -2601,7 +3254,7 @@ window.FSKExpenseRules = (() => {
     });
     $("expBody").innerHTML = `<div class="scroll"><table><thead><tr><th>지급 상태</th><th>제출</th><th>신청자</th><th>팀</th><th class="r">항목</th><th class="r">금액</th><th>자동 검사</th><th>지급일</th></tr></thead><tbody>${list.length ? list.map((s) => {
       const e = effective(s), r = reviewOf(s.key), st = statusOf(s);
-      return `<tr class="link" data-exp="${esc(s.key)}"><td>${fs === "deleted" ? '<span class="stt bad">삭제됨</span>' : payPill(st)}${isChanged(s) ? '<span class="changed">검토 후 변경됨</span>' : ""}</td>
+      return `<tr class="link" tabindex="0" data-exp="${esc(s.key)}"><td>${fs === "deleted" ? '<span class="stt bad">삭제됨</span>' : payPill(st)}${isChanged(s) ? '<span class="changed">검토 후 변경됨</span>' : ""}</td>
         <td class="num">${esc(fmtWhen(s.submittedAt))}</td>
         <td><b>${esc(e.applicant || s.by || "이름 없음")}</b>${s.by && e.applicant && s.by !== e.applicant ? ` <span class="dim" style="font-size:12px">· ${esc(s.by)} 등록</span>` : ""}</td>
         <td>${esc((e.teams || []).join(", ") || "–")}</td><td class="r num">${(e.items || []).length}</td><td class="r num"><b>${won(e.total || 0)}</b></td>
@@ -2616,7 +3269,7 @@ window.FSKExpenseRules = (() => {
     (state.xDraft?.previews || []).forEach((p) => p.url && URL.revokeObjectURL(p.url));
     state.xDraft = null;
     $("xFile").value = ""; $("xFileName").textContent = "선택한 파일 없음"; $("xResult").innerHTML = ""; $("xApplicantWrap").hidden = true;
-    const b = $("btnXSubmit"); b.disabled = true; b.textContent = "제출"; b.classList.remove("armed"); $("xSubmitHint").textContent = "";
+    const b = $("btnXSubmit"); b.disabled = true; b.textContent = "제출"; b.classList.remove("armed"); $("xSubmitHint").textContent = ""; $("xAgree").checked = false;
     $("xNewTitle").textContent = isManager() ? "사비 내역서 등록" : "사비 내역서 제출";
     dlgXN.showModal();
   }
@@ -2657,6 +3310,7 @@ window.FSKExpenseRules = (() => {
     e.preventDefault();
     const d = state.xDraft, btn = $("btnXSubmit");
     if (!d || !canSubmit()) return;
+    if (!$("xAgree").checked) { $("xSubmitHint").textContent = "개인정보 제공에 동의해야 제출할 수 있어요."; $("xAgree").focus(); return; }
     if (!assets) { toast("이 화면에서는 파일을 올릴 수 없어요. 편집자 권한이 필요해요."); return; }
     if (liveSubs().some((s) => s.hash === d.hash) && !btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = "같은 파일이에요. 그래도 제출"; return; }
     btn.disabled = true; btn.textContent = "올리는 중…";
@@ -2679,7 +3333,8 @@ window.FSKExpenseRules = (() => {
 
   // detail + treasurer actions
   const dlgX = $("dlgExp");
-  function openExp(key) { state.xOpen = key; renderExpDetail(); dlgX.showModal(); }
+  function openExp(key) { state.xOpen = key; renderExpDetail(); if (!dlgX.open) dlgX.showModal(); syncRoute(); }
+  dlgX.addEventListener("close", () => { state.xOpen = null; syncRoute(); });
   function actionPanel(r, e, st) {
     return `<fieldset><legend class="fl">총무 처리 · 총무와 개발자에게만 보여요</legend>
       <div class="seg">${Object.entries(EXP_ST).map(([k, l]) => `<label><input type="radio" name="xst" value="${k}" ${k === st ? "checked" : ""}> ${l}</label>`).join("")}</div>
@@ -2705,12 +3360,12 @@ window.FSKExpenseRules = (() => {
       ${e.overridden ? `<p class="banner" style="margin:0">총무가 올린 수정본(${esc(e.replacedBy || "")}, ${esc(fmtWhen(e.replacedAt))}) 기준으로 보여요.</p>` : ""}
       ${r && r.note ? `<p class="goal"><b>총무 메모</b> · ${esc(r.note)}</p>` : ""}
       ${r && r.paidAt && st === "paid" ? `<p class="hint">지급일 ${esc(fmtDate(r.paidAt))}${num(r.paidAmount) !== null ? ` · 지급액 ${won(num(r.paidAmount))}` : ""}</p>` : ""}
-      <div class="txt"><span>입금 계좌</span><div class="acct">${acct ? `<b>${esc(acct)}</b><button class="btn ghost sm" type="button" data-xcopy>복사</button>` : `<span>${esc(e.accountMasked || "–")}</span>${mgr ? '<button class="btn ghost sm" type="button" data-xacct>전체 번호 보기</button>' : ""}`}</div></div>
+      <div class="txt"><span>입금 계좌</span><div class="acct">${acct ? `<b>${esc(acct)}</b><button class="btn ghost sm" type="button" data-xcopy>복사</button>` : `<span>${esc(e.accountMasked || (e.filesPurgedAt ? "지움" : "–"))}</span>${mgr && e.fileAsset ? '<button class="btn ghost sm" type="button" data-xacct>전체 번호 보기</button>' : ""}`}</div></div>
       ${statementView({ ...(e.check || {}), items: e.items || [], total: e.total }, receipts)}
-      ${hideFiles && (e.receipts || []).length ? `<p class="hint">영수증 사진 ${(e.receipts || []).length}장은 제출자와 총무만 볼 수 있어요.</p>` : ""}
+      ${hideFiles && (e.receipts || []).length ? `<p class="hint">영수증 사진 ${(e.receipts || []).length}장은 제출자·총무·개발자만 볼 수 있어요.</p>` : ""}
       ${mgr ? actionPanel(r, e, st) : ""}
       ${r && (r.log || []).length ? `<div class="txt"><span>처리 기록</span><div class="xlog">${r.log.slice().reverse().map((l) => `<div><span class="mono">${esc(fmtWhen(l.at))}</span> · ${esc(l.by || "이름 미입력")} · ${esc(l.text)}</div>`).join("")}</div></div>` : ""}
-      <div class="dlg-foot"><div class="toolbar">${mgr || s.ownerUid === state.uid ? '<button class="btn" type="button" data-xdl>원본 파일 내려받기</button>' : '<span class="hint">원본 파일은 제출자와 총무만 내려받을 수 있어요.</span>'}
+      <div class="dlg-foot"><div class="toolbar">${!e.fileAsset ? `<span class="hint">${e.filesPurgedAt ? `원본 파일·영수증·계좌 정보는 보관 기간이 지나거나 삭제 요청으로 지웠어요 (${esc(fmtDate(e.filesPurgedAt))}).` : "원본 파일이 없어요."}</span>` : mgr || s.ownerUid === state.uid ? '<button class="btn" type="button" data-xdl>원본 파일 내려받기</button>' : '<span class="hint">원본 파일은 제출자·총무·개발자만 내려받을 수 있어요.</span>'}
         ${mgr && !(r && r.deleted) ? '<button class="btn danger" type="button" data-xdel>내역서 삭제</button>' : ""}
         ${mgr && r && r.deleted ? '<button class="btn" type="button" data-xrestore>복구</button>' : ""}
         ${state.isOwner ? '<button class="btn danger" type="button" data-xpurge>완전 삭제</button>' : ""}</div><div class="right"><button class="btn" type="button" data-xclose>닫기</button></div></div>`;
@@ -2874,18 +3529,87 @@ window.FSKExpenseRules = (() => {
   $("xq").addEventListener("input", renderExpense);
   $("meName").addEventListener("change", () => { state.registered = false; registerMe(); });
   $("meDept").addEventListener("change", () => { state.registered = false; registerMe(); });
+  // Minimal xlsx writer for exports: inline strings, a few styles, column widths fitted to the content (Korean counts
+  // double; a cell with fit: false spills over instead of widening its column), formulas stored with their computed value so the file reads right even before Excel recalculates.
+  function xlsxBook(sheets) {
+    const xe = (v) => String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const colName = (i) => { let n = "", x = i + 1; while (x) { const m = (x - 1) % 26; n = String.fromCharCode(65 + m) + n; x = Math.floor((x - 1) / 26); } return n; };
+    const shown = (c) => { if (c && c.fit === false) return ""; const v = c && typeof c === "object" ? c.v : c; return typeof v === "number" ? Math.round(v).toLocaleString("ko-KR") : String(v ?? ""); };
+    const textWidth = (t) => Math.max(0, ...t.split("\n").map((l) => [...l].reduce((w, ch) => w + (ch.codePointAt(0) > 0x2e7f ? 2 : 1), 0)));
+    // styles: 0 plain, 1 header, 2 number, 3 bold, 4 bold number, 5 title
+    const STYLE = { head: 1, num: 2, bold: 3, boldNum: 4, title: 5 };
+    const cellXml = (c, ref) => {
+      if (c === null || c === undefined || c === "") return "";
+      const o = typeof c === "object" ? c : { v: c }, st = o.s ? ` s="${STYLE[o.s]}"` : typeof o.v === "number" ? ' s="2"' : "";
+      if (o.f) return `<c r="${ref}"${st}><f>${xe(o.f)}</f><v>${Number(o.v) || 0}</v></c>`;
+      if (typeof o.v === "number") return `<c r="${ref}"${st}><v>${o.v}</v></c>`;
+      return `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(o.v ?? "")}</t></is></c>`;
+    };
+    const sheetXml = (sh) => {
+      const ncol = Math.max(1, ...sh.rows.map((r) => r.length));
+      const widths = Array.from({ length: ncol }, (_, i) => Math.min(60, Math.max(sh.minWidth || 8, ...sh.rows.map((r) => textWidth(shown(r[i])) + 2))));
+      const cols = `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>`;
+      const rows = sh.rows.map((r, ri) => `<row r="${ri + 1}">${r.map((c, ci) => cellXml(c, colName(ci) + (ri + 1))).join("")}</row>`).join("");
+      const pane = sh.freeze ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sh.freeze}" topLeftCell="A${sh.freeze + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : "";
+      const filter = sh.filter && sh.rows.length > 1 ? `<autoFilter ref="A1:${colName(ncol - 1)}${sh.rows.length}"/>` : "";
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${pane}<sheetFormatPr defaultRowHeight="16.5"/>${cols}<sheetData>${rows}</sheetData>${filter}</worksheet>`;
+    };
+    const zip = new JSZip(), R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`);
+    zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+    zip.file("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${R}"><sheets>${sheets.map((sh, i) => `<sheet name="${xe(sh.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`);
+    zip.file("xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${R}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="${R}/styles" Target="styles.xml"/></Relationships>`);
+    zip.file("xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts><fonts count="3"><font><sz val="11"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font><font><b/><sz val="11"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font><font><b/><sz val="14"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E7E3"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`);
+    sheets.forEach((sh, i) => zip.file(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sh)));
+    return zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", compression: "DEFLATE" });
+  }
+  // 사비 정산 내역 as an Excel file: the list (부서 = the submitter's department; 지급 금액 only for 지급 완료, so the
+  // column sums to what was paid) and a 요약 sheet whose totals and 부서별 amounts are formulas over that list.
+  function expenseWorkbook(subs) {
+    const when = (iso) => { const d = new Date(iso || ""); return isNaN(d) ? "" : `${ymd(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+    const head = ["제출일시", "신청자", "등록한 사람", "부서", "팀", "항목 수", "신청 금액(원)", "자동 검사", "지급 상태", "지급일", "지급 금액(원)", "총무 메모", "파일명", "계좌(일부)"];
+    const NO_DEPT = "부서 없음";
+    const rows = subs.map((s) => {
+      const e = effective(s), r = reviewOf(s.key), st = statusOf(s), paid = st === "paid" ? (num(r?.paidAmount) ?? num(e.total) ?? 0) : "";
+      return [when(s.submittedAt), e.applicant || "", s.by || "", DEPT[s.byDept] ? DEPT[s.byDept].l : NO_DEPT, (e.teams || []).join(" "), (e.items || []).length, num(e.total) ?? 0,
+        LEVEL_LABEL[e.check?.level] || "", EXP_ST[st], st === "paid" ? r?.paidAt || "" : "", paid, r?.note || "", cleanName(e.fileName || ""), e.accountMasked || ""];
+    });
+    const L = "'정산 내역'!", D = `${L}D:D`, G = `${L}G:G`, I = `${L}I:I`, K = `${L}K:K`;
+    const sum = (list, i) => list.reduce((a, r) => a + (typeof r[i] === "number" ? r[i] : 0), 0);
+    const waiting = rows.filter((r) => r[8] === EXP_ST.approved);
+    const deptNames = [...DEPTS.map((d) => d.l), NO_DEPT];
+    const deptRows = deptNames.map((name, i) => {
+      const mine = rows.filter((r) => r[3] === name), q = `"${name}"`;
+      return [name, { f: `COUNTIF(${D},${q})`, v: mine.length }, { f: `SUMIF(${D},${q},${G})`, v: sum(mine, 6), s: "num" }, { f: `SUMIF(${D},${q},${K})`, v: sum(mine, 10), s: "num" }];
+    });
+    const first = 9, last = first + deptRows.length - 1;
+    const summary = [
+      [{ v: "사비 정산 요약", s: "title" }],
+      ["내보낸 날짜", todayStr()],
+      [],
+      [{ v: "구분", s: "head" }, { v: "건수", s: "head" }, { v: "신청 금액(원)", s: "head" }, { v: "지급액(원)", s: "head" }],
+      [{ v: "전체", s: "bold" }, { f: `COUNTA(${L}A:A)-1`, v: rows.length, s: "bold" }, { f: `SUM(${G})`, v: sum(rows, 6), s: "boldNum" }, { f: `SUM(${K})`, v: sum(rows, 10), s: "boldNum" }],
+      ["지급 대기 (승인)", { f: `COUNTIF(${I},"${EXP_ST.approved}")`, v: waiting.length }, { f: `SUMIF(${I},"${EXP_ST.approved}",${G})`, v: sum(waiting, 6), s: "num" }, ""],
+      [],
+      [{ v: "부서", s: "head" }, { v: "건수", s: "head" }, { v: "신청 금액(원)", s: "head" }, { v: "지급액(원)", s: "head" }],
+      ...deptRows,
+      [{ v: "합계", s: "bold" }, { f: `SUM(B${first}:B${last})`, v: rows.length, s: "bold" }, { f: `SUM(C${first}:C${last})`, v: sum(rows, 6), s: "boldNum" }, { f: `SUM(D${first}:D${last})`, v: sum(rows, 10), s: "boldNum" }],
+      [],
+      [{ v: "부서는 제출한 사람의 부서, 지급액은 '지급 완료'인 내역의 지급 금액이에요.", fit: false }],
+      [{ v: "'정산 내역' 시트를 고치면 이 표도 다시 계산돼요.", fit: false }]
+    ];
+    return xlsxBook([
+      { name: "정산 내역", rows: [head.map((h) => ({ v: h, s: "head" })), ...rows], freeze: 1, filter: true },
+      { name: "요약", rows: summary, minWidth: 12 }
+    ]);
+  }
   $("btnExpCsv").addEventListener("click", async () => {
-    const cell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-    const head = ["제출일시", "신청자", "등록한 사람", "팀", "항목 수", "신청 금액(원)", "자동 검사", "지급 상태", "지급일", "지급 금액(원)", "총무 메모", "파일명", "계좌(일부)"];
-    const lines = [head.join(",")].concat(liveSubs().map((s) => {
-      const e = effective(s), r = reviewOf(s.key), st = statusOf(s);
-      return [fmtWhen(s.submittedAt), e.applicant, s.by, (e.teams || []).join(" "), (e.items || []).length, e.total || 0, LEVEL_LABEL[e.check?.level] || "", EXP_ST[st], st === "paid" ? r?.paidAt || "" : "", num(r?.paidAmount) ?? "", r?.note || "", e.fileName, e.accountMasked].map(cell).join(",");
-    }));
-    const csv = "﻿" + lines.join("\r\n"), filename = `사비정산_${todayStr()}.csv`;
+    if (typeof JSZip === "undefined") { toast("파일 분석 도구를 불러오지 못했어요. 페이지를 새로고침해 주세요."); return; }
+    const data = await expenseWorkbook(liveSubs()), filename = `사비정산_${todayStr()}.xlsx`;
     let dl = null;
     try { dl = await window.claude.use("downloads"); } catch {}
-    if (dl) { try { await dl.save({ filename, data: csv }); toast("정산 내역을 저장했어요"); return; } catch (err) { if (err && err.code === "declined") return; } }
-    try { await navigator.clipboard.writeText(csv); toast("파일로 저장할 수 없어 CSV를 클립보드에 복사했어요"); } catch { toast("이 화면에서는 내보낼 수 없어요"); }
+    if (dl) { try { await dl.save({ filename, data }); toast("정산 내역을 저장했어요"); return; } catch (err) { if (err && err.code === "declined") return; } }
+    toast("이 화면에서는 파일을 저장할 수 없어요");
   });
 
   if (typeof ResizeObserver === "function") {

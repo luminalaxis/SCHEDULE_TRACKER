@@ -25,6 +25,8 @@ Environment=TZ=Asia/Seoul
 # Trust the proxy's forwarded headers (real client IP, https): 1 = Cloudflare Tunnel, tailscale = tailscale serve / funnel,
 # 0 = none. Only safe while HOST=127.0.0.1.
 Environment=TRUST_PROXY=1
+# Check-in address called after each day's backup (healthchecks.io etc.); a missed check-in alerts your phone.
+# Environment=HEALTH_PING_URL=https://hc-ping.com/<your-check-uuid>
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/server.js
 Restart=always
 RestartSec=3

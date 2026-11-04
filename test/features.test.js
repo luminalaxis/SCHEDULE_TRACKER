@@ -4,6 +4,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,13 +26,13 @@ before(async () => {
   hookPort = hook.address().port;
   srv = await startServer({ WEBHOOK_HOSTS: "127.0.0.1" });
   dev = new Client(srv.base);
-  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자" });
+  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자", agree: true });
   dev.id = (await dev.get("/api/me")).json.id;
   vice = await member(srv.base, dev, "vice", "총무", { position: "vice_lead", dept: "battery" });
   a = await member(srv.base, dev, "aaa", "에이", { dept: "chassis" });
   b = await member(srv.base, dev, "bbb", "비", { position: "part_lead", dept: "aero" });
 });
-after(() => { srv.stop(); hook.close(); });
+after(async () => { hook.close(); await srv.stop(); });
 
 let fileAsset, receiptAsset, partAsset;
 const ITEM = { team: "에어로", date: 46300, cat: "프레임&바디", purpose: "리어 윙 제작", product: "카본 프리프레그", vendor: "https://smartstore.naver.com/carbon", price: 50000, qty: 2 };
@@ -225,6 +226,26 @@ test("the page's people list follows the accounts", async () => {
   await dev.req("DELETE", `/api/admin/users/${tmp.id}`);
 });
 
+test("changing or deleting the account of someone with the page open does not stop the server", async () => {
+  const p = await member(srv.base, dev, "promo", "승급자", { dept: "aero" });
+  const open = async () => {
+    const res = await fetch(srv.base + "/api/stream", { headers: { cookie: p.cookie } });
+    const reader = res.body.getReader();
+    const ended = (async () => { for (;;) if ((await reader.read()).done) return "ended"; })();
+    await new Promise((r) => setTimeout(r, 100));
+    return { ended }; // wrapped: an async function would wait for a returned promise
+  };
+  const timeout = () => new Promise((r) => setTimeout(() => r("timeout"), 3000));
+  let { ended } = await open();
+  assert.equal((await dev.post(`/api/admin/users/${p.id}`, { position: "part_lead", dept: "aero" })).status, 200);
+  assert.equal(await Promise.race([ended, timeout()]), "ended", "the page reconnects with its new position");
+  assert.equal((await fetch(srv.base + "/healthz")).status, 200);
+  ({ ended } = await open());
+  assert.equal((await dev.req("DELETE", `/api/admin/users/${p.id}`)).status, 200);
+  assert.equal(await Promise.race([ended, timeout()]), "ended");
+  assert.equal((await fetch(srv.base + "/healthz")).status, 200);
+});
+
 test("full backup carries the attachment files and restores them", async () => {
   const r = await dev.get("/api/admin/backups-full");
   assert.equal(r.status, 200); assert.equal(r.headers.get("content-type"), "application/gzip");
@@ -288,7 +309,12 @@ test("pages run scripts only by nonce; app files are served", async () => {
   assert.doesNotMatch(scriptSrc, /unsafe-inline|cdnjs/);
   const tags = page.text.match(/<script\b[^>]*>/g);
   assert.ok(tags.length >= 4 && tags.every((t) => t.includes(`nonce="${nonce}"`)), tags.join("\n"));
-  assert.match(page.text, /src="\/vendor\/jszip\.min\.js" integrity="sha512-/);
+  assert.match(page.text, /src="\/vendor\/jszip\.min\.js\?v=[0-9a-f]{12}" integrity="sha512-/, "the address changes with the content, so a bad cached copy is not reused");
+  // the browser runs the local JSZip only if it matches the page's hash (else the 사비 xlsx check cannot load)
+  const localZip = await a.get(page.text.match(/src="(\/vendor\/jszip\.min\.js\?v=[^"]+)"/)[1]), want = page.text.match(/jszip\.min\.js[^"]*" integrity="(sha512-[^"]+)"/)[1];
+  assert.equal("sha512-" + createHash("sha512").update(localZip.buf).digest("base64"), want);
+  assert.match(spawnSync("git", ["check-attr", "text", "server/public/vendor/jszip.min.js"], { cwd: ROOT, encoding: "utf8" }).stdout || "text: unset", /text: unset/, "git keeps its bytes (no CRLF on Windows)");
+  assert.doesNotMatch(srv.log(), /jszip\.min\.js 가 원본과 달라서/);
   assert.match(page.text, /rel="manifest"/);
   assert.equal(page.headers.get("cross-origin-opener-policy"), "same-origin");
   const login = await new Client(srv.base).get("/login");
@@ -356,6 +382,22 @@ test("login and sign-up are rate limited", async () => {
   const blocked = await x.post("/api/auth/login", { username: "dev", password: "password1" });
   assert.equal(blocked.status, 429, "even the right password waits once the address is blocked");
   let last;
-  for (let i = 0; i < 12; i++) { last = await x.post("/api/auth/signup", { username: `flood${i}`, password: "password-x", name: "flood", dept: "aero" }); if (last.status === 429) break; }
+  for (let i = 0; i < 12; i++) { last = await x.post("/api/auth/signup", { username: `flood${i}`, password: "password-x", name: "flood", dept: "aero", agree: true }); if (last.status === 429) break; }
   assert.equal(last.status, 429);
+});
+
+test("behind Tailscale the address comes from the tunnel's own X-Forwarded-For entry", async () => {
+  const s = await startServer({ TRUST_PROXY: "tailscale" });
+  try {
+    const x = new Client(s.base);
+    // the visitor forges CF-Connecting-IP and an earlier X-Forwarded-For entry; Funnel adds 203.0.113.7 last
+    for (let i = 0; i < 10; i++) {
+      const r = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "cf-connecting-ip": `198.51.100.${i}`, "x-forwarded-for": `192.0.2.${i}, 203.0.113.7` });
+      assert.equal(r.status, 401);
+    }
+    const blocked = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "cf-connecting-ip": "198.51.100.99", "x-forwarded-for": "192.0.2.99, 203.0.113.7" });
+    assert.equal(blocked.status, 429, "changing the forgeable headers does not reset the limit");
+    const other = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "x-forwarded-for": "203.0.113.8" });
+    assert.equal(other.status, 401, "another visitor is not blocked");
+  } finally { await s.stop(); }
 });

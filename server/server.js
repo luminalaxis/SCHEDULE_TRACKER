@@ -2,11 +2,12 @@
 // Serves the same index.html as the claude.ai Artifact, plus a runtime shim (public/fsk-runtime.js)
 // that implements window.claude.use("db" | "user" | "assets" | "downloads") against this server.
 import http from "node:http";
-import { readFileSync, writeFileSync, existsSync, statSync, statfsSync, createReadStream, readdirSync, unlinkSync, renameSync, mkdtempSync, rmSync, promises as fsp } from "node:fs";
+import { readFileSync, existsSync, statSync, statfsSync, createReadStream, readdirSync, unlinkSync, renameSync, mkdtempSync, mkdirSync, rmSync, promises as fsp } from "node:fs";
 import { join, dirname, isAbsolute, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import { openStore, createDocs, createRules, runQuery, splitPath, StoreError, levelOf, POSITIONS, deepMerge, stableJson } from "./store.js";
 import { createAuth, checkPasswordRule, checkUsername, verifyPassword, hashPassword, tempPassword, ROLES, STATUSES, POSITION_LABEL, tierOf } from "./auth.js";
 import { writeTarGz, readTarGz } from "./archive.js";
@@ -14,11 +15,14 @@ import { analyzeExport, remapRows } from "./migrate.js";
 import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
 import { contentMatches, cleanName } from "./filetype.js";
 import { DEPARTMENTS, DEPTS, deptLabel, DEPTS_PLACEHOLDER } from "./depts.js";
-import { checkExpenseFile } from "./expense-check.js";
+import { checkExpenseFile, rulesProblem } from "./expense-check.js";
+import { localStamp, localMonth, autoBackupDue, writeFileDurable, appendDurable, syncDir } from "./durable.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
+// The 개인정보 처리방침 (/privacy) version. Changing it asks everyone to read and confirm it again.
+const PRIVACY_VERSION = "2026-10-31";
 const CONFIG = {
   port: Number(process.env.PORT || 8080),
   host: process.env.HOST || "127.0.0.1",
@@ -28,7 +32,10 @@ const CONFIG = {
   proxy: process.env.TRUST_PROXY === "1" ? "cloudflare" : process.env.TRUST_PROXY === "tailscale" ? "tailscale" : "",
   cookieSecure: process.env.COOKIE_SECURE === "1",
   // Extra hosts allowed for the team webhook besides Discord and Slack (e.g. a self-hosted Mattermost). Set on the server only.
-  webhookHosts: String(process.env.WEBHOOK_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean)
+  webhookHosts: String(process.env.WEBHOOK_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean),
+  // A check-in address (healthchecks.io and the like) called after each day's backup, so a dead server or a backup
+  // that stopped running shows up as a missed check-in on someone's phone. Set on the server only.
+  healthPingUrl: String(process.env.HEALTH_PING_URL || "").trim()
 };
 const ASSET_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml", "video/mp4", "video/webm", "application/pdf",
   "text/csv", "text/markdown", "application/json", "text/plain", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
@@ -46,7 +53,9 @@ const startedAt = new Date();
 const sGet = db.prepare("SELECT value FROM settings WHERE key = ?"), sSet = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
 const DEFAULT_SETTINGS = {
   signupMode: "approval", inviteCode: "", autoBackup: true, backupHour: 4, backupKeep: 14,
-  mirrorDir: "", mirrorLast: null, webhookUrl: "", webhookKinds: Object.keys(WEBHOOK_KINDS), webhookLast: null
+  mirrorDir: "", mirrorLast: null, webhookUrl: "", webhookKinds: Object.keys(WEBHOOK_KINDS), webhookLast: null,
+  auditArchivedId: 0, healthPingLast: null,
+  privacyContact: "", auditKeepDays: 365, expenseKeepYears: 3
 };
 const setting = (k) => { const r = sGet.get(k); return r ? JSON.parse(r.value) : DEFAULT_SETTINGS[k]; };
 const setSetting = (k, v) => sSet.run(k, JSON.stringify(v));
@@ -58,15 +67,30 @@ function audit(ctx, action, target = "", detail = "") {
   const u = ctx && ctx.user;
   auditIns.run(new Date().toISOString(), u ? u.id : null, u ? u.name : null, action, String(target || ""), typeof detail === "string" ? detail : JSON.stringify(detail), ctx ? ctx.ip : null);
 }
+// The audit log holds IP addresses: entries older than the retention period (설정, 기본 365일) leave the database,
+// after archiveAudit has written them to the archive files (see "audit log archive" below).
+const auditKeepDays = () => Math.max(30, Number(setting("auditKeepDays")) || 365);
+const pruneAudit = () => archiveAudit();
 
 // ---------- live updates (SSE) ----------
+// A page that stops reading (a phone asleep on a bad connection) is dropped once this much waits for it, instead
+// of the server holding every change for it; the page reconnects and loads afresh. One person keeps at most
+// MAX_STREAMS open pages; a new one closes their oldest.
 const clients = new Set();
+const MAX_BUFFERED = 2 * 1024 * 1024, MAX_STREAMS = 10;
+function sse(c, chunk) {
+  if (c.res.destroyed) return;
+  if (c.res.writableLength > MAX_BUFFERED) { clients.delete(c); c.res.destroy(); return; }
+  c.res.write(chunk);
+}
 function broadcast(path, doc) {
   const payload = `event: change\ndata: ${JSON.stringify({ path, collection: docs.collectionOf(path), op: doc ? "set" : "delete", doc: doc || null })}\n\n`;
-  for (const c of clients) if (rules.canRead(c.user, path)) c.res.write(payload);
+  for (const c of clients) if (rules.canRead(c.user, path)) sse(c, payload);
 }
-function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) c.res.end(); }
-function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) c.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
+// Leave the set at once: the stream's "close" comes later, and a broadcast in between would write after end and crash the server.
+// With an event, the page hears it before the stream ends ("access": reload to show the new 권한).
+function dropStreams(userId, event) { for (const c of clients) if (c.user.id === userId) { clients.delete(c); c.res.end(event ? `event: ${event}\ndata: {}\n\n` : undefined); } }
+function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) sse(c, `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
 // A name or department change reaches that person's open pages at once, and the page's people list.
 function profileChanged(u) {
   for (const c of clients) if (c.user.id === u.id) c.user = { ...c.user, name: u.name, dept: u.dept };
@@ -100,7 +124,7 @@ function handOver(ctx, targetId, position, dept) {
   if (!position) return moved;
   for (const u of auth.list()) {
     if (u.id === targetId || u.position !== position || (position === "part_lead" && u.dept !== dept)) continue;
-    auth.update(u.id, { position: "" }); dropStreams(u.id);
+    auth.update(u.id, { position: "" }); dropStreams(u.id, "access");
     audit(ctx, "role.change", u.username, `${POSITION_LABEL[position]} → 팀원 (새 ${POSITION_LABEL[position]}에게 넘김)`);
     moved.push({ name: u.name, position });
   }
@@ -109,24 +133,70 @@ function handOver(ctx, targetId, position, dept) {
 
 // ---------- backups ----------
 const BACKUP_DIR = join(CONFIG.dataDir, "backups");
-const backupStamp = () => new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
-const backupName = (kind) => `fsk-${backupStamp()}-${kind}.json`;
+const backupName = (kind) => `fsk-${localStamp()}-${kind}.json`;
 function backupData(ctx, note) {
   return {
     format: "fsk-backup", version: 1, createdAt: new Date().toISOString(), createdBy: ctx?.user?.name || "system", note,
     docs: docs.all().map(({ path, data, version, updatedAt, updatedBy, createdBy }) => ({ path, data, version, updatedAt, updatedBy, createdBy })),
     users: db.prepare("SELECT * FROM users").all(),
     settings: allSettings(),
-    assets: db.prepare("SELECT * FROM assets").all()
+    assets: db.prepare("SELECT * FROM assets").all(),
+    audit: db.prepare("SELECT * FROM audit ORDER BY id").all()
   };
 }
 function createBackup(kind, ctx, note = "") {
-  const data = backupData(ctx, note);
-  const name = backupName(kind), tmp = join(BACKUP_DIR, name + ".tmp");
-  writeFileSync(tmp, JSON.stringify(data), { mode: 0o600 });
-  renameSync(tmp, join(BACKUP_DIR, name));
-  audit(ctx, "backup.create", name, `${data.docs.length} docs`);
+  const name = backupName(kind);
+  audit(ctx, "backup.create", name, `${docs.counts().reduce((n, c) => n + c.n, 0)} docs`);   // first, so the backup holds its own record
+  try { writeFileDurable(join(BACKUP_DIR, name), JSON.stringify(backupData(ctx, note))); }
+  catch (e) { audit(ctx, "backup.fail", name, String((e && e.message) || e).slice(0, 300)); throw e; }
+  try { archiveAudit(); } catch (e) { console.error("audit archive failed", e); }
   return name;
+}
+
+// ---------- audit log archive ----------
+// Besides being in every backup, the audit log is kept on its own in backups/audit/fsk-audit-YYYY-MM.jsonl: one JSON
+// line per entry, appended (never rewritten) after each backup, by the month of the entry. These files go along to
+// the off-site copy and into full backups. Entries older than auditKeepDays() leave the database only once they are
+// in an archive file, so the log stays small without anything being lost.
+const AUDIT_DIR = join(BACKUP_DIR, "audit");
+const AUDIT_FILE = /^fsk-audit-\d{4}-\d{2}\.jsonl$/;
+function archiveAudit() {
+  mkdirSync(AUDIT_DIR, { recursive: true, mode: 0o700 });
+  const last = Number(setting("auditArchivedId")) || 0;
+  const rows = db.prepare("SELECT * FROM audit WHERE id > ? ORDER BY id").all(last);
+  if (rows.length) {
+    const byMonth = new Map();
+    for (const r of rows) { const m = localMonth(new Date(r.at)); byMonth.set(m, (byMonth.get(m) || "") + JSON.stringify(r) + "\n"); }
+    for (const [m, text] of byMonth) appendDurable(join(AUDIT_DIR, `fsk-audit-${m}.jsonl`), text);
+    setSetting("auditArchivedId", rows[rows.length - 1].id);
+  }
+  const cutoff = new Date(Date.now() - auditKeepDays() * 86400000).toISOString();
+  db.prepare("DELETE FROM audit WHERE at < ? AND id <= ?").run(cutoff, Number(setting("auditArchivedId")) || 0);
+  return rows.length;
+}
+function listAuditArchives() {
+  try {
+    return readdirSync(AUDIT_DIR).filter((f) => AUDIT_FILE.test(f)).map((f) => { const st = statSync(join(AUDIT_DIR, f)); return { name: f, bytes: st.size, updatedAt: st.mtime.toISOString() }; })
+      .sort((a, b) => b.name.localeCompare(a.name));
+  } catch { return []; }
+}
+
+// ---------- health check-in ----------
+// healthchecks.io style addresses (no query string) get a POST with what happened, and "/fail" when a step failed.
+// Addresses with a query string (Uptime Kuma push and the like) get a plain GET on success only; a failure then shows
+// up there as a missed check-in.
+async function pingHealth(ok, detail) {
+  const url = CONFIG.healthPingUrl;
+  if (!url) return null;
+  const query = url.includes("?");
+  if (!ok && query) return null;
+  let res;
+  try {
+    const r = await fetch(query ? url : url + (ok ? "" : "/fail"), { method: query ? "GET" : "POST", body: query ? undefined : String(detail || "").slice(0, 500), signal: AbortSignal.timeout(10000) });
+    res = { at: new Date().toISOString(), ok: r.ok, status: `HTTP ${r.status}` };
+  } catch (e) { res = { at: new Date().toISOString(), ok: false, status: e && e.name === "TimeoutError" ? "시간 초과" : "연결 실패" }; }
+  setSetting("healthPingLast", res);
+  return res;
 }
 function listBackups() {
   return readdirSync(BACKUP_DIR).filter((f) => /^fsk-[\w.-]+\.json$/.test(f)).map((f) => { const st = statSync(join(BACKUP_DIR, f)); return { name: f, bytes: st.size, createdAt: st.mtime.toISOString(), auto: f.endsWith("-auto.json") }; })
@@ -136,16 +206,15 @@ function pruneAutoBackups() {
   const keep = Math.max(1, Number(setting("backupKeep")) || 14);
   listBackups().filter((b) => b.auto).slice(keep).forEach((b) => unlinkSync(join(BACKUP_DIR, b.name)));
 }
-function autoBackupTick() {
-  try {
-    if (!setting("autoBackup")) return;
-    const now = new Date(), today = now.toISOString().slice(0, 10).replace(/-/g, "");
-    if (now.getHours() < Number(setting("backupHour"))) return;
-    if (listBackups().some((b) => b.auto && b.name.startsWith(`fsk-${today}`))) return;
-    createBackup("auto", null, "자동 백업");
-    pruneAutoBackups();
-    if (setting("mirrorDir")) mirrorNow(null);
-  } catch (e) { console.error("auto backup failed", e); }
+// The day's automatic backup, then the off-site copy, then the health check-in (a failed step checks in as failed).
+async function autoBackupTick() {
+  if (!setting("autoBackup") || !autoBackupDue(new Date(), Number(setting("backupHour")), listBackups().map((b) => b.name))) return;
+  let name;
+  try { name = createBackup("auto", null, "자동 백업"); pruneAutoBackups(); }
+  catch (e) { console.error("auto backup failed", e); return pingHealth(false, `자동 백업 실패: ${e && e.message}`); }
+  const mirror = setting("mirrorDir") ? await mirrorNow(null) : null;
+  if (mirror && !mirror.ok) return pingHealth(false, `외부 복사 실패: ${mirror.message}`);
+  return pingHealth(true, `${name}${mirror ? ` · 외부 복사 ${mirror.message}` : ""}`);
 }
 
 // ---------- off-site copy (USB drive, network share) ----------
@@ -164,12 +233,15 @@ async function runMirror(ctx) {
   try {
     if (!dir) throw new Error("외부 복사 폴더가 정해지지 않았어요.");
     const err = mirrorCheck(dir); if (err) throw new Error(err);
-    const root = resolve(dir), bdir = join(root, "backups"), adir = join(root, "assets"), src = join(CONFIG.dataDir, "assets");
-    await fsp.mkdir(bdir, { recursive: true, mode: 0o700 }); await fsp.mkdir(adir, { recursive: true, mode: 0o700 });
+    const root = resolve(dir), bdir = join(root, "backups"), adir = join(root, "assets"), udir = join(root, "audit"), src = join(CONFIG.dataDir, "assets");
+    for (const d of [bdir, adir, udir]) await fsp.mkdir(d, { recursive: true, mode: 0o700 });
+    // A USB drive can be pulled out at any time: each copy is synced to the drive before it takes its real name.
     const copyIfNew = async (from, to) => {
       const st = await fsp.stat(from);
       try { if ((await fsp.stat(to)).size === st.size) return; } catch {}
-      await fsp.copyFile(from, to + ".part"); await fsp.chmod(to + ".part", 0o600).catch(() => {}); await fsp.rename(to + ".part", to);
+      await fsp.copyFile(from, to + ".part"); await fsp.chmod(to + ".part", 0o600).catch(() => {});
+      const fh = await fsp.open(to + ".part", "r+"); try { await fh.sync(); } finally { await fh.close(); }
+      await fsp.rename(to + ".part", to);
       res.files++; res.bytes += st.size;
     };
     const backups = listBackups();
@@ -179,7 +251,11 @@ async function runMirror(ctx) {
     for (const f of autos.slice(60)) await fsp.unlink(join(bdir, f));
     let assetsTotal = 0;
     for (const f of await fsp.readdir(src)) if (validAssetId(f)) { assetsTotal++; await copyIfNew(join(src, f), join(adir, f)); }
-    await fsp.writeFile(join(root, "LAST_COPY.txt"), `FSK 피트보드 외부 복사\n마지막 복사: ${res.at}\n백업 파일 ${backups.length}개, 첨부 파일 ${assetsTotal}개\n복원 방법: 저장소 README의 '외부 복사본에서 복원'\n`);
+    // audit archive files only grow, so a size change means new entries: copied again in full
+    const auditFiles = listAuditArchives();
+    for (const a of auditFiles) await copyIfNew(join(AUDIT_DIR, a.name), join(udir, a.name));
+    for (const d of [bdir, adir, udir]) syncDir(d);
+    await fsp.writeFile(join(root, "LAST_COPY.txt"), `FSK 피트보드 외부 복사\n마지막 복사: ${res.at}\n백업 파일 ${backups.length}개, 첨부 파일 ${assetsTotal}개, 감사 로그 보관 파일 ${auditFiles.length}개\n복원 방법: 저장소 README의 '외부 복사본에서 복원'\n`);
     res.ok = true; res.message = res.files ? `새 파일 ${res.files}개를 복사했어요` : "새로 복사할 파일이 없어요";
   } catch (e) { res.message = e && e.message ? e.message : String(e); }
   setSetting("mirrorLast", res);
@@ -217,16 +293,29 @@ function restoreDocs(ctx, rows, mode) {
 // ---------- http helpers ----------
 const SECURITY_HEADERS = { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "X-Frame-Options": "DENY", "Cross-Origin-Opener-Policy": "same-origin", "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()" };
 // Scripts run only with this response's nonce (no 'unsafe-inline'), so injected markup cannot run script.
-const pageCsp = (nonce) => `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
+const pageCsp = (nonce) => `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
+// Pages, scripts and larger JSON go out gzipped when the browser takes it (the page alone is over 200 KB, and phones
+// at the track are on slow connections). Compression runs on the thread pool, not the event loop. res.sending marks
+// a response that is on its way, so an error after it cannot start a second one.
+const COMPRESS_MIN = 1024;
+const takesGzip = (res) => /\bgzip\b/.test(String(res.req?.headers["accept-encoding"] || ""));
+function finish(res, status, headers, body) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  res.sending = true;
+  if (buf.length < COMPRESS_MIN || !takesGzip(res)) { res.writeHead(status, headers); return res.end(buf); }
+  zlib.gzip(buf, (err, out) => {
+    if (res.headersSent || res.destroyed) return;
+    if (err) { res.writeHead(status, headers); return res.end(buf); }
+    res.writeHead(status, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+    res.end(out);
+  });
+}
 function send(res, status, body, headers = {}) {
-  const json = JSON.stringify(body);
-  res.writeHead(status, { ...SECURITY_HEADERS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });
-  res.end(json);
+  finish(res, status, { ...SECURITY_HEADERS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers }, JSON.stringify(body));
 }
 function sendHtml(res, html, status = 200) {
   const nonce = crypto.randomBytes(16).toString("base64");
-  res.writeHead(status, { ...SECURITY_HEADERS, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": pageCsp(nonce) });
-  res.end(html.replace(/<script(?=[\s>])/g, `<script nonce="${nonce}"`));
+  finish(res, status, { ...SECURITY_HEADERS, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": pageCsp(nonce) }, html.replace(/<script(?=[\s>])/g, `<script nonce="${nonce}"`));
 }
 const redirect = (res, to) => { res.writeHead(302, { Location: to, "Cache-Control": "no-store" }); res.end(); };
 function readBody(req, limit) {
@@ -260,7 +349,7 @@ const limited = (map, key, max, win) => { const f = map.get(key); return !!f && 
 const bump = (map, key, win) => { const f = map.get(key); if (!f || Date.now() - f.first > win) map.set(key, { count: 1, first: Date.now() }); else f.count++; };
 function pruneLimits() { for (const m of [fails, accountFails, signups]) for (const [k, f] of m) if (Date.now() - f.first > SIGNUP_WINDOW) m.delete(k); }
 // Unknown usernames still pay for one scrypt check, so response time does not reveal which accounts exist.
-const DUMMY_HASH = hashPassword(crypto.randomBytes(12).toString("hex"));
+const DUMMY_HASH = await hashPassword(crypto.randomBytes(12).toString("hex"));
 const sameSecret = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 // ---------- page ----------
@@ -272,17 +361,41 @@ function pageSource() {
 }
 const safeJson = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+// The page keeps the CDN tag's integrity hash, so the local copy must match it byte for byte or the browser refuses it
+// (사비 xlsx check: "파일 분석 도구를 불러오지 못했어요"). Git on Windows turning LF into CRLF is the usual cause.
+function jszipMatchesPage() {
+  const want = (pageSource().match(/jszip\.min\.js" integrity="(sha512-[^"]+)"/) || [])[1];
+  return !want || want === "sha512-" + crypto.createHash("sha512").update(staticFile("vendor/jszip.min.js")).digest("base64");
+}
+// The file is cached for a year, so its address carries a hash of its content: a fixed copy gets a new address
+// instead of browsers keeping a bad one they already hold.
+let jszipUrl = { mtime: 0, url: "" };
+function localJszip() {
+  const m = statSync(join(HERE, "public", "vendor", "jszip.min.js")).mtimeMs;
+  if (m !== jszipUrl.mtime) jszipUrl = { mtime: m, url: "/vendor/jszip.min.js?v=" + crypto.createHash("sha256").update(staticFile("vendor/jszip.min.js")).digest("hex").slice(0, 12) };
+  return jszipUrl.url;
+}
+// index.html loads Google Fonts on claude.ai; here the same fonts come from this server (no request to Google).
+const GOOGLE_FONTS = /<link rel="preconnect" href="https:\/\/fonts\.(googleapis|gstatic)\.com"[^>]*>\s*|<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\/[^"]*">/g;
+const localFonts = (html) => html.replace(GOOGLE_FONTS, (m) => m.includes('rel="stylesheet"') ? '<link rel="stylesheet" href="/fonts/fonts.css">' : "");
 function renderPage(user) {
   const me = { ...auth.publicUser(user), level: levelOf(user) };
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`
     + `<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#131A24"><link rel="icon" href="/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="피트보드">`
     + `<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>`
-    + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource().replace(JSZIP_CDN, "/vendor/jszip.min.js")}\n</body></html>`;
+    + `<script>window.__FSK_ME=${safeJson(me)};window.__FSK_PRIVACY=${safeJson(PRIVACY_VERSION)};</script><script src="/fsk-runtime.js"></script></head><body>\n${localFonts(pageSource()).replace(JSZIP_CDN, localJszip())}\n</body></html>`;
 }
 const staticFile = (name) => readFileSync(join(HERE, "public", name));
+// Script and manifest files are gzipped once and kept until the file changes; images go out as they are.
+const gzCache = new Map();
 function sendStatic(res, name, type, cache = "no-cache", extra = {}) {
-  res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": type, "Cache-Control": cache, ...extra });
-  res.end(staticFile(name));
+  const headers = { ...SECURITY_HEADERS, "Content-Type": type, "Cache-Control": cache, ...extra };
+  if (type.startsWith("image/png") || !takesGzip(res)) { res.writeHead(200, headers); return res.end(staticFile(name)); }
+  const file = join(HERE, "public", name), mtime = statSync(file).mtimeMs;
+  let c = gzCache.get(name);
+  if (!c || c.mtime !== mtime) gzCache.set(name, (c = { mtime, gz: zlib.gzipSync(readFileSync(file), { level: 9 }) }));
+  res.writeHead(200, { ...headers, "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+  res.end(c.gz);
 }
 
 // ---------- 사비 정산 protection ----------
@@ -418,6 +531,7 @@ async function checkSubmittedFile(ctx, sub) {
   // The page stores the xlsx base64-wrapped as text/plain (the claude.ai asset store does not take xlsx); a raw xlsx also works.
   const raw = await fsp.readFile(assetPath(id));
   const buf = row.content_type === "text/plain" ? Buffer.from(raw.toString("latin1").trim(), "base64") : raw;
+  if (rulesProblem(pageSource())) throw new StoreError("quota_or_state", "서버의 index.html 이 서버 코드와 버전이 달라서 사비 내역서를 확인할 수 없어요. 개발자에게 알려 주세요.", 500); // not 503: the page treats 502-504 as offline and would queue it
   return checkExpenseFile(pageSource(), buf, cleanName(String(sub.fileName || "")));
 }
 function afterWrite(ctx, path, prevData, d) {
@@ -432,6 +546,79 @@ function commitWrite(ctx, path, next) {
   const d = next === null ? (docs.remove(path), null) : docs.set(path, next, ctx.user.id);
   afterWrite(ctx, path, prev ? prev.data : null, d);
   return d;
+}
+
+// ---------- 개인정보 정리 ----------
+// Expense originals and receipt photos carry the full bank account number. Removing them keeps the entry's amounts and
+// items (the team's 정산 ledger still adds up) but drops the files, the masked account and the file name.
+const GONE = "탈퇴한 팀원";
+function removeAsset(id) {
+  if (!validAssetId(id) || !assetGet.get(id)) return false;
+  if (existsSync(assetPath(id))) unlinkSync(assetPath(id));
+  assetDel.run(id);
+  return true;
+}
+function stripFiles(sub, at) {
+  let n = 0;
+  for (const a of expenseAssets(sub)) if (removeAsset(blobId(a))) n++;
+  return { sub: { ...sub, fileAsset: "", receipts: [], accountMasked: "", fileName: "", filesPurgedAt: at }, n };
+}
+// Strips the files of the 사비 내역서 entries `pick(ownerId, sub)` selects, and of the 수정본 총무 put in for them.
+function purgeExpenseFiles(pick) {
+  const at = new Date().toISOString(), keys = new Set();
+  let files = 0, entries = 0;
+  for (const d of docs.list("expenses")) {
+    const subs = isObject(d.data.subs) ? d.data.subs : {}, next = {};
+    let changed = false;
+    for (const [id, sub] of Object.entries(subs)) {
+      if (!isObject(sub) || sub.filesPurgedAt || !pick(d.id, sub)) { next[id] = sub; continue; }
+      const r = stripFiles(sub, at);
+      next[id] = r.sub; files += r.n; entries++; changed = true; keys.add(`${d.id}:${id}`);
+    }
+    if (changed) broadcast(d.path, docs.set(d.path, { ...d.data, subs: next }, "system"));
+  }
+  for (const d of docs.list("reviews")) {
+    const items = isObject(d.data.items) ? d.data.items : {};
+    let changed = false;
+    const next = Object.fromEntries(Object.entries(items).map(([key, it]) => {
+      if (!keys.has(key) || !isObject(it) || !isObject(it.override)) return [key, it];
+      const r = stripFiles(it.override, at); files += r.n; changed = true;
+      return [key, { ...it, override: r.sub }];
+    }));
+    if (changed) broadcast(d.path, docs.set(d.path, { ...d.data, items: next }, "system"));
+  }
+  privateCache = null;
+  return { entries, files };
+}
+const expenseCutoff = () => { const d = new Date(); d.setFullYear(d.getFullYear() - Math.max(1, Number(setting("expenseKeepYears")) || 3)); return d.toISOString(); };
+const expiredExpense = (sub) => String(sub.submittedAt || "") < expenseCutoff();
+function expiredExpenseCount() {
+  let n = 0;
+  for (const d of docs.list("expenses")) for (const sub of Object.values(isObject(d.data.subs) ? d.data.subs : {})) if (isObject(sub) && !sub.filesPurgedAt && expiredExpense(sub)) n++;
+  return n;
+}
+// The person's name in team records (기록·의견·점검·부품 담당·사비 신청자) becomes "탈퇴한 팀원". A name counts as theirs
+// inside documents they wrote, or in an object that carries their account id (uid / ownerUid).
+const NAME_KEYS = new Set(["by", "author", "name", "owner", "applicant", "deletedBy", "replacedBy"]);
+function scrubName(v, u, mine) {
+  if (Array.isArray(v)) return v.map((x) => scrubName(x, u, mine));
+  if (!isObject(v)) return v;
+  const own = v.uid !== undefined || v.ownerUid !== undefined ? v.uid === u.id || v.ownerUid === u.id : mine;
+  return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, NAME_KEYS.has(k) && own && x === u.name ? GONE : scrubName(x, u, own)]));
+}
+const auditScrub = db.prepare("UPDATE audit SET actor_name = ?, ip = NULL WHERE actor = ?");
+const auditScrubTarget = db.prepare("UPDATE audit SET ip = NULL WHERE actor IS NULL AND target = ?");
+function purgePerson(u) {
+  const { files } = purgeExpenseFiles((owner) => owner === u.id);
+  let changed = 0;
+  for (const d of docs.all()) {
+    if (d.collection === "people") continue;
+    const next = scrubName(d.data, u, d.createdBy === u.id || d.updatedBy === u.id || d.path === "expenses/" + u.id);
+    if (stableJson(next) !== stableJson(d.data)) { broadcast(d.path, docs.set(d.path, next, "system")); changed++; }
+  }
+  if (docs.get("people/" + u.id)) { docs.remove("people/" + u.id); broadcast("people/" + u.id, null); }
+  auditScrub.run(GONE, u.id); auditScrubTarget.run(u.username);
+  return { files, docs: changed };
 }
 
 // ---------- routes ----------
@@ -454,6 +641,25 @@ route("GET", "/admin", (ctx) => {
   if (ctx.user.role !== "developer") return redirect(ctx.res, "/");
   sendHtml(ctx.res, withDepts(staticFile("admin.html").toString()));
 }, { auth: "none" });
+// 개인정보 처리방침: public (the sign-up form links to it), with this server's own retention settings filled in
+const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+function privacyValues() {
+  const keep = Math.max(1, Number(setting("backupKeep")) || 14);
+  return {
+    version: PRIVACY_VERSION, contact: String(setting("privacyContact") || "").trim() || "피트보드 개발자(관리자)",
+    auditDays: auditKeepDays(), expenseYears: Math.max(1, Number(setting("expenseKeepYears")) || 3),
+    backupKeep: keep, historyDays: HISTORY_DAYS, notifyDays: 60, sessionDays: 30, webhook: setting("webhookUrl") ? "켜져 있어요" : "꺼져 있어요"
+  };
+}
+route("GET", "/privacy", (ctx) => {
+  const v = privacyValues();
+  sendHtml(ctx.res, staticFile("privacy.html").toString().replace(/\{\{(\w+)\}\}/g, (m, k) => Object.hasOwn(v, k) ? escHtml(v[k]) : m));
+}, { auth: "none" });
+route("GET", "/fonts/:name", (ctx) => {
+  const n = ctx.params.name, type = /^[a-z0-9-]+\.woff2$/.test(n) ? "font/woff2" : n === "fonts.css" ? "text/css; charset=utf-8" : n === "OFL.txt" ? "text/plain; charset=utf-8" : "";
+  if (!type || !existsSync(join(HERE, "public", "fonts", n))) { ctx.res.writeHead(404, SECURITY_HEADERS); return ctx.res.end("not found"); }
+  sendStatic(ctx.res, "fonts/" + n, type, n.endsWith(".woff2") ? "public, max-age=31536000, immutable" : "public, max-age=86400");
+}, { auth: "none" });
 route("GET", "/fsk-runtime.js", (ctx) => sendStatic(ctx.res, "fsk-runtime.js", "text/javascript; charset=utf-8"), { auth: "none" });
 // installable app (PWA): manifest, service worker (offline start), icons, and a local copy of JSZip
 route("GET", "/sw.js", (ctx) => sendStatic(ctx.res, "sw.js", "text/javascript; charset=utf-8", "no-cache", { "Service-Worker-Allowed": "/" }), { auth: "none" });
@@ -465,7 +671,11 @@ route("GET", "/icons/:name", (ctx) => {
   sendStatic(ctx.res, "icons/" + ctx.params.name, type, "public, max-age=86400");
 }, { auth: "none" });
 route("GET", "/vendor/jszip.min.js", (ctx) => sendStatic(ctx.res, "vendor/jszip.min.js", "text/javascript; charset=utf-8", "public, max-age=31536000, immutable"), { auth: "none" });
-route("GET", "/healthz", (ctx) => send(ctx.res, 200, { ok: true, version: VERSION }), { auth: "none" });
+// For an outside uptime monitor: 503 when the database cannot be read.
+route("GET", "/healthz", (ctx) => {
+  try { db.prepare("SELECT 1").get(); } catch { return send(ctx.res, 503, { ok: false, version: VERSION }); }
+  send(ctx.res, 200, { ok: true, version: VERSION });
+}, { auth: "none" });
 
 // auth
 route("GET", "/api/auth/config", (ctx) => send(ctx.res, 200, { signupMode: setting("signupMode"), firstUser: auth.count() === 0, signedIn: !!ctx.user }), { auth: "none" });
@@ -475,7 +685,7 @@ route("POST", "/api/auth/login", async (ctx) => {
   const uname = String(username || "").trim().toLowerCase().slice(0, 64);
   if (limited(accountFails, uname, 30, LOGIN_WINDOW)) return send(ctx.res, 429, { code: "rate_limited", message: "이 아이디로 로그인 실패가 너무 많아요. 15분 뒤에 다시 시도하거나 개발자에게 문의하세요." });
   const u = auth.byUsername(uname);
-  const ok = verifyPassword(String(password || ""), u ? u.pw_hash : DUMMY_HASH) && !!u;
+  const ok = (await verifyPassword(String(password || ""), u ? u.pw_hash : DUMMY_HASH)) && !!u;
   if (!ok) {
     bump(fails, ctx.ip, LOGIN_WINDOW); bump(accountFails, uname, LOGIN_WINDOW); audit({ ip: ctx.ip }, "login.fail", uname.slice(0, 40));
     return send(ctx.res, 401, { code: "bad_credentials", message: "아이디 또는 비밀번호가 맞지 않아요." });
@@ -494,6 +704,9 @@ route("POST", "/api/auth/signup", async (ctx) => {
   const username = String(b.username || "").trim().toLowerCase(), name = String(b.name || "").trim(), dept = DEPTS.includes(b.dept) ? b.dept : "";
   const err = checkUsername(username) || checkPasswordRule(b.password) || (!name || name.length > 20 ? "이름을 1~20자로 적어 주세요." : null);
   if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
+  if (b.agree !== true) return send(ctx.res, 400, { code: "invalid_argument", message: "개인정보 수집·이용 안내를 확인하고 동의해 주세요." });
+  // hash first: from here to the insert nothing waits, so two sign-ups at once see each other
+  const pwHash = await hashPassword(b.password);
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
   const first = auth.count() === 0, mode = setting("signupMode");
   // 팀원 must pick a department when signing up; only the very first account (the developer) may skip it.
@@ -505,9 +718,9 @@ route("POST", "/api/auth/signup", async (ctx) => {
     if (!sameSecret(String(b.invite || "").trim(), setting("inviteCode"))) { bump(signups, ctx.ip, SIGNUP_WINDOW); return send(ctx.res, 403, { code: "bad_invite", message: "초대 코드가 맞지 않아요." }); }
     status = "active";
   }
-  const u = auth.create({ username, name, dept, role, status, password: b.password });
+  const u = auth.create({ username, name, dept, role, status, pwHash, privacyAck: PRIVACY_VERSION });
   if (!first) bump(signups, ctx.ip, SIGNUP_WINDOW);
-  audit({ user: u, ip: ctx.ip }, "signup", username, `${role} · ${status}`);
+  audit({ user: u, ip: ctx.ip }, "signup", username, `${role} · ${status} · 개인정보 안내 ${PRIVACY_VERSION} 동의`);
   if (first) syncRoles();
   syncPerson(u);
   if (status === "pending") notifier.notify(auth.activeDevelopers(), { kind: "signup", title: "가입 승인 요청", body: `${name} (${username})${dept ? " · " + deptLabel(dept) : ""}`, link: { href: "/admin#users" } });
@@ -521,9 +734,9 @@ route("POST", "/api/auth/logout", (ctx) => {
 }, { auth: "none" });
 route("POST", "/api/auth/password", async (ctx) => {
   const b = await readJson(ctx.req, AUTH_BODY);
-  if (!verifyPassword(String(b.current || ""), ctx.user.pw_hash)) return send(ctx.res, 400, { code: "bad_credentials", message: "현재 비밀번호가 맞지 않아요." });
+  if (!(await verifyPassword(String(b.current || ""), ctx.user.pw_hash))) return send(ctx.res, 400, { code: "bad_credentials", message: "현재 비밀번호가 맞지 않아요." });
   const err = checkPasswordRule(b.next); if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
-  auth.setPassword(ctx.user.id, b.next, false);
+  auth.setPassword(ctx.user.id, await hashPassword(b.next), false);
   auth.endOtherSessions(ctx.user.id, ctx.user.tokenHash);
   audit(ctx, "password.change", ctx.user.username);
   send(ctx.res, 200, { ok: true });
@@ -544,6 +757,27 @@ route("POST", "/api/me/profile", async (ctx) => {
   if (dept !== ctx.user.dept) audit(ctx, "profile.dept", ctx.user.username, `${deptLabel(ctx.user.dept) || "-"} → ${deptLabel(dept) || "-"}`);
   profileChanged(auth.byId(ctx.user.id));
   send(ctx.res, 200, { ok: true });
+});
+// 개인정보 처리방침 confirmation (accounts made by a developer, and everyone again when the policy changes)
+route("POST", "/api/me/privacy-ack", (ctx) => {
+  if (ctx.user.privacy_ack !== PRIVACY_VERSION) { auth.setPrivacyAck(ctx.user.id, PRIVACY_VERSION); audit(ctx, "privacy.ack", ctx.user.username, PRIVACY_VERSION); }
+  send(ctx.res, 200, { ok: true, version: PRIVACY_VERSION });
+});
+// 내 정보 삭제 요청: recorded on the account and sent to the developers, who delete the account with 개인정보 정리 in /admin
+route("GET", "/api/me/delete-request", (ctx) => send(ctx.res, 200, { requestedAt: ctx.user.delete_requested_at || null }));
+route("POST", "/api/me/delete-request", async (ctx) => {
+  const b = await readJson(ctx.req, AUTH_BODY), u = ctx.user;
+  if (b.cancel === true) {
+    if (u.delete_requested_at) { auth.setDeleteRequest(u.id, null); audit(ctx, "privacy.delete_cancel", u.username); }
+    return send(ctx.res, 200, { requestedAt: null });
+  }
+  const at = u.delete_requested_at || new Date().toISOString(), note = String(b.note || "").trim().slice(0, 300);
+  if (!u.delete_requested_at) {
+    auth.setDeleteRequest(u.id, at);
+    audit(ctx, "privacy.delete_request", u.username, note);
+    notifier.notify(auth.activeDevelopers().filter((id) => id !== u.id), { kind: "privacy", title: "개인정보 삭제 요청", body: `${u.name} (${u.username})${note ? " · " + note : ""}`, link: { href: "/admin#users" } });
+  }
+  send(ctx.res, 200, { requestedAt: at });
 });
 route("GET", "/api/users/public", (ctx) => send(ctx.res, 200, { users: auth.list().filter((u) => u.status === "active").map((u) => ({ id: u.id, name: u.name, dept: u.dept, role: u.role })) }));
 
@@ -589,10 +823,13 @@ route("GET", "/api/stream", (ctx) => {
   const { req, res, user } = ctx;
   res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", Connection: "keep-alive", "X-Accel-Buffering": "no" });
   res.write("retry: 3000\n\n: connected\n\n");
+  const mine = [...clients].filter((c) => c.user.id === user.id);
+  for (const c of mine.slice(0, Math.max(0, mine.length - MAX_STREAMS + 1))) { clients.delete(c); c.res.end(); }
   const client = { res, user };
   clients.add(client);
-  const ping = setInterval(() => res.write(": ping\n\n"), 25000);
+  const ping = setInterval(() => sse(client, ": ping\n\n"), 25000);
   req.on("close", () => { clearInterval(ping); clients.delete(client); });
+  res.on("error", () => clients.delete(client)); // a failed write to one page must not take the server down
 });
 
 // notifications (the bell in the page)
@@ -609,6 +846,23 @@ const assetGet = db.prepare("SELECT * FROM assets WHERE id = ?"), assetDel = db.
 const assetPath = (id) => join(CONFIG.dataDir, "assets", id);
 const validAssetId = (id) => /^[a-f0-9]{32}$/.test(id);
 const assetUsage = db.prepare("SELECT COALESCE(SUM(size), 0) AS bytes FROM assets WHERE uploader = ?");
+// Writes an upload straight to disk (synced) instead of holding up to 20 MB per request in memory. Keeps the first
+// 64 KiB, which is all the content check (contentMatches) reads.
+const HEAD_BYTES = 64 * 1024;
+async function receiveFile(req, limit, file) {
+  const fh = await fsp.open(file, "wx", 0o600), head = [];
+  let size = 0, headLen = 0;
+  try {
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > limit) { req.destroy(); throw new StoreError("too_large", "파일이 너무 커요.", 413); }
+      if (headLen < HEAD_BYTES) { const h = chunk.subarray(0, HEAD_BYTES - headLen); head.push(h); headLen += h.length; }
+      await fh.write(chunk);
+    }
+    await fh.sync();
+  } finally { await fh.close(); }
+  return { size, head: Buffer.concat(head) };
+}
 function freeDisk() { try { const s = statfsSync(CONFIG.dataDir); return s.bavail * s.bsize; } catch { return Infinity; } }
 route("POST", "/api/assets", async (ctx) => {
   if (level(ctx.user) < 2) return send(ctx.res, 403, { code: "not_granted", message: "파일을 올릴 권한이 없어요." });
@@ -616,26 +870,46 @@ route("POST", "/api/assets", async (ctx) => {
   if (!ASSET_TYPES.has(type)) return send(ctx.res, 415, { code: "unsupported_type", message: "지원하지 않는 파일 형식이에요." });
   if (freeDisk() < MIN_FREE_DISK) return send(ctx.res, 507, { code: "quota_or_state", message: "서버 저장 공간이 부족해요. 개발자에게 알려 주세요." });
   if (ctx.user.role !== "developer" && assetUsage.get(ctx.user.id).bytes > MAX_USER_ASSETS) return send(ctx.res, 507, { code: "quota_or_state", message: "내가 올린 파일이 2GB를 넘었어요. 안 쓰는 첨부를 지운 뒤 다시 올려 주세요." });
-  const buf = await readBody(ctx.req, type === "image/svg+xml" ? 2 * 1024 * 1024 : MAX_ASSET);
-  if (!buf.length) return send(ctx.res, 400, { code: "invalid_request", message: "빈 파일이에요." });
-  if (!contentMatches(type, buf)) return send(ctx.res, 415, { code: "unsupported_type", message: "파일 내용이 확장자와 맞지 않아요. 원래 형식 그대로 저장한 파일을 올려 주세요." });
+  const limit = type === "image/svg+xml" ? 2 * 1024 * 1024 : MAX_ASSET;
+  // refused before reading: the body is still on its way, so the connection is closed rather than reused
+  if (Number(ctx.req.headers["content-length"]) > limit) return send(ctx.res, 413, { code: "too_large", message: "파일이 너무 커요." }, { Connection: "close" });
+  const id = crypto.randomBytes(16).toString("hex"), part = assetPath(id) + ".part";
+  let got;
+  try {
+    got = await receiveFile(ctx.req, limit, part);
+    if (!got.size) return send(ctx.res, 400, { code: "invalid_request", message: "빈 파일이에요." });
+    if (!contentMatches(type, got.head)) return send(ctx.res, 415, { code: "unsupported_type", message: "파일 내용이 확장자와 맞지 않아요. 원래 형식 그대로 저장한 파일을 올려 주세요." });
+    await fsp.rename(part, assetPath(id));
+    syncDir(dirname(assetPath(id)));
+  } finally { await fsp.rm(part, { force: true }); }
   let fileName = String(ctx.req.headers["x-file-name"] || "");
   try { fileName = decodeURIComponent(fileName); } catch {}
   fileName = cleanName(fileName);
-  const id = crypto.randomBytes(16).toString("hex");
-  writeFileSync(assetPath(id), buf, { mode: 0o600 });
-  assetIns.run(id, type, buf.length, ctx.user.id, fileName.slice(0, 200), new Date().toISOString());
-  send(ctx.res, 200, { id, url: `/_blob/${id}`, sizeBytes: buf.length, contentType: type });
+  assetIns.run(id, type, got.size, ctx.user.id, fileName.slice(0, 200), new Date().toISOString());
+  send(ctx.res, 200, { id, url: `/_blob/${id}`, sizeBytes: got.size, contentType: type });
 });
 route("GET", "/api/assets", (ctx) => {
   const all = db.prepare("SELECT * FROM assets ORDER BY created_at").all();
   const mine = ctx.user.role === "developer" ? all : all.filter((a) => a.uploader === ctx.user.id);
   send(ctx.res, 200, { assets: mine.map((a) => ({ id: a.id, url: `/_blob/${a.id}`, contentType: a.content_type, sizeBytes: a.size, createdAt: a.created_at })), usage: { files: all.length, bytes: all.reduce((s, a) => s + a.size, 0), maxFiles: 100000, maxBytes: 0 } });
 });
+// Files that a 사비 내역서 or 총무 record points at stay as long as that record does (developers remove both with
+// 완전 삭제), and so do the attachments of a locked part, except for those who manage its department.
+function lockedAsset(user, id) {
+  if (user.role === "developer") return null;
+  if (privateAssets().has(id)) return "사비 내역서에 들어간 파일은 지울 수 없어요. 바꿀 내용이 있으면 총무에게 수정본 교체를 요청하세요.";
+  for (const p of docs.list("parts")) {
+    const x = p.data;
+    if (x.locked && Array.isArray(x.attachments) && x.attachments.some((a) => a && a.id === id) && !managesDept(user, x.dept)) return "잠긴 부품의 첨부 파일은 그 부서 파트장이나 팀장·부팀장만 지울 수 있어요.";
+  }
+  return null;
+}
 route("DELETE", "/api/assets/:id", (ctx) => {
   const id = ctx.params.id; if (!validAssetId(id)) return send(ctx.res, 400, { code: "invalid_request", message: "bad id" });
   const a = assetGet.get(id); if (!a) return send(ctx.res, 200, { deleted: false });
   if (a.uploader !== ctx.user.id && ctx.user.role !== "developer") return send(ctx.res, 403, { code: "not_uploader", message: "올린 사람만 지울 수 있어요." });
+  const locked = lockedAsset(ctx.user, id);
+  if (locked) return send(ctx.res, 403, { code: "locked", message: locked });
   if (existsSync(assetPath(id))) unlinkSync(assetPath(id));
   assetDel.run(id);
   send(ctx.res, 200, { deleted: true });
@@ -643,7 +917,7 @@ route("DELETE", "/api/assets/:id", (ctx) => {
 route("GET", "/_blob/:id", (ctx) => {
   const id = ctx.params.id, a = validAssetId(id) && assetGet.get(id);
   if (!a || !existsSync(assetPath(id))) { ctx.res.writeHead(404, SECURITY_HEADERS); return ctx.res.end("not found"); }
-  if (!canSeeAsset(ctx.user, a)) { ctx.res.writeHead(403, { ...SECURITY_HEADERS, "Content-Type": "text/plain; charset=utf-8" }); return ctx.res.end("사비 내역서 파일은 제출자와 총무만 볼 수 있어요."); }
+  if (!canSeeAsset(ctx.user, a)) { ctx.res.writeHead(403, { ...SECURITY_HEADERS, "Content-Type": "text/plain; charset=utf-8" }); return ctx.res.end("사비 내역서 파일은 제출자·총무·개발자만 볼 수 있어요."); }
   ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": a.content_type, "Content-Length": a.size, "Cache-Control": "private, max-age=3600", "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'" });
   createReadStream(assetPath(id)).pipe(ctx.res);
 });
@@ -655,7 +929,7 @@ function guardLastDeveloper(target, nextRole, nextStatus) {
   if (target.role === "developer" && target.status === "active" && (nextRole !== "developer" || nextStatus !== "active") && devs.length <= 1)
     throw new StoreError("invalid_argument", "마지막 개발자 계정은 역할을 바꾸거나 비활성화할 수 없어요. 다른 개발자를 먼저 지정하세요.");
 }
-function dirBytes(dir) { try { return readdirSync(dir).reduce((s, f) => s + statSync(join(dir, f)).size, 0); } catch { return 0; } }
+function dirBytes(dir) { try { return readdirSync(dir).reduce((s, f) => { const st = statSync(join(dir, f)); return s + (st.isFile() ? st.size : 0); }, 0); } catch { return 0; } }
 route("GET", "/api/admin/status", (ctx) => {
   const dbFile = join(CONFIG.dataDir, "fsk.db");
   const size = (f) => existsSync(f) ? statSync(f).size : 0;
@@ -678,7 +952,10 @@ route("GET", "/api/admin/status", (ctx) => {
         partLeads: Object.fromEntries(DEPTS.map((d) => [d, users.filter((u) => u.status === "active" && u.position === "part_lead" && u.dept === d).map((u) => u.name)]))
       }
     },
-    collections: docs.counts(), lastBackup: backups[0] || null, backupBytes: dirBytes(BACKUP_DIR),
+    collections: docs.counts(), lastBackup: backups[0] || null, backupBytes: dirBytes(BACKUP_DIR) + dirBytes(AUDIT_DIR),
+    audit: { entries: db.prepare("SELECT COUNT(*) AS n FROM audit").get().n, archives: listAuditArchives().length, archivedThrough: Number(setting("auditArchivedId")) || 0, keepDays: auditKeepDays() },
+    healthPing: { configured: !!CONFIG.healthPingUrl, last: setting("healthPingLast") },
+    privacy: { version: PRIVACY_VERSION, expiredExpenses: expiredExpenseCount(), deleteRequests: users.filter((u) => u.delete_requested_at).map((u) => ({ id: u.id, name: u.name, at: u.delete_requested_at })) },
     settings: { ...allSettings(), inviteCode: undefined, webhookUrl: undefined, webhookOn: !!setting("webhookUrl") },
     behindProxy: !!CONFIG.proxy, cookieSecure: isHttps(ctx.req)
   });
@@ -687,7 +964,7 @@ route("GET", "/api/admin/users", (ctx) => {
   const stats = auth.sessionStats(), live = new Set([...clients].map((c) => c.user.id));
   const counts = {};
   for (const d of docs.all()) { const by = d.updatedBy; if (by) counts[by] = (counts[by] || 0) + 1; }
-  send(ctx.res, 200, { users: auth.list().map((u) => ({ ...auth.publicUser(u), sessions: stats[u.id]?.sessions || 0, lastSeen: stats[u.id]?.lastSeen || null, online: live.has(u.id), docsWritten: counts[u.id] || 0 })) });
+  send(ctx.res, 200, { privacyVersion: PRIVACY_VERSION, users: auth.list().map((u) => ({ ...auth.publicUser(u), sessions: stats[u.id]?.sessions || 0, lastSeen: stats[u.id]?.lastSeen || null, online: live.has(u.id), docsWritten: counts[u.id] || 0 })) });
 }, { auth: "developer" });
 route("POST", "/api/admin/users", async (ctx) => {
   const b = await readJson(ctx.req);
@@ -698,9 +975,9 @@ route("POST", "/api/admin/users", async (ctx) => {
   // same rule as sign-up: only a developer account may be made without a department
   if (role !== "developer" && !dept) return send(ctx.res, 400, { code: "invalid_argument", message: "부서를 골라 주세요. 부서 없이 만들 수 있는 건 개발자 계정뿐이에요." });
   checkPosition(position, dept);
+  const pw = tempPassword(), pwHash = await hashPassword(pw);
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
-  const pw = tempPassword();
-  const u = auth.create({ username, name, dept, role, position, status: "active", password: pw, mustChange: true });
+  const u = auth.create({ username, name, dept, role, position, status: "active", pwHash, mustChange: true });
   const moved = handOver(ctx, u.id, position, dept);
   syncPerson(u);
   audit(ctx, "user.create", username, auth.publicUser(u).title);
@@ -725,12 +1002,12 @@ route("POST", "/api/admin/users/:id", async (ctx) => {
   if (changes.length) audit(ctx, status !== u.status && u.status === "pending" && status === "active" ? "user.approve" : "user.update", u.username, changes.join(", "));
   if (status !== "active") auth.endAllSessions(u.id);
   if (name !== u.name || dept !== u.dept) profileChanged(auth.byId(u.id)); else syncPerson(auth.byId(u.id));
-  if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id); syncRoles(); }
+  if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id, "access"); syncRoles(); }
   send(ctx.res, 200, { user: auth.publicUser(auth.byId(u.id)), handedOver: moved });
 }, { auth: "developer" });
-route("POST", "/api/admin/users/:id/reset-password", (ctx) => {
-  const u = findUser(ctx.params.id), pw = tempPassword();
-  auth.setPassword(u.id, pw, true); auth.endAllSessions(u.id); dropStreams(u.id);
+route("POST", "/api/admin/users/:id/reset-password", async (ctx) => {
+  const pw = tempPassword(), pwHash = await hashPassword(pw), u = findUser(ctx.params.id);
+  auth.setPassword(u.id, pwHash, true); auth.endAllSessions(u.id); dropStreams(u.id);
   audit(ctx, "user.reset_password", u.username);
   send(ctx.res, 200, { tempPassword: pw });
 }, { auth: "developer" });
@@ -740,13 +1017,22 @@ route("POST", "/api/admin/users/:id/logout", (ctx) => {
   audit(ctx, "user.force_logout", u.username);
   send(ctx.res, 200, { ok: true });
 }, { auth: "developer" });
+// ?purge=1 also removes what the account leaves behind (개인정보 정리, see purgePerson). Backups made before keep it
+// until they are rotated out or deleted.
 route("DELETE", "/api/admin/users/:id", (ctx) => {
-  const u = findUser(ctx.params.id);
+  const u = findUser(ctx.params.id), purge = ctx.url.searchParams.get("purge") === "1";
   if (u.id === ctx.user.id) return send(ctx.res, 400, { code: "invalid_argument", message: "자기 계정은 지울 수 없어요." });
   guardLastDeveloper(u, "deleted", "deleted");
   dropStreams(u.id); auth.remove(u.id); syncRoles(); syncPerson({ ...u, status: "deleted" });
-  audit(ctx, "user.delete", u.username, `${u.name} · ${u.role}`);
-  send(ctx.res, 200, { ok: true });
+  const purged = purge ? purgePerson(u) : null;
+  audit(ctx, "user.delete", u.username, purged ? `개인정보 정리 · 파일 ${purged.files}개 삭제 · 문서 ${purged.docs}개 이름 지움` : `${u.name} · ${u.role}`);
+  send(ctx.res, 200, { ok: true, purged });
+}, { auth: "developer" });
+// 사비 내역서 past the retention period (설정, 제출일 기준): originals, receipts and masked accounts are removed, amounts stay
+route("POST", "/api/admin/expenses/purge-expired", (ctx) => {
+  const r = purgeExpenseFiles((owner, sub) => expiredExpense(sub));
+  audit(ctx, "privacy.expense_purge", "", `${r.entries}건 · 파일 ${r.files}개 · ${setting("expenseKeepYears")}년 지난 내역서`);
+  send(ctx.res, 200, r);
 }, { auth: "developer" });
 const adminSettings = () => ({ ...allSettings(), allowMemberSubmit: docs.get("config/roles")?.data?.allowMemberSubmit !== false, webhookKindLabels: WEBHOOK_KINDS, webhookExtraHosts: CONFIG.webhookHosts });
 route("GET", "/api/admin/settings", (ctx) => send(ctx.res, 200, adminSettings()), { auth: "developer" });
@@ -757,6 +1043,9 @@ route("POST", "/api/admin/settings", async (ctx) => {
   if (b.autoBackup !== undefined) { setSetting("autoBackup", !!b.autoBackup); changed.push(`자동 백업 ${b.autoBackup ? "켬" : "끔"}`); }
   if (b.backupHour !== undefined) { const h = Math.round(Number(b.backupHour)); if (!(h >= 0 && h <= 23)) throw new StoreError("invalid_argument", "백업 시각은 0~23시예요."); setSetting("backupHour", h); changed.push(`백업 시각 ${h}시`); }
   if (b.backupKeep !== undefined) { const k = Math.round(Number(b.backupKeep)); if (!(k >= 1 && k <= 90)) throw new StoreError("invalid_argument", "보관 개수는 1~90개예요."); setSetting("backupKeep", k); changed.push(`자동 백업 ${k}개 보관`); }
+  if (b.privacyContact !== undefined) { const c = String(b.privacyContact || "").trim().slice(0, 200); setSetting("privacyContact", c); changed.push(`개인정보 문의처 ${c || "기본값"}`); }
+  if (b.auditKeepDays !== undefined) { const d = Math.round(Number(b.auditKeepDays)); if (!(d >= 30 && d <= 3650)) throw new StoreError("invalid_argument", "감사 로그 보관 기간은 30~3650일이에요."); setSetting("auditKeepDays", d); changed.push(`감사 로그 ${d}일 보관`); pruneAudit(); }
+  if (b.expenseKeepYears !== undefined) { const y = Math.round(Number(b.expenseKeepYears)); if (!(y >= 1 && y <= 10)) throw new StoreError("invalid_argument", "사비 내역서 보관 기간은 1~10년이에요."); setSetting("expenseKeepYears", y); changed.push(`사비 내역서 원본 ${y}년 보관`); }
   if (b.allowMemberSubmit !== undefined) { syncRoles({ allowMemberSubmit: !!b.allowMemberSubmit }); changed.push(`팀원 사비 내역서 제출 ${b.allowMemberSubmit ? "허용" : "막음"}`); }
   if (b.mirrorDir !== undefined) {
     const d = String(b.mirrorDir || "").trim(), err = mirrorCheck(d);
@@ -821,7 +1110,25 @@ route("GET", "/api/admin/audit", (ctx) => {
   const rows = db.prepare(`SELECT * FROM audit WHERE (? = '' OR action LIKE ? || '%') AND (? = '' OR actor = ?) ORDER BY id DESC LIMIT ?`).all(action, action, actor, actor, limit);
   send(ctx.res, 200, { entries: rows });
 }, { auth: "developer" });
-route("GET", "/api/admin/backups", (ctx) => send(ctx.res, 200, { backups: listBackups() }), { auth: "developer" });
+route("GET", "/api/admin/backups", (ctx) => send(ctx.res, 200, { backups: listBackups(), auditArchives: listAuditArchives() }), { auth: "developer" });
+route("POST", "/api/admin/audit-archive", (ctx) => {
+  const n = archiveAudit();
+  audit(ctx, "backup.audit_archive", "", `${n}개 기록 보관`);
+  send(ctx.res, 200, { archived: n, auditArchives: listAuditArchives() });
+}, { auth: "developer" });
+route("GET", "/api/admin/audit-archives/:name", (ctx) => {
+  const name = ctx.params.name;
+  if (!AUDIT_FILE.test(name) || !existsSync(join(AUDIT_DIR, name))) throw new StoreError("not_found", "감사 로그 보관 파일이 없어요.", 404);
+  ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": "application/x-ndjson; charset=utf-8", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" });
+  createReadStream(join(AUDIT_DIR, name)).pipe(ctx.res);
+  audit(ctx, "backup.audit_download", name);
+}, { auth: "developer" });
+route("POST", "/api/admin/health-ping", async (ctx) => {
+  if (!CONFIG.healthPingUrl) throw new StoreError("invalid_argument", "서버에 HEALTH_PING_URL 이 설정되지 않았어요.");
+  const r = await pingHealth(true, "관리 창에서 보낸 테스트");
+  audit(ctx, "notify.health_ping", new URL(CONFIG.healthPingUrl).hostname, r.status);
+  send(ctx.res, 200, r);
+}, { auth: "developer" });
 route("POST", "/api/admin/backups", async (ctx) => {
   const b = await readJson(ctx.req);
   const name = createBackup("manual", ctx, String(b.note || "").slice(0, 100));
@@ -847,8 +1154,9 @@ route("DELETE", "/api/admin/backups/:name", (ctx) => {
 }, { auth: "developer" });
 // Full backup: every document, account (hashed passwords), setting, and the attachment files themselves.
 route("GET", "/api/admin/backups-full", async (ctx) => {
-  const data = backupData(ctx, "전체 백업 (첨부 파일 포함)"), name = `fsk-full-${backupStamp()}.tar.gz`;
-  const files = data.assets.filter((a) => validAssetId(a.id) && existsSync(assetPath(a.id))).map((a) => ({ name: `assets/${a.id}`, file: assetPath(a.id), size: statSync(assetPath(a.id)).size }));
+  const data = backupData(ctx, "전체 백업 (첨부 파일 포함)"), name = `fsk-full-${localStamp()}.tar.gz`;
+  const files = data.assets.filter((a) => validAssetId(a.id) && existsSync(assetPath(a.id))).map((a) => ({ name: `assets/${a.id}`, file: assetPath(a.id), size: statSync(assetPath(a.id)).size }))
+    .concat(listAuditArchives().map((f) => ({ name: `audit/${f.name}`, file: join(AUDIT_DIR, f.name), size: f.bytes })));
   audit(ctx, "backup.full", name, `${data.docs.length} docs · ${files.length} files`);
   ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": "application/gzip", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" });
   try { await writeTarGz(ctx.res, [{ name: "backup.json", data: Buffer.from(JSON.stringify(data)) }, ...files]); }
@@ -944,19 +1252,25 @@ const server = http.createServer(async (req, res) => {
     if (r.auth === "developer" && (!user || user.role !== "developer" || user.must_change_pw)) return send(res, 403, { code: "forbidden", message: "개발자만 쓸 수 있어요." });
     await r.handler(ctx);
   } catch (e) {
-    if (e instanceof StoreError) { if (!res.headersSent) send(res, e.status, { code: e.code, message: e.message }); return; }
+    if (e instanceof StoreError) { if (!res.headersSent && !res.sending) send(res, e.status, { code: e.code, message: e.message }); return; }
     console.error(new Date().toISOString(), req.method, url.pathname, e);
-    if (!res.headersSent) send(res, 500, { code: "unavailable", message: "서버 오류가 났어요. 잠시 후 다시 시도해 주세요." });
+    if (!res.headersSent && !res.sending) send(res, 500, { code: "unavailable", message: "서버 오류가 났어요. 잠시 후 다시 시도해 주세요." });
   }
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   syncPeople();
+  // uploads cut off by a crash or restart
+  for (const f of readdirSync(join(CONFIG.dataDir, "assets"))) if (f.endsWith(".part")) rmSync(join(CONFIG.dataDir, "assets", f), { force: true });
+  if (CONFIG.healthPingUrl && !/^https?:\/\//.test(CONFIG.healthPingUrl)) console.error("HEALTH_PING_URL 은 http(s) 주소여야 해요:", CONFIG.healthPingUrl);
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`FSK 피트보드 ${VERSION} · http://${CONFIG.host}:${CONFIG.port} · data ${CONFIG.dataDir}`);
     if (auth.count() === 0) console.log("아직 계정이 없어요. /login 에서 처음 가입하는 사람이 개발자 계정이 돼요.");
+    const pageProblem = rulesProblem(pageSource());
+    if (pageProblem) console.warn(`주의: ${pageProblem} 이대로는 사비 내역서를 제출할 수 없어요. 저장소의 index.html 을 쓰거나(git checkout -- index.html), 고친 화면을 최신 index.html 에 다시 옮겨 주세요.`);
+    if (!jszipMatchesPage()) console.warn("주의: server/public/vendor/jszip.min.js 가 원본과 달라서 사비 내역서(xlsx)를 읽을 수 없어요. 저장소 폴더에서 이 파일을 지우고 git checkout -- server/public/vendor/jszip.min.js 로 다시 받으세요.");
   });
-  const tick = () => { autoBackupTick(); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
+  const tick = () => { autoBackupTick().catch((e) => console.error("auto backup failed", e)); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); pruneAudit(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
   setInterval(tick, 10 * 60000);
   setTimeout(tick, 30000);
   const stop = () => { console.log("shutting down"); for (const c of clients) c.res.end(); server.close(() => { db.close(); process.exit(0); }); setTimeout(() => process.exit(0), 3000); };

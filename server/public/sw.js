@@ -1,7 +1,7 @@
 // Service worker: lets the pit board open with no signal (at the track). The page itself and its scripts are
 // fetched from the network first and fall back to the last copy; data comes from the runtime's own offline cache.
 // API calls, attachments and the live stream are never cached here.
-const CACHE = "fsk-shell-v1";
+const CACHE = "fsk-shell-v2";
 const SHELL = ["/fsk-runtime.js", "/vendor/jszip.min.js", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -28,6 +28,9 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
   if (req.mode === "navigate" && url.pathname === "/") { e.respondWith(networkFirst(req, "/")); return; }
   if (SHELL.includes(url.pathname)) e.respondWith(networkFirst(req, url.pathname));
+  // font files never change under the same name: the saved copy is used first, so the app keeps its look offline
+  else if (url.pathname.startsWith("/fonts/") && url.pathname.endsWith(".woff2")) e.respondWith(caches.match(url.pathname).then((hit) => hit || networkFirst(req, url.pathname)));
+  else if (url.pathname === "/fonts/fonts.css") e.respondWith(networkFirst(req, url.pathname));
 });
 
 // Logging out clears the saved page (it carries the signed-in name).

@@ -21,6 +21,8 @@ import { localStamp, localMonth, autoBackupDue, writeFileDurable, appendDurable,
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
 const VERSION = "1.3.0";
+// The 개인정보 처리방침 (/privacy) version. Changing it asks everyone to read and confirm it again.
+const PRIVACY_VERSION = "2026-10-31";
 const CONFIG = {
   port: Number(process.env.PORT || 8080),
   host: process.env.HOST || "127.0.0.1",
@@ -52,7 +54,8 @@ const sGet = db.prepare("SELECT value FROM settings WHERE key = ?"), sSet = db.p
 const DEFAULT_SETTINGS = {
   signupMode: "approval", inviteCode: "", autoBackup: true, backupHour: 4, backupKeep: 14,
   mirrorDir: "", mirrorLast: null, webhookUrl: "", webhookKinds: Object.keys(WEBHOOK_KINDS), webhookLast: null,
-  auditArchivedId: 0, healthPingLast: null
+  auditArchivedId: 0, healthPingLast: null,
+  privacyContact: "", auditKeepDays: 365, expenseKeepYears: 3
 };
 const setting = (k) => { const r = sGet.get(k); return r ? JSON.parse(r.value) : DEFAULT_SETTINGS[k]; };
 const setSetting = (k, v) => sSet.run(k, JSON.stringify(v));
@@ -64,6 +67,10 @@ function audit(ctx, action, target = "", detail = "") {
   const u = ctx && ctx.user;
   auditIns.run(new Date().toISOString(), u ? u.id : null, u ? u.name : null, action, String(target || ""), typeof detail === "string" ? detail : JSON.stringify(detail), ctx ? ctx.ip : null);
 }
+// The audit log holds IP addresses: entries older than the retention period (설정, 기본 365일) leave the database,
+// after archiveAudit has written them to the archive files (see "audit log archive" below).
+const auditKeepDays = () => Math.max(30, Number(setting("auditKeepDays")) || 365);
+const pruneAudit = () => archiveAudit();
 
 // ---------- live updates (SSE) ----------
 // A page that stops reading (a phone asleep on a bad connection) is dropped once this much waits for it, instead
@@ -149,9 +156,9 @@ function createBackup(kind, ctx, note = "") {
 // ---------- audit log archive ----------
 // Besides being in every backup, the audit log is kept on its own in backups/audit/fsk-audit-YYYY-MM.jsonl: one JSON
 // line per entry, appended (never rewritten) after each backup, by the month of the entry. These files go along to
-// the off-site copy and into full backups. Entries older than AUDIT_KEEP_DAYS leave the database only once they are
+// the off-site copy and into full backups. Entries older than auditKeepDays() leave the database only once they are
 // in an archive file, so the log stays small without anything being lost.
-const AUDIT_DIR = join(BACKUP_DIR, "audit"), AUDIT_KEEP_DAYS = 365;
+const AUDIT_DIR = join(BACKUP_DIR, "audit");
 const AUDIT_FILE = /^fsk-audit-\d{4}-\d{2}\.jsonl$/;
 function archiveAudit() {
   mkdirSync(AUDIT_DIR, { recursive: true, mode: 0o700 });
@@ -163,7 +170,7 @@ function archiveAudit() {
     for (const [m, text] of byMonth) appendDurable(join(AUDIT_DIR, `fsk-audit-${m}.jsonl`), text);
     setSetting("auditArchivedId", rows[rows.length - 1].id);
   }
-  const cutoff = new Date(Date.now() - AUDIT_KEEP_DAYS * 86400000).toISOString();
+  const cutoff = new Date(Date.now() - auditKeepDays() * 86400000).toISOString();
   db.prepare("DELETE FROM audit WHERE at < ? AND id <= ?").run(cutoff, Number(setting("auditArchivedId")) || 0);
   return rows.length;
 }
@@ -286,7 +293,7 @@ function restoreDocs(ctx, rows, mode) {
 // ---------- http helpers ----------
 const SECURITY_HEADERS = { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "X-Frame-Options": "DENY", "Cross-Origin-Opener-Policy": "same-origin", "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()" };
 // Scripts run only with this response's nonce (no 'unsafe-inline'), so injected markup cannot run script.
-const pageCsp = (nonce) => `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
+const pageCsp = (nonce) => `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
 // Pages, scripts and larger JSON go out gzipped when the browser takes it (the page alone is over 200 KB, and phones
 // at the track are on slow connections). Compression runs on the thread pool, not the event loop. res.sending marks
 // a response that is on its way, so an error after it cannot start a second one.
@@ -368,12 +375,15 @@ function localJszip() {
   if (m !== jszipUrl.mtime) jszipUrl = { mtime: m, url: "/vendor/jszip.min.js?v=" + crypto.createHash("sha256").update(staticFile("vendor/jszip.min.js")).digest("hex").slice(0, 12) };
   return jszipUrl.url;
 }
+// index.html loads Google Fonts on claude.ai; here the same fonts come from this server (no request to Google).
+const GOOGLE_FONTS = /<link rel="preconnect" href="https:\/\/fonts\.(googleapis|gstatic)\.com"[^>]*>\s*|<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\/[^"]*">/g;
+const localFonts = (html) => html.replace(GOOGLE_FONTS, (m) => m.includes('rel="stylesheet"') ? '<link rel="stylesheet" href="/fonts/fonts.css">' : "");
 function renderPage(user) {
   const me = { ...auth.publicUser(user), level: levelOf(user) };
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`
     + `<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#131A24"><link rel="icon" href="/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="피트보드">`
     + `<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>`
-    + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource().replace(JSZIP_CDN, localJszip())}\n</body></html>`;
+    + `<script>window.__FSK_ME=${safeJson(me)};window.__FSK_PRIVACY=${safeJson(PRIVACY_VERSION)};</script><script src="/fsk-runtime.js"></script></head><body>\n${localFonts(pageSource()).replace(JSZIP_CDN, localJszip())}\n</body></html>`;
 }
 const staticFile = (name) => readFileSync(join(HERE, "public", name));
 // Script and manifest files are gzipped once and kept until the file changes; images go out as they are.
@@ -538,6 +548,79 @@ function commitWrite(ctx, path, next) {
   return d;
 }
 
+// ---------- 개인정보 정리 ----------
+// Expense originals and receipt photos carry the full bank account number. Removing them keeps the entry's amounts and
+// items (the team's 정산 ledger still adds up) but drops the files, the masked account and the file name.
+const GONE = "탈퇴한 팀원";
+function removeAsset(id) {
+  if (!validAssetId(id) || !assetGet.get(id)) return false;
+  if (existsSync(assetPath(id))) unlinkSync(assetPath(id));
+  assetDel.run(id);
+  return true;
+}
+function stripFiles(sub, at) {
+  let n = 0;
+  for (const a of expenseAssets(sub)) if (removeAsset(blobId(a))) n++;
+  return { sub: { ...sub, fileAsset: "", receipts: [], accountMasked: "", fileName: "", filesPurgedAt: at }, n };
+}
+// Strips the files of the 사비 내역서 entries `pick(ownerId, sub)` selects, and of the 수정본 총무 put in for them.
+function purgeExpenseFiles(pick) {
+  const at = new Date().toISOString(), keys = new Set();
+  let files = 0, entries = 0;
+  for (const d of docs.list("expenses")) {
+    const subs = isObject(d.data.subs) ? d.data.subs : {}, next = {};
+    let changed = false;
+    for (const [id, sub] of Object.entries(subs)) {
+      if (!isObject(sub) || sub.filesPurgedAt || !pick(d.id, sub)) { next[id] = sub; continue; }
+      const r = stripFiles(sub, at);
+      next[id] = r.sub; files += r.n; entries++; changed = true; keys.add(`${d.id}:${id}`);
+    }
+    if (changed) broadcast(d.path, docs.set(d.path, { ...d.data, subs: next }, "system"));
+  }
+  for (const d of docs.list("reviews")) {
+    const items = isObject(d.data.items) ? d.data.items : {};
+    let changed = false;
+    const next = Object.fromEntries(Object.entries(items).map(([key, it]) => {
+      if (!keys.has(key) || !isObject(it) || !isObject(it.override)) return [key, it];
+      const r = stripFiles(it.override, at); files += r.n; changed = true;
+      return [key, { ...it, override: r.sub }];
+    }));
+    if (changed) broadcast(d.path, docs.set(d.path, { ...d.data, items: next }, "system"));
+  }
+  privateCache = null;
+  return { entries, files };
+}
+const expenseCutoff = () => { const d = new Date(); d.setFullYear(d.getFullYear() - Math.max(1, Number(setting("expenseKeepYears")) || 3)); return d.toISOString(); };
+const expiredExpense = (sub) => String(sub.submittedAt || "") < expenseCutoff();
+function expiredExpenseCount() {
+  let n = 0;
+  for (const d of docs.list("expenses")) for (const sub of Object.values(isObject(d.data.subs) ? d.data.subs : {})) if (isObject(sub) && !sub.filesPurgedAt && expiredExpense(sub)) n++;
+  return n;
+}
+// The person's name in team records (기록·의견·점검·부품 담당·사비 신청자) becomes "탈퇴한 팀원". A name counts as theirs
+// inside documents they wrote, or in an object that carries their account id (uid / ownerUid).
+const NAME_KEYS = new Set(["by", "author", "name", "owner", "applicant", "deletedBy", "replacedBy"]);
+function scrubName(v, u, mine) {
+  if (Array.isArray(v)) return v.map((x) => scrubName(x, u, mine));
+  if (!isObject(v)) return v;
+  const own = v.uid !== undefined || v.ownerUid !== undefined ? v.uid === u.id || v.ownerUid === u.id : mine;
+  return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, NAME_KEYS.has(k) && own && x === u.name ? GONE : scrubName(x, u, own)]));
+}
+const auditScrub = db.prepare("UPDATE audit SET actor_name = ?, ip = NULL WHERE actor = ?");
+const auditScrubTarget = db.prepare("UPDATE audit SET ip = NULL WHERE actor IS NULL AND target = ?");
+function purgePerson(u) {
+  const { files } = purgeExpenseFiles((owner) => owner === u.id);
+  let changed = 0;
+  for (const d of docs.all()) {
+    if (d.collection === "people") continue;
+    const next = scrubName(d.data, u, d.createdBy === u.id || d.updatedBy === u.id || d.path === "expenses/" + u.id);
+    if (stableJson(next) !== stableJson(d.data)) { broadcast(d.path, docs.set(d.path, next, "system")); changed++; }
+  }
+  if (docs.get("people/" + u.id)) { docs.remove("people/" + u.id); broadcast("people/" + u.id, null); }
+  auditScrub.run(GONE, u.id); auditScrubTarget.run(u.username);
+  return { files, docs: changed };
+}
+
 // ---------- routes ----------
 const routes = [];
 const route = (method, pattern, handler, opts = {}) => routes.push({ method, re: new RegExp("^" + pattern.replace(/:(\w+)/g, "(?<$1>[^/]+)") + "$"), handler, auth: opts.auth || "user" });
@@ -557,6 +640,25 @@ route("GET", "/admin", (ctx) => {
   if (!ctx.user) return redirect(ctx.res, "/login?next=/admin");
   if (ctx.user.role !== "developer") return redirect(ctx.res, "/");
   sendHtml(ctx.res, withDepts(staticFile("admin.html").toString()));
+}, { auth: "none" });
+// 개인정보 처리방침: public (the sign-up form links to it), with this server's own retention settings filled in
+const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+function privacyValues() {
+  const keep = Math.max(1, Number(setting("backupKeep")) || 14);
+  return {
+    version: PRIVACY_VERSION, contact: String(setting("privacyContact") || "").trim() || "피트보드 개발자(관리자)",
+    auditDays: auditKeepDays(), expenseYears: Math.max(1, Number(setting("expenseKeepYears")) || 3),
+    backupKeep: keep, historyDays: HISTORY_DAYS, notifyDays: 60, sessionDays: 30, webhook: setting("webhookUrl") ? "켜져 있어요" : "꺼져 있어요"
+  };
+}
+route("GET", "/privacy", (ctx) => {
+  const v = privacyValues();
+  sendHtml(ctx.res, staticFile("privacy.html").toString().replace(/\{\{(\w+)\}\}/g, (m, k) => Object.hasOwn(v, k) ? escHtml(v[k]) : m));
+}, { auth: "none" });
+route("GET", "/fonts/:name", (ctx) => {
+  const n = ctx.params.name, type = /^[a-z0-9-]+\.woff2$/.test(n) ? "font/woff2" : n === "fonts.css" ? "text/css; charset=utf-8" : n === "OFL.txt" ? "text/plain; charset=utf-8" : "";
+  if (!type || !existsSync(join(HERE, "public", "fonts", n))) { ctx.res.writeHead(404, SECURITY_HEADERS); return ctx.res.end("not found"); }
+  sendStatic(ctx.res, "fonts/" + n, type, n.endsWith(".woff2") ? "public, max-age=31536000, immutable" : "public, max-age=86400");
 }, { auth: "none" });
 route("GET", "/fsk-runtime.js", (ctx) => sendStatic(ctx.res, "fsk-runtime.js", "text/javascript; charset=utf-8"), { auth: "none" });
 // installable app (PWA): manifest, service worker (offline start), icons, and a local copy of JSZip
@@ -602,6 +704,7 @@ route("POST", "/api/auth/signup", async (ctx) => {
   const username = String(b.username || "").trim().toLowerCase(), name = String(b.name || "").trim(), dept = DEPTS.includes(b.dept) ? b.dept : "";
   const err = checkUsername(username) || checkPasswordRule(b.password) || (!name || name.length > 20 ? "이름을 1~20자로 적어 주세요." : null);
   if (err) return send(ctx.res, 400, { code: "invalid_argument", message: err });
+  if (b.agree !== true) return send(ctx.res, 400, { code: "invalid_argument", message: "개인정보 수집·이용 안내를 확인하고 동의해 주세요." });
   // hash first: from here to the insert nothing waits, so two sign-ups at once see each other
   const pwHash = await hashPassword(b.password);
   if (auth.byUsername(username)) return send(ctx.res, 409, { code: "taken", message: "이미 쓰고 있는 아이디예요." });
@@ -615,9 +718,9 @@ route("POST", "/api/auth/signup", async (ctx) => {
     if (!sameSecret(String(b.invite || "").trim(), setting("inviteCode"))) { bump(signups, ctx.ip, SIGNUP_WINDOW); return send(ctx.res, 403, { code: "bad_invite", message: "초대 코드가 맞지 않아요." }); }
     status = "active";
   }
-  const u = auth.create({ username, name, dept, role, status, pwHash });
+  const u = auth.create({ username, name, dept, role, status, pwHash, privacyAck: PRIVACY_VERSION });
   if (!first) bump(signups, ctx.ip, SIGNUP_WINDOW);
-  audit({ user: u, ip: ctx.ip }, "signup", username, `${role} · ${status}`);
+  audit({ user: u, ip: ctx.ip }, "signup", username, `${role} · ${status} · 개인정보 안내 ${PRIVACY_VERSION} 동의`);
   if (first) syncRoles();
   syncPerson(u);
   if (status === "pending") notifier.notify(auth.activeDevelopers(), { kind: "signup", title: "가입 승인 요청", body: `${name} (${username})${dept ? " · " + deptLabel(dept) : ""}`, link: { href: "/admin#users" } });
@@ -654,6 +757,27 @@ route("POST", "/api/me/profile", async (ctx) => {
   if (dept !== ctx.user.dept) audit(ctx, "profile.dept", ctx.user.username, `${deptLabel(ctx.user.dept) || "-"} → ${deptLabel(dept) || "-"}`);
   profileChanged(auth.byId(ctx.user.id));
   send(ctx.res, 200, { ok: true });
+});
+// 개인정보 처리방침 confirmation (accounts made by a developer, and everyone again when the policy changes)
+route("POST", "/api/me/privacy-ack", (ctx) => {
+  if (ctx.user.privacy_ack !== PRIVACY_VERSION) { auth.setPrivacyAck(ctx.user.id, PRIVACY_VERSION); audit(ctx, "privacy.ack", ctx.user.username, PRIVACY_VERSION); }
+  send(ctx.res, 200, { ok: true, version: PRIVACY_VERSION });
+});
+// 내 정보 삭제 요청: recorded on the account and sent to the developers, who delete the account with 개인정보 정리 in /admin
+route("GET", "/api/me/delete-request", (ctx) => send(ctx.res, 200, { requestedAt: ctx.user.delete_requested_at || null }));
+route("POST", "/api/me/delete-request", async (ctx) => {
+  const b = await readJson(ctx.req, AUTH_BODY), u = ctx.user;
+  if (b.cancel === true) {
+    if (u.delete_requested_at) { auth.setDeleteRequest(u.id, null); audit(ctx, "privacy.delete_cancel", u.username); }
+    return send(ctx.res, 200, { requestedAt: null });
+  }
+  const at = u.delete_requested_at || new Date().toISOString(), note = String(b.note || "").trim().slice(0, 300);
+  if (!u.delete_requested_at) {
+    auth.setDeleteRequest(u.id, at);
+    audit(ctx, "privacy.delete_request", u.username, note);
+    notifier.notify(auth.activeDevelopers().filter((id) => id !== u.id), { kind: "privacy", title: "개인정보 삭제 요청", body: `${u.name} (${u.username})${note ? " · " + note : ""}`, link: { href: "/admin#users" } });
+  }
+  send(ctx.res, 200, { requestedAt: at });
 });
 route("GET", "/api/users/public", (ctx) => send(ctx.res, 200, { users: auth.list().filter((u) => u.status === "active").map((u) => ({ id: u.id, name: u.name, dept: u.dept, role: u.role })) }));
 
@@ -793,7 +917,7 @@ route("DELETE", "/api/assets/:id", (ctx) => {
 route("GET", "/_blob/:id", (ctx) => {
   const id = ctx.params.id, a = validAssetId(id) && assetGet.get(id);
   if (!a || !existsSync(assetPath(id))) { ctx.res.writeHead(404, SECURITY_HEADERS); return ctx.res.end("not found"); }
-  if (!canSeeAsset(ctx.user, a)) { ctx.res.writeHead(403, { ...SECURITY_HEADERS, "Content-Type": "text/plain; charset=utf-8" }); return ctx.res.end("사비 내역서 파일은 제출자와 총무만 볼 수 있어요."); }
+  if (!canSeeAsset(ctx.user, a)) { ctx.res.writeHead(403, { ...SECURITY_HEADERS, "Content-Type": "text/plain; charset=utf-8" }); return ctx.res.end("사비 내역서 파일은 제출자·총무·개발자만 볼 수 있어요."); }
   ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": a.content_type, "Content-Length": a.size, "Cache-Control": "private, max-age=3600", "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'" });
   createReadStream(assetPath(id)).pipe(ctx.res);
 });
@@ -829,8 +953,9 @@ route("GET", "/api/admin/status", (ctx) => {
       }
     },
     collections: docs.counts(), lastBackup: backups[0] || null, backupBytes: dirBytes(BACKUP_DIR) + dirBytes(AUDIT_DIR),
-    audit: { entries: db.prepare("SELECT COUNT(*) AS n FROM audit").get().n, archives: listAuditArchives().length, archivedThrough: Number(setting("auditArchivedId")) || 0, keepDays: AUDIT_KEEP_DAYS },
+    audit: { entries: db.prepare("SELECT COUNT(*) AS n FROM audit").get().n, archives: listAuditArchives().length, archivedThrough: Number(setting("auditArchivedId")) || 0, keepDays: auditKeepDays() },
     healthPing: { configured: !!CONFIG.healthPingUrl, last: setting("healthPingLast") },
+    privacy: { version: PRIVACY_VERSION, expiredExpenses: expiredExpenseCount(), deleteRequests: users.filter((u) => u.delete_requested_at).map((u) => ({ id: u.id, name: u.name, at: u.delete_requested_at })) },
     settings: { ...allSettings(), inviteCode: undefined, webhookUrl: undefined, webhookOn: !!setting("webhookUrl") },
     behindProxy: !!CONFIG.proxy, cookieSecure: isHttps(ctx.req)
   });
@@ -839,7 +964,7 @@ route("GET", "/api/admin/users", (ctx) => {
   const stats = auth.sessionStats(), live = new Set([...clients].map((c) => c.user.id));
   const counts = {};
   for (const d of docs.all()) { const by = d.updatedBy; if (by) counts[by] = (counts[by] || 0) + 1; }
-  send(ctx.res, 200, { users: auth.list().map((u) => ({ ...auth.publicUser(u), sessions: stats[u.id]?.sessions || 0, lastSeen: stats[u.id]?.lastSeen || null, online: live.has(u.id), docsWritten: counts[u.id] || 0 })) });
+  send(ctx.res, 200, { privacyVersion: PRIVACY_VERSION, users: auth.list().map((u) => ({ ...auth.publicUser(u), sessions: stats[u.id]?.sessions || 0, lastSeen: stats[u.id]?.lastSeen || null, online: live.has(u.id), docsWritten: counts[u.id] || 0 })) });
 }, { auth: "developer" });
 route("POST", "/api/admin/users", async (ctx) => {
   const b = await readJson(ctx.req);
@@ -892,13 +1017,22 @@ route("POST", "/api/admin/users/:id/logout", (ctx) => {
   audit(ctx, "user.force_logout", u.username);
   send(ctx.res, 200, { ok: true });
 }, { auth: "developer" });
+// ?purge=1 also removes what the account leaves behind (개인정보 정리, see purgePerson). Backups made before keep it
+// until they are rotated out or deleted.
 route("DELETE", "/api/admin/users/:id", (ctx) => {
-  const u = findUser(ctx.params.id);
+  const u = findUser(ctx.params.id), purge = ctx.url.searchParams.get("purge") === "1";
   if (u.id === ctx.user.id) return send(ctx.res, 400, { code: "invalid_argument", message: "자기 계정은 지울 수 없어요." });
   guardLastDeveloper(u, "deleted", "deleted");
   dropStreams(u.id); auth.remove(u.id); syncRoles(); syncPerson({ ...u, status: "deleted" });
-  audit(ctx, "user.delete", u.username, `${u.name} · ${u.role}`);
-  send(ctx.res, 200, { ok: true });
+  const purged = purge ? purgePerson(u) : null;
+  audit(ctx, "user.delete", u.username, purged ? `개인정보 정리 · 파일 ${purged.files}개 삭제 · 문서 ${purged.docs}개 이름 지움` : `${u.name} · ${u.role}`);
+  send(ctx.res, 200, { ok: true, purged });
+}, { auth: "developer" });
+// 사비 내역서 past the retention period (설정, 제출일 기준): originals, receipts and masked accounts are removed, amounts stay
+route("POST", "/api/admin/expenses/purge-expired", (ctx) => {
+  const r = purgeExpenseFiles((owner, sub) => expiredExpense(sub));
+  audit(ctx, "privacy.expense_purge", "", `${r.entries}건 · 파일 ${r.files}개 · ${setting("expenseKeepYears")}년 지난 내역서`);
+  send(ctx.res, 200, r);
 }, { auth: "developer" });
 const adminSettings = () => ({ ...allSettings(), allowMemberSubmit: docs.get("config/roles")?.data?.allowMemberSubmit !== false, webhookKindLabels: WEBHOOK_KINDS, webhookExtraHosts: CONFIG.webhookHosts });
 route("GET", "/api/admin/settings", (ctx) => send(ctx.res, 200, adminSettings()), { auth: "developer" });
@@ -909,6 +1043,9 @@ route("POST", "/api/admin/settings", async (ctx) => {
   if (b.autoBackup !== undefined) { setSetting("autoBackup", !!b.autoBackup); changed.push(`자동 백업 ${b.autoBackup ? "켬" : "끔"}`); }
   if (b.backupHour !== undefined) { const h = Math.round(Number(b.backupHour)); if (!(h >= 0 && h <= 23)) throw new StoreError("invalid_argument", "백업 시각은 0~23시예요."); setSetting("backupHour", h); changed.push(`백업 시각 ${h}시`); }
   if (b.backupKeep !== undefined) { const k = Math.round(Number(b.backupKeep)); if (!(k >= 1 && k <= 90)) throw new StoreError("invalid_argument", "보관 개수는 1~90개예요."); setSetting("backupKeep", k); changed.push(`자동 백업 ${k}개 보관`); }
+  if (b.privacyContact !== undefined) { const c = String(b.privacyContact || "").trim().slice(0, 200); setSetting("privacyContact", c); changed.push(`개인정보 문의처 ${c || "기본값"}`); }
+  if (b.auditKeepDays !== undefined) { const d = Math.round(Number(b.auditKeepDays)); if (!(d >= 30 && d <= 3650)) throw new StoreError("invalid_argument", "감사 로그 보관 기간은 30~3650일이에요."); setSetting("auditKeepDays", d); changed.push(`감사 로그 ${d}일 보관`); pruneAudit(); }
+  if (b.expenseKeepYears !== undefined) { const y = Math.round(Number(b.expenseKeepYears)); if (!(y >= 1 && y <= 10)) throw new StoreError("invalid_argument", "사비 내역서 보관 기간은 1~10년이에요."); setSetting("expenseKeepYears", y); changed.push(`사비 내역서 원본 ${y}년 보관`); }
   if (b.allowMemberSubmit !== undefined) { syncRoles({ allowMemberSubmit: !!b.allowMemberSubmit }); changed.push(`팀원 사비 내역서 제출 ${b.allowMemberSubmit ? "허용" : "막음"}`); }
   if (b.mirrorDir !== undefined) {
     const d = String(b.mirrorDir || "").trim(), err = mirrorCheck(d);
@@ -1133,7 +1270,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (pageProblem) console.warn(`주의: ${pageProblem} 이대로는 사비 내역서를 제출할 수 없어요. 저장소의 index.html 을 쓰거나(git checkout -- index.html), 고친 화면을 최신 index.html 에 다시 옮겨 주세요.`);
     if (!jszipMatchesPage()) console.warn("주의: server/public/vendor/jszip.min.js 가 원본과 달라서 사비 내역서(xlsx)를 읽을 수 없어요. 저장소 폴더에서 이 파일을 지우고 git checkout -- server/public/vendor/jszip.min.js 로 다시 받으세요.");
   });
-  const tick = () => { autoBackupTick().catch((e) => console.error("auto backup failed", e)); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
+  const tick = () => { autoBackupTick().catch((e) => console.error("auto backup failed", e)); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); pruneAudit(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
   setInterval(tick, 10 * 60000);
   setTimeout(tick, 30000);
   const stop = () => { console.log("shutting down"); for (const c of clients) c.res.end(); server.close(() => { db.close(); process.exit(0); }); setTimeout(() => process.exit(0), 3000); };

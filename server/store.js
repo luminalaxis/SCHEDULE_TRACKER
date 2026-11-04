@@ -83,6 +83,10 @@ export function openStore(dataDir) {
   }
   // v1.1 → v1.2: remember who created each document (notifications go to a log's author, not its last editor).
   if (!db.prepare("PRAGMA table_info(docs)").all().some((c) => c.name === "created_by")) db.exec("ALTER TABLE docs ADD COLUMN created_by TEXT");
+  // v1.2 → v1.3: which version of the 개인정보 처리방침 each person confirmed, and their own deletion request.
+  const userCols = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+  if (!userCols.includes("privacy_ack")) db.exec("ALTER TABLE users ADD COLUMN privacy_ack TEXT");
+  if (!userCols.includes("delete_requested_at")) db.exec("ALTER TABLE users ADD COLUMN delete_requested_at TEXT");
   return db;
 }
 

@@ -21,7 +21,7 @@ before(async () => {
   await new Promise((r) => ping.listen(0, "127.0.0.1", r));
   srv = await startServer({ HEALTH_PING_URL: `http://127.0.0.1:${ping.address().port}/check-uuid` });
   dev = new Client(srv.base);
-  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자" });
+  await dev.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자", agree: true });
   a = await member(srv.base, dev, "aaa", "에이", { dept: "chassis" });
   b = await member(srv.base, dev, "bbb", "비", { dept: "aero" });
 });
@@ -30,10 +30,10 @@ after(async () => { ping.close(); await srv.stop(); });
 test("two first sign-ups at once make only one developer", async () => {
   const s = await startServer();
   try {
-    const rs = await Promise.all(["one", "two", "three"].map((u) => new Client(s.base).post("/api/auth/signup", { username: u, password: "password-" + u, name: u, dept: "aero" })));
+    const rs = await Promise.all(["one", "two", "three"].map((u) => new Client(s.base).post("/api/auth/signup", { username: u, password: "password-" + u, name: u, dept: "aero", agree: true })));
     assert.deepEqual(rs.map((r) => r.status), [200, 200, 200]);
     assert.equal(rs.filter((r) => r.json.role === "developer").length, 1);
-    const same = await Promise.all([1, 2].map(() => new Client(s.base).post("/api/auth/signup", { username: "twin", password: "password-twin", name: "twin", dept: "aero" })));
+    const same = await Promise.all([1, 2].map(() => new Client(s.base).post("/api/auth/signup", { username: "twin", password: "password-twin", name: "twin", dept: "aero", agree: true })));
     assert.deepEqual(same.map((r) => r.status).sort(), [200, 409], "the same id at once: one wins, one is told it is taken");
   } finally { await s.stop(); }
 });
@@ -156,7 +156,7 @@ test("a check-in address with a query string gets a plain GET", async () => {
   const s = await startServer({ HEALTH_PING_URL: `http://127.0.0.1:${ping.address().port}/api/push/abc?status=up` });
   try {
     const d = new Client(s.base);
-    await d.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자" });
+    await d.post("/api/auth/signup", { username: "dev", password: "password1", name: "개발자", agree: true });
     const before = pings.length;
     assert.equal((await d.post("/api/admin/health-ping", {})).json.ok, true);
     assert.equal(pings.length, before + 1); assert.equal(pings.at(-1).url, "/api/push/abc?status=up"); assert.equal(pings.at(-1).body, "");

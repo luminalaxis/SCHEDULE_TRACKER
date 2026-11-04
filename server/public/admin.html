@@ -179,7 +179,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     <div class="card">
       <h3>외부 복사 (USB 드라이브 · 네트워크 폴더)</h3>
       <p class="hint">매일 자동 백업이 끝나면 백업 파일과 첨부 파일을 이 폴더로 복사해요. 복사본에서는 지우지 않으니 서버 데이터가 지워져도 남아 있어요. 라즈베리파이에 꽂은 USB 드라이브 경로를 적으세요.</p>
-      <div class="toolbar"><input class="field mono" id="mirrorDir" placeholder="/media/pi/BACKUP/fsk" style="flex:1 1 260px" aria-label="외부 복사 폴더"><button class="btn" type="button" id="btnMirrorSave">저장</button><button class="btn primary" type="button" id="btnMirrorRun">지금 복사</button></div>
+      <div class="toolbar"><input class="field mono" id="mirrorDir" placeholder="/mnt/backup/fsk" style="flex:1 1 260px" aria-label="외부 복사 폴더"><button class="btn" type="button" id="btnMirrorSave">저장</button><button class="btn primary" type="button" id="btnMirrorRun">지금 복사</button></div>
       <div class="status-line" id="mirrorStatus"></div>
     </div>
     <div class="card">

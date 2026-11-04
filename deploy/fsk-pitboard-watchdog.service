@@ -1,0 +1,10 @@
+# Restarts the 피트보드 server when it is running but stops answering (a hang that Restart=always cannot see).
+# Installed by deploy/install.sh together with fsk-pitboard-watchdog.timer, which runs this every 2 minutes.
+[Unit]
+Description=FSK 피트보드 응답 확인
+After=fsk-pitboard.service
+
+[Service]
+Type=oneshot
+# Skip while the server is stopped on purpose or still starting; give it three tries 10 s apart before restarting.
+ExecStart=/bin/sh -c 'systemctl is-active --quiet fsk-pitboard || exit 0; for i in 1 2 3; do curl -fsS -m 10 -o /dev/null http://127.0.0.1:8080/healthz && exit 0; sleep 10; done; echo "피트보드가 30초 동안 응답하지 않아 다시 시작해요"; systemctl restart fsk-pitboard'

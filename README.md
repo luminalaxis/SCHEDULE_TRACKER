@@ -4,7 +4,7 @@ FSK(Formula Student Korea) 차량 제작동아리용 팀 현황판입니다. 부
 
 같은 `index.html`이 두 곳에서 돌아갑니다.
 
-- **자체 서버 (라즈베리파이 등, 최종 운영용):** `server/` 의 Node.js 서버가 로그인, 데이터베이스(SQLite), 실시간 동기화, 첨부 파일, 권한을 맡고, 개발자 전용 관리 창(`/admin`)을 제공해요. 설치는 [deploy/RASPBERRY_PI.md](deploy/RASPBERRY_PI.md).
+- **자체 서버 (라즈베리파이 등, 최종 운영용):** `server/` 의 Node.js 서버가 로그인, 데이터베이스(SQLite), 실시간 동기화, 첨부 파일, 권한을 맡고, 개발자 전용 관리 창(`/admin`)을 제공해요. 라즈베리파이에서는 `bash deploy/install.sh` 한 번으로 24시간 서비스(자동 시작·자동 재시작·멈춤 감지)까지 설치돼요. 안내는 [deploy/RASPBERRY_PI.md](deploy/RASPBERRY_PI.md).
 - **claude.ai Artifact (지금 쓰는 곳):** 데이터는 Artifact의 공유 데이터베이스와 파일 저장소에 있어요.
 
 이 저장소에는 코드와 설정만 있고 팀 데이터는 없습니다.
@@ -173,7 +173,9 @@ server/public/sw.js         서비스 워커 (인터넷 없이 열기), manifest
 server/public/vendor/       JSZip 3.10.1 (npm 원본과 같은 파일, 서버에서 직접 제공)
 server/public/login.html    로그인·가입·임시 비밀번호 변경
 server/public/admin.html    개발자 관리 창
-deploy/                     라즈베리파이 설치 안내, systemd 서비스 파일
+deploy/install.sh           라즈베리파이 설치·24시간 운영 설정 (서비스 등록, 응답 확인, 워치독). 다시 실행해도 됨
+deploy/update.sh            백업 → 새 코드 받기 → 다시 시작 → 응답 확인
+deploy/*.service, *.timer   systemd 서비스 파일 틀 (install.sh가 계정·경로·포트를 채워 설치), RASPBERRY_PI.md 설치 안내
 test/                       서버 API·기능 테스트, 사비 양식 규칙·모듈 단위 테스트, e2e/ 브라우저 테스트
 SECURITY.md                 보안 검토 결과와 남은 위험
 ```
@@ -195,7 +197,7 @@ SECURITY.md                 보안 검토 결과와 남은 위험
 
 ## 테스트
 
-- `npm test`: 서버 API, 사비 잠금·파일 비공개·서버 양식 재검사, 알림, 전체 백업·외부 복사, claude.ai 옮기기, 보안 설정(`test/server.test.js`, `test/features.test.js`), 사비 내역서 양식 규칙(`test/expense-rules.test.js`, index.html의 규칙 코드를 그대로 실행하고, 서버 검사가 같은 결과를 내는지도 확인), 모듈 단위 테스트(`test/units.test.js`). 설치할 것 없음
+- `npm test`: 서버 API, 사비 잠금·파일 비공개·서버 양식 재검사, 알림, 전체 백업·외부 복사, claude.ai 옮기기, 보안 설정(`test/server.test.js`, `test/features.test.js`), 사비 내역서 양식 규칙(`test/expense-rules.test.js`, index.html의 규칙 코드를 그대로 실행하고, 서버 검사가 같은 결과를 내는지도 확인), 모듈 단위 테스트(`test/units.test.js`), 라즈베리파이 설치 스크립트가 만드는 서비스 파일(`test/deploy.test.js`, `systemd-analyze`가 있으면 문법 확인까지). 설치할 것 없음
 - `npm run test:e2e`: 실제 브라우저로 휴대폰 화면 배치, 인터넷이 끊긴 상태에서 점검 체크 → 다시 연결되면 올라가는지, xlsx 제출과 양식 검사, 총무 승인 알림까지 확인해요. Playwright가 필요해요 (`npm i --no-save playwright && npx playwright install chromium`). 없으면 건너뛰어요. `E2E_SHOTS=폴더`를 주면 화면을 저장해요
 
 ## 외부 라이브러리

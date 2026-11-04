@@ -1,84 +1,119 @@
 # 라즈베리파이에 피트보드 올리기
 
-라즈베리파이 한 대에서 피트보드를 24시간 돌리는 방법입니다. 서버는 Node.js 하나로 돌아가고, 따로 설치할 패키지(npm install)가 없습니다.
+라즈베리파이 한 대에서 피트보드를 24시간 돌리는 방법이에요. 서버는 Node.js 하나로 돌아가고, 따로 설치할 패키지(npm install)가 없어요. `deploy/install.sh` 가 설치와 24시간 운영 설정을 한 번에 해요.
 
 ## 1. 준비물
 
 - Raspberry Pi 4 또는 5 (메모리 4GB 이상), 64비트 Raspberry Pi OS (Lite 권장)
-- **USB SSD 권장.** SD 카드는 계속 쓰기를 하면 수명이 짧고, 갑자기 망가지면 데이터가 날아갈 수 있어요.
-- 정품 전원 어댑터 (전원이 불안정하면 데이터베이스가 깨질 수 있어요)
+- **USB SSD 권장.** SD 카드는 계속 쓰기를 하면 수명이 짧고, 갑자기 망가지면 데이터가 날아갈 수 있어요. 파이 4·5는 USB SSD로 바로 부팅할 수 있어요.
+- 정품 전원 어댑터 (파이 4는 5V 3A, 파이 5는 5V 5A). 전원이 불안정하면 데이터베이스가 깨질 수 있어요.
+- **유선 랜 권장.** 와이파이도 되지만 끊기는 일이 더 잦아요.
 
-## 2. Node.js 22 설치
+정전이 되어도 전기가 다시 들어오면 파이가 저절로 켜지고 서버도 자동으로 시작해요. 정전이 잦은 곳이면 작은 UPS(보조 전원)를 고려하세요.
 
-```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs git
-node -v   # v22.13 이상이어야 해요
-sudo timedatectl set-timezone Asia/Seoul   # 알림(아침 8시 이후)과 자동 백업 시각의 기준
-```
+### OS 굽기 (Raspberry Pi Imager)
 
-## 3. 코드 받기와 첫 실행
+Imager에서 OS를 고른 뒤 **설정 편집**에서:
 
-```bash
-cd ~
-git clone https://github.com/luminalaxis/SCHEDULE_TRACKER.git
-cd SCHEDULE_TRACKER
-mkdir -p ~/fsk-data
-PORT=8080 HOST=0.0.0.0 DATA_DIR=~/fsk-data npm start
-```
+- 사용자 이름·비밀번호: 아무 이름이나 괜찮아요. 요즘 Raspberry Pi OS에는 예전의 기본 계정 `pi` 가 없고, 설치 스크립트가 지금 로그인한 계정에 맞춰요.
+- 호스트 이름: 예를 들어 `fsk-pit` (아래 명령의 `fsk-pit.local`)
+- SSH 사용, 시간대 Asia/Seoul, (유선이 아니면) 와이파이
 
-같은 와이파이에 있는 컴퓨터에서 `http://<파이 IP>:8080` 에 들어가면 로그인 화면이 나와요. **처음 가입하는 사람이 개발자(관리자) 계정**이 되니, 개발자 본인이 먼저 가입하세요. 확인했으면 `Ctrl+C`로 끕니다.
+## 2. 설치
 
-## 4. 부팅할 때 자동 실행
+노트북에서 파이에 접속해요.
 
 ```bash
-sudo cp deploy/fsk-pitboard.service /etc/systemd/system/
-sudo nano /etc/systemd/system/fsk-pitboard.service   # 사용자 이름(pi)과 경로가 다르면 고치기
-sudo systemctl daemon-reload
-sudo systemctl enable --now fsk-pitboard
-systemctl status fsk-pitboard        # 상태 확인
-journalctl -u fsk-pitboard -f        # 로그 보기
+ssh <사용자 이름>@fsk-pit.local
 ```
 
-서비스 설정은 `HOST=127.0.0.1` 이라 파이 안에서만 접속돼요. 바깥에서 들어오게 하려면 5단계를 하세요.
+파이에서:
 
-## 5. 바깥에서 접속하기
+```bash
+sudo apt update && sudo apt install -y git
+git clone https://github.com/luminalaxis/SCHEDULE_TRACKER.git ~/SCHEDULE_TRACKER
+cd ~/SCHEDULE_TRACKER
+bash deploy/install.sh
+```
+
+기본 설치는 서버가 파이 안에서만 받고, 바깥 접속은 4단계의 Cloudflare Tunnel이 맡아요. 터널 없이 같은 와이파이(또는 Tailscale) 안에서만 쓸 거면 마지막 줄을 `bash deploy/install.sh --lan` 으로 바꾸세요.
+
+설치 스크립트가 하는 일:
+
+| 무엇 | 왜 |
+|---|---|
+| Node.js 22 설치 (없거나 오래됐을 때), 시간대 Asia/Seoul | 서버 실행, 알림(아침 8시 이후)과 자동 백업 시각의 기준 |
+| 데이터 폴더 `~/fsk-data` (나만 읽기·쓰기) | 데이터베이스, 첨부 파일, 백업 |
+| 서비스 `fsk-pitboard` 등록 | 부팅하면 자동 시작, 꺼지면 3초 뒤 다시 시작 |
+| 응답 확인 `fsk-pitboard-watchdog.timer` | 2분마다 `/healthz` 를 확인해서 30초 동안 응답이 없으면 다시 시작 (켜져 있는데 멈춘 경우) |
+| 하드웨어 워치독 | 파이 자체가 멈추면 자동 재부팅 |
+| 로그 보관 (재부팅해도 남기고 200MB까지) | 왜 멈췄는지 나중에 확인 |
+| 보안 업데이트 자동 설치 (unattended-upgrades) | 재부팅은 하지 않아요 |
+| 와이파이 절전 끄기 (와이파이일 때만) | 연결 끊김 줄이기 |
+| 전원 부족 기록, 데이터가 SD 카드에 있는지 확인 | 경고만 해요 |
+
+여러 번 실행해도 돼요. 포트, 데이터 폴더, 접속 방식은 처음 정한 대로 유지돼요. 옵션은 `bash deploy/install.sh --help` (`--port`, `--data-dir`, `--lan` / `--tunnel`, `--backup-dir`).
+
+## 3. 첫 개발자 계정
+
+**처음 가입하는 사람이 개발자(관리자) 계정**이 돼요. 바깥 접속(4단계)을 열기 전에 개발자 본인이 먼저 가입하세요.
+
+기본 설치는 서버가 파이 안에서만 받으니, 노트북에서 SSH로 잠깐 연결해요.
+
+```bash
+ssh -L 8080:127.0.0.1:8080 <사용자 이름>@fsk-pit.local
+```
+
+이 창을 열어 둔 채 노트북 브라우저에서 `http://localhost:8080` 을 열고 가입해요. `--lan` 으로 설치했다면 `http://<파이 IP>:8080` 에서 바로 가입하면 돼요.
+
+가입한 뒤 관리 창(`/admin`) → 설정에서 가입 방식이 "승인제" 또는 "초대 코드"인지 확인하세요.
+
+## 4. 바깥에서 접속하기
 
 ### 방법 A: Cloudflare Tunnel (추천)
 
-포트포워딩 없이 HTTPS 주소가 생기고, 학교·기숙사 망에서도 대부분 동작해요. Cloudflare에 등록된 도메인이 필요해요.
+포트포워딩 없이 HTTPS 주소가 생기고, 학교·기숙사 망에서도 대부분 동작해요. 휴대폰에 앱처럼 설치하기(10단계)도 HTTPS 주소가 있어야 해요. Cloudflare에 등록된 도메인이 필요해요.
 
-```bash
-# cloudflared 설치 (arm64)
-curl -L -o cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
-sudo dpkg -i cloudflared.deb
+1. Cloudflare 대시보드 → **Zero Trust** → **Networks** → **Tunnels** 에서 터널을 만들어요 (종류 Cloudflared, 이름 `fsk`). 메뉴 이름은 조금 다를 수 있어요.
+2. 설치 화면에서 **Debian**, **arm64** 를 고르면 나오는 명령을 파이에 그대로 붙여 넣어요. 마지막 명령 `sudo cloudflared service install <토큰>` 이 cloudflared를 부팅할 때 자동으로 켜지는 서비스로 등록해요.
+3. **Public hostname**(공개 호스트 이름)을 추가해요: `pit.example.com` → 서비스 종류 `HTTP`, 주소 `localhost:8080`.
+4. 파이에서 `systemctl status cloudflared` 가 active 인지, 휴대폰에서 `https://pit.example.com` 이 열리는지 확인해요.
 
-cloudflared tunnel login                       # 브라우저에서 도메인 선택
-cloudflared tunnel create fsk
-cloudflared tunnel route dns fsk pit.example.com
-```
-
-`~/.cloudflared/config.yml`:
-
-```yaml
-tunnel: fsk
-credentials-file: /home/pi/.cloudflared/<터널ID>.json
-ingress:
-  - hostname: pit.example.com
-    service: http://localhost:8080
-  - service: http_status:404
-```
-
-```bash
-sudo cloudflared service install
-sudo systemctl enable --now cloudflared
-```
-
-도메인이 없을 때 잠깐 테스트만 하려면 `cloudflared tunnel --url http://localhost:8080` 을 실행하면 임시 `trycloudflare.com` 주소가 나와요 (재시작하면 바뀜).
+도메인이 없을 때 잠깐 테스트만 하려면 `cloudflared tunnel --url http://localhost:8080` 을 실행하면 임시 `trycloudflare.com` 주소가 나와요. 재시작하면 주소가 바뀌니 24시간 운영에는 쓰지 마세요.
 
 ### 방법 B: Tailscale (팀원만 접속)
 
-팀원 모두가 Tailscale 앱을 깔고 같은 네트워크에 들어오는 방식이에요. 인터넷에 공개되지 않아 가장 안전해요. 이 경우 서비스 파일에서 `HOST=0.0.0.0`, `TRUST_PROXY=0` 으로 바꾸세요.
+팀원 모두가 Tailscale 앱을 깔고 같은 네트워크에 들어오는 방식이에요. 인터넷에 공개되지 않아 가장 안전해요.
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+bash ~/SCHEDULE_TRACKER/deploy/install.sh --lan
+```
+
+팀원은 `http://<파이의 Tailscale 이름 또는 IP>:8080` 으로 들어와요. HTTPS가 아니라서 휴대폰 앱 설치와 오프라인 열기는 되지 않을 수 있어요.
+
+## 5. 24시간 잘 돌고 있는지 확인
+
+```bash
+systemctl status fsk-pitboard           # active (running) 이면 정상
+journalctl -u fsk-pitboard -f           # 실시간 로그
+journalctl -u fsk-pitboard-watchdog     # 응답이 없어서 다시 시작한 기록
+journalctl -b -1 -e                     # 직전 부팅의 마지막 로그 (파이가 혼자 재부팅됐을 때)
+vcgencmd get_throttled                  # throttled=0x0 이 아니면 전원이 부족했던 적이 있어요
+curl http://127.0.0.1:8080/healthz      # {"ok":true,...}
+```
+
+관리 창 개요에서도 가동 시간, 마지막 백업, 디스크 사용량, 경고를 볼 수 있어요.
+
+| 무슨 일이 생기면 | 어떻게 복구돼요 |
+|---|---|
+| 서버 프로세스가 죽음 | 3초 뒤 자동으로 다시 시작 |
+| 켜져 있는데 응답이 없음 | 2분마다 확인해서 30초 동안 응답이 없으면 다시 시작 |
+| 파이(운영체제)가 멈춤 | 하드웨어 워치독이 재부팅 |
+| 정전 | 전기가 들어오면 파이가 켜지고 서버와 터널이 자동으로 시작 |
+
+서버가 꺼진 걸 밖에서 바로 알고 싶으면, 무료 업타임 모니터(UptimeRobot 등)에 `https://pit.example.com/healthz` 를 등록해 두세요. 응답이 없으면 메일이나 앱 알림이 와요.
 
 ## 6. 백업
 
@@ -87,25 +122,36 @@ sudo systemctl enable --now cloudflared
 
 ### 외부 복사 (USB 드라이브, 권장)
 
-1. USB 드라이브를 꽂고 항상 같은 경로에 연결되게 해요. `lsblk -f` 로 UUID를 확인한 뒤 `/etc/fstab` 에 한 줄 추가:
+1. USB 드라이브(ext4로 포맷)를 꽂고 항상 같은 경로에 연결되게 해요. `lsblk -f` 로 UUID를 확인한 뒤 `sudo nano /etc/fstab` 으로 한 줄 추가:
 
    ```
-   UUID=<드라이브 UUID>  /media/pi/BACKUP  ext4  defaults,nofail  0  2
+   UUID=<드라이브 UUID>  /mnt/backup  ext4  defaults,nofail  0  2
+   ```
+
+   `nofail` 이 있어서 드라이브가 빠져 있어도 파이와 서버는 정상으로 켜져요.
+
+   ```bash
+   sudo mkdir -p /mnt/backup && sudo systemctl daemon-reload && sudo mount -a
    ```
 
    ```bash
-   sudo mkdir -p /media/pi/BACKUP && sudo mount -a && sudo mkdir -p /media/pi/BACKUP/fsk && sudo chown pi: /media/pi/BACKUP/fsk
+   sudo mkdir -p /mnt/backup/fsk && sudo chown "$USER": /mnt/backup/fsk
    ```
 
-2. 서비스가 그 폴더에 쓸 수 있게 `/etc/systemd/system/fsk-pitboard.service` 의 `# ReadWritePaths=/media/pi/BACKUP` 줄 앞의 `#` 을 지우고 `sudo systemctl daemon-reload && sudo systemctl restart fsk-pitboard`.
-3. 관리 창 → 백업·복원 → 외부 복사에 `/media/pi/BACKUP/fsk` 를 적고 **저장**, **지금 복사**.
+2. 서버가 그 드라이브에 쓸 수 있게:
 
-이후 매일 자동 백업이 끝나면 백업 파일과 새 첨부 파일을 복사해요. 복사본에서는 지우지 않으니(자동 백업은 60개까지 보관) 서버 데이터가 지워져도 남아 있어요. 실패하거나 이틀 넘게 복사가 안 되면 관리 창 개요에 경고가 떠요.
+   ```bash
+   bash ~/SCHEDULE_TRACKER/deploy/install.sh --backup-dir /mnt/backup
+   ```
+
+3. 관리 창 → 백업·복원 → 외부 복사에 `/mnt/backup/fsk` 를 적고 **저장**, **지금 복사**.
+
+이후 매일 자동 백업이 끝나면 백업 파일과 새 첨부 파일을 복사해요. 복사본에서는 지우지 않으니(자동 백업은 60개까지 보관) 서버 데이터가 지워져도 남아 있어요. 드라이브가 빠져 있으면 복사가 실패하고, 실패하거나 이틀 넘게 복사가 안 되면 관리 창 개요에 경고가 떠요.
 
 Google Drive 같은 클라우드에도 두려면, 외부 복사 폴더를 `rclone` 으로 올리세요 (`crontab -e`):
 
 ```cron
-0 5 * * * rclone copy /media/pi/BACKUP/fsk gdrive:fsk-backup
+0 5 * * * rclone copy /mnt/backup/fsk gdrive:fsk-backup
 ```
 
 ### 한 파일로 받기
@@ -116,21 +162,33 @@ Google Drive 같은 클라우드에도 두려면, 외부 복사 폴더를 `rclon
 
 ```bash
 cd ~/SCHEDULE_TRACKER
-git pull
-sudo systemctl restart fsk-pitboard
+bash deploy/update.sh
+```
+
+새 코드가 있을 때만 업데이트 직전 백업 → 코드 받기 → 서비스 다시 설치·시작 → 응답 확인을 해요. 새 버전이 켜지지 않으면 이전 버전으로 되돌리는 명령을 알려 줘요.
+
+보안 업데이트는 자동으로 설치되지만, Node.js와 cloudflared는 가끔 직접 올려 주세요. 대회 직전에는 피하세요.
+
+```bash
+sudo apt update && sudo apt full-upgrade -y && sudo reboot
 ```
 
 ## 8. 문제가 생겼을 때
 
+명령에 나오는 `~/fsk-data` 는 기본 데이터 폴더예요. `--data-dir` 로 바꿨다면 그 폴더로 적으세요.
+
 | 상황 | 해결 |
 |---|---|
+| 서버가 켜지지 않음 | `journalctl -u fsk-pitboard -n 50` 으로 오류를 확인하고, 고친 뒤 `bash deploy/install.sh` |
+| 파이가 혼자 재부팅됨 | `journalctl -b -1 -e` (직전 부팅의 마지막 로그), `vcgencmd get_throttled` (전원) |
+| 바깥 주소로 안 열림 | `systemctl status cloudflared`, 파이 안에서 `curl http://127.0.0.1:8080/healthz` |
 | 개발자 비밀번호를 잊음 | `DATA_DIR=~/fsk-data npm run admin -- reset-password <아이디>` |
 | 계정 목록 확인 | `DATA_DIR=~/fsk-data npm run admin -- list-users` |
 | 새 개발자 계정 만들기 | `DATA_DIR=~/fsk-data npm run admin -- create-user <아이디> developer <이름>` |
 | 직책 있는 계정 만들기 | `... create-user <아이디> member\|team_lead\|vice_lead\|part_lead <이름> <부서>` (developer가 아니면 부서 필수: battery, circuit, chassis, aero, powertrain) |
-| 파이가 고장 나서 새 파이로 옮김 (전체 백업 파일이 있음) | 새 파이에 2~4단계를 한 뒤 `DATA_DIR=~/fsk-data npm run admin -- restore fsk-full-….tar.gz` (계정·데이터·설정·첨부 파일 모두 복원) |
-| 외부 복사본(USB)만 있음 | 새 파이에 2~4단계 → `mkdir -p ~/fsk-data/assets && cp /media/pi/BACKUP/fsk/assets/* ~/fsk-data/assets/` → `DATA_DIR=~/fsk-data npm run admin -- restore /media/pi/BACKUP/fsk/backups/<가장 최근>.json` |
-| 백업 JSON만 있음 | `DATA_DIR=~/fsk-data npm run admin -- restore 백업파일.json` (계정·데이터·설정 복원, 첨부 파일은 따로) |
+| 파이가 고장 나서 새 파이로 옮김 (전체 백업 파일이 있음) | 새 파이에 2단계(설치)를 한 뒤 `sudo systemctl stop fsk-pitboard` → `DATA_DIR=~/fsk-data npm run admin -- restore fsk-full-….tar.gz` (계정·데이터·설정·첨부 파일 모두 복원) → `sudo systemctl start fsk-pitboard` |
+| 외부 복사본(USB)만 있음 | 새 파이에 2단계 → `sudo systemctl stop fsk-pitboard` → `mkdir -p ~/fsk-data/assets && cp /mnt/backup/fsk/assets/* ~/fsk-data/assets/` → `DATA_DIR=~/fsk-data npm run admin -- restore /mnt/backup/fsk/backups/<가장 최근>.json` → `sudo systemctl start fsk-pitboard` |
+| 백업 JSON만 있음 | 서버를 멈추고 `DATA_DIR=~/fsk-data npm run admin -- restore 백업파일.json` (계정·데이터·설정 복원, 첨부 파일은 따로) |
 | 알림이 안 옴 | 관리 창 → 설정 → 알림 → **지금 마감·일정 알림 확인** / **테스트 보내기**. 시간대가 맞는지 `timedatectl` 확인 |
 
 ## 9. claude.ai 피트보드에서 데이터 옮기기
@@ -144,7 +202,7 @@ sudo systemctl restart fsk-pitboard
 
 ## 10. 휴대폰에 앱처럼 설치
 
-HTTPS 주소(5단계의 Cloudflare Tunnel)로 접속해야 해요.
+HTTPS 주소(4단계의 Cloudflare Tunnel)로 접속해야 해요.
 
 - 안드로이드(Chrome): 메뉴 → **홈 화면에 추가** (또는 "앱 설치")
 - 아이폰(Safari): 공유 → **홈 화면에 추가**
@@ -153,9 +211,26 @@ HTTPS 주소(5단계의 Cloudflare Tunnel)로 접속해야 해요.
 
 ## 보안 체크리스트
 
-- [ ] 외부 공개는 HTTPS(Cloudflare Tunnel)로만, 서버는 `HOST=127.0.0.1`
+- [ ] 외부 공개는 HTTPS(Cloudflare Tunnel)로만, 설치는 `--lan` 없이 (서버는 파이 안에서만 받음)
+- [ ] 바깥 접속을 열기 전에 개발자 계정부터 만들기 (처음 가입하는 사람이 개발자)
 - [ ] 관리 창 → 설정에서 가입 방식을 "승인제" 또는 "초대 코드"로
 - [ ] 개발자 계정은 강한 비밀번호, 개발자는 꼭 필요한 사람만
+- [ ] 파이 로그인 계정도 강한 비밀번호 (SSH)
 - [ ] 외부 복사(USB)가 매일 도는지 관리 창 개요에서 확인
 - [ ] 같은 휴대폰·노트북을 여러 사람이 쓰면 다 쓴 뒤 로그아웃 (이 기기에 저장된 데이터가 지워져요)
 - [ ] 이 저장소는 공개 저장소예요. `data/` 폴더나 백업 파일은 절대 커밋하지 않기 (`.gitignore`에 있음)
+
+## 참고: 스크립트 없이 설치하기
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+sudo timedatectl set-timezone Asia/Seoul
+mkdir -p ~/fsk-data && chmod 700 ~/fsk-data
+sudo cp deploy/fsk-pitboard.service /etc/systemd/system/
+sudo nano /etc/systemd/system/fsk-pitboard.service   # User, WorkingDirectory, DATA_DIR, ReadWritePaths 를 내 계정과 폴더로
+sudo systemctl daemon-reload
+sudo systemctl enable --now fsk-pitboard
+```
+
+응답 확인 타이머는 `deploy/fsk-pitboard-watchdog.service`·`.timer` 를 같은 폴더에 복사하고 `sudo systemctl enable --now fsk-pitboard-watchdog.timer` (포트가 8080이 아니면 주소를 고치기). 서버만 잠깐 띄워 보려면 `PORT=8080 HOST=0.0.0.0 DATA_DIR=~/fsk-data npm start`.

@@ -1,0 +1,10 @@
+# Runs fsk-pitboard-watchdog.service every 2 minutes. Installed by deploy/install.sh.
+[Unit]
+Description=FSK 피트보드 응답 확인 (2분마다)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

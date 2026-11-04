@@ -151,7 +151,7 @@ function autoBackupTick() {
 // manual backups in the copy, so a mistake (or an attacker) deleting data on the server cannot wipe the copy.
 function mirrorCheck(dir) {
   if (!dir) return null;
-  if (!isAbsolute(dir)) return "절대 경로로 적어 주세요 (예: /media/pi/BACKUP/fsk).";
+  if (!isAbsolute(dir)) return "절대 경로로 적어 주세요 (예: /mnt/backup/fsk).";
   const r = resolve(dir), dd = resolve(CONFIG.dataDir);
   if (r === dd || r.startsWith(dd + sep) || dd.startsWith(r + sep)) return "데이터 폴더와 겹치지 않는 곳이어야 해요.";
   if (!existsSync(r) || !statSync(r).isDirectory()) return "그 폴더가 없어요. USB 드라이브가 연결돼 있는지 확인하세요.";

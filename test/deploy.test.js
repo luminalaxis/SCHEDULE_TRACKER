@@ -54,7 +54,7 @@ test("watchdog checks the server's health URL, which the installer rewrites for 
   const unit = readFileSync(join(ROOT, "deploy", "fsk-pitboard-watchdog.service"), "utf8");
   assert.match(unit, /http:\/\/127\.0\.0\.1:8080\/healthz/);
   assert.match(unit, /systemctl is-active --quiet fsk-pitboard \|\| exit 0/, "leaves a server stopped on purpose alone");
-  assert.match(readFileSync(join(ROOT, "server", "server.js"), "utf8"), /route\("GET", "\/healthz"[^\n]*auth: "none"/);
+  assert.match(readFileSync(join(ROOT, "server", "server.js"), "utf8"), /route\("GET", "\/healthz",(?:(?!\nroute\()[\s\S])*auth: "none"/);
 });
 
 const hasAnalyze = hasBash && !spawnSync("systemd-analyze", ["--version"]).error;
@@ -92,7 +92,7 @@ test("behind Tailscale only its X-Forwarded-For names the client", async () => {
     const audit = (await other.req("GET", "/api/admin/audit?action=login", undefined, via("100.64.0.6"))).json.entries;
     assert.equal(audit.find((e) => e.action === "login").ip, "100.64.0.6");
     assert.ok(audit.filter((e) => e.action === "login.fail").every((e) => e.ip === "100.64.0.5"));
-  } finally { srv.stop(); }
+  } finally { await srv.stop(); }
 });
 
 test("behind Cloudflare Tunnel CF-Connecting-IP names the client", async () => {
@@ -102,5 +102,5 @@ test("behind Cloudflare Tunnel CF-Connecting-IP names the client", async () => {
     await dev.req("POST", "/api/auth/signup", { username: "dev", password: "password1", name: "개발자" }, { "cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "10.0.0.1, 198.51.100.7" });
     const audit = (await dev.get("/api/admin/audit?action=signup")).json.entries;
     assert.equal(audit[0].ip, "198.51.100.7");
-  } finally { srv.stop(); }
+  } finally { await srv.stop(); }
 });

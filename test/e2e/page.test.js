@@ -30,7 +30,7 @@ before(async () => {
   await dev.post("/api/db/set", { path: "milestones/m1", data: { title: "설계 보고서 제출", date: "2026-10-30", kind: "서류 제출", dept: "" } });
   browser = await pw.chromium.launch();
 });
-after(async () => { if (browser) await browser.close(); if (srv) srv.stop(); });
+after(async () => { if (browser) await browser.close(); if (srv) await srv.stop(); });
 
 async function signIn(ctx, username, password) {
   const page = await ctx.newPage();

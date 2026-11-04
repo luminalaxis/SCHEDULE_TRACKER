@@ -14,17 +14,28 @@ export const STATUS_LABEL = { active: "활성", pending: "승인 대기", disabl
 export const newId = (prefix = "", bytes = 16) => prefix + crypto.randomBytes(bytes).toString("base64url");
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
-export function hashPassword(pw) {
+// scrypt runs on libuv's thread pool, not the event loop: a login no longer stalls live updates and other requests.
+// At most two run at once, so a flood of logins cannot take every pool thread from file reads and compression.
+const scryptAsync = (pw, salt, len, opts) => new Promise((resolve, reject) => crypto.scrypt(pw, salt, len, opts, (e, key) => (e ? reject(e) : resolve(key))));
+let running = 0;
+const waiting = [];
+async function scrypt(pw, salt, len, opts) {
+  if (running >= 2) await new Promise((r) => waiting.push(r));
+  running++;
+  try { return await scryptAsync(pw, salt, len, opts); }
+  finally { running--; const next = waiting.shift(); if (next) next(); }
+}
+export async function hashPassword(pw) {
   const salt = crypto.randomBytes(16);
-  const hash = crypto.scryptSync(pw, salt, 64, SCRYPT);
+  const hash = await scrypt(pw, salt, 64, SCRYPT);
   return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString("base64")}$${hash.toString("base64")}`;
 }
-export function verifyPassword(pw, stored) {
+export async function verifyPassword(pw, stored) {
   try {
     const [kind, N, r, p, salt, hash] = String(stored).split("$");
     if (kind !== "scrypt") return false;
     const want = Buffer.from(hash, "base64");
-    const got = crypto.scryptSync(pw, Buffer.from(salt, "base64"), want.length, { N: +N, r: +r, p: +p });
+    const got = await scrypt(pw, Buffer.from(salt, "base64"), want.length, { N: +N, r: +r, p: +p });
     return crypto.timingSafeEqual(want, got);
   } catch { return false; }
 }
@@ -75,9 +86,11 @@ export function createAuth(db) {
     byId: (id) => q.byId.get(id),
     list: () => q.all.all(),
     activeDevelopers: () => q.devs.all().map((r) => r.id),
-    create({ username, name, dept, role, position = "", status, password, mustChange = false }) {
+    // Takes a hash from hashPassword (awaited by the caller first), so the checks before an insert and the insert
+    // itself run without a pause in between: two sign-ups at once cannot both become the first account.
+    create({ username, name, dept, role, position = "", status, pwHash, mustChange = false }) {
       const id = newId("u_");
-      q.insert.run(id, username, name, dept || "", role, position, status, hashPassword(password), mustChange ? 1 : 0, new Date().toISOString());
+      q.insert.run(id, username, name, dept || "", role, position, status, pwHash, mustChange ? 1 : 0, new Date().toISOString());
       return q.byId.get(id);
     },
     update(id, { name, dept, role, position, status }) {
@@ -86,7 +99,7 @@ export function createAuth(db) {
       return q.byId.get(id);
     },
     remove: (id) => q.del.run(id),
-    setPassword(id, pw, mustChange = false) { q.setPw.run(hashPassword(pw), mustChange ? 1 : 0, id); },
+    setPassword(id, pwHash, mustChange = false) { q.setPw.run(pwHash, mustChange ? 1 : 0, id); },
     startSession(userId, ip, ua) {
       const token = crypto.randomBytes(32).toString("base64url"), now = new Date();
       q.sessionInsert.run(sha256(token), userId, now.toISOString(), new Date(now.getTime() + SESSION_DAYS * 86400000).toISOString(), now.toISOString(), ip || null, String(ua || "").slice(0, 200));

@@ -13,9 +13,12 @@ export async function startServer(env = {}) {
   const base = `http://127.0.0.1:${port}`;
   const proc = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", join(ROOT, "server/server.js")], { env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, ...env }, stdio: "pipe" });
   let log = "";
+  const exited = new Promise((r) => proc.once("exit", r));
+  // Windows keeps the database file locked until the server process has really exited, so wait for it before removing the folder.
+  const stop = async () => { proc.kill(); await exited; rmSync(dataDir, { recursive: true, force: true, maxRetries: 10 }); };
   proc.stdout.on("data", (d) => { log += d; }); proc.stderr.on("data", (d) => { log += d; });
   for (let i = 0; i < 80; i++) {
-    try { if ((await fetch(base + "/healthz")).ok) return { base, port, dataDir, log: () => log, stop: () => { proc.kill(); rmSync(dataDir, { recursive: true, force: true }); } }; } catch {}
+    try { if ((await fetch(base + "/healthz")).ok) return { base, port, dataDir, log: () => log, stop }; } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }
   proc.kill();

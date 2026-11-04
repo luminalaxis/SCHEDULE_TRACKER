@@ -37,7 +37,7 @@ before(async () => {
   for (let i = 0; i < 50; i++) { try { if ((await fetch(BASE + "/healthz")).ok) return; } catch {} await new Promise((r) => setTimeout(r, 100)); }
   throw new Error("server did not start");
 });
-after(() => { proc.kill(); rmSync(dataDir, { recursive: true, force: true }); });
+after(async () => { const exited = new Promise((r) => proc.once("exit", r)); proc.kill(); await exited; rmSync(dataDir, { recursive: true, force: true, maxRetries: 10 }); });
 
 test("first signup becomes the developer", async () => {
   const r = await dev.req("POST", "/api/auth/signup", { username: "dev", password: "password1", name: "개발자" });

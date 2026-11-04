@@ -32,7 +32,7 @@ before(async () => {
   a = await member(srv.base, dev, "aaa", "에이", { dept: "chassis" });
   b = await member(srv.base, dev, "bbb", "비", { position: "part_lead", dept: "aero" });
 });
-after(() => { srv.stop(); hook.close(); });
+after(async () => { hook.close(); await srv.stop(); });
 
 let fileAsset, receiptAsset, partAsset;
 const ITEM = { team: "에어로", date: 46300, cat: "프레임&바디", purpose: "리어 윙 제작", product: "카본 프리프레그", vendor: "https://smartstore.naver.com/carbon", price: 50000, qty: 2 };
@@ -386,11 +386,11 @@ test("login and sign-up are rate limited", async () => {
   assert.equal(last.status, 429);
 });
 
-test("behind a tunnel the address comes from the tunnel's own X-Forwarded-For entry", async () => {
-  const s = await startServer({ TRUST_PROXY: "1" });
+test("behind Tailscale the address comes from the tunnel's own X-Forwarded-For entry", async () => {
+  const s = await startServer({ TRUST_PROXY: "tailscale" });
   try {
     const x = new Client(s.base);
-    // the visitor forges CF-Connecting-IP and an earlier X-Forwarded-For entry; the tunnel adds 203.0.113.7 last
+    // the visitor forges CF-Connecting-IP and an earlier X-Forwarded-For entry; Funnel adds 203.0.113.7 last
     for (let i = 0; i < 10; i++) {
       const r = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "cf-connecting-ip": `198.51.100.${i}`, "x-forwarded-for": `192.0.2.${i}, 203.0.113.7` });
       assert.equal(r.status, 401);
@@ -399,5 +399,5 @@ test("behind a tunnel the address comes from the tunnel's own X-Forwarded-For en
     assert.equal(blocked.status, 429, "changing the forgeable headers does not reset the limit");
     const other = await x.post("/api/auth/login", { username: "nobody", password: "wrong-password" }, { "x-forwarded-for": "203.0.113.8" });
     assert.equal(other.status, 401, "another visitor is not blocked");
-  } finally { s.stop(); }
+  } finally { await s.stop(); }
 });

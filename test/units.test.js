@@ -8,6 +8,7 @@ import { writeTarGz, readTarGz } from "../server/archive.js";
 import { stableJson, runQuery } from "../server/store.js";
 import { contentMatches, cleanName } from "../server/filetype.js";
 import { DEPARTMENTS } from "../server/depts.js";
+import { rulesProblem } from "../server/expense-check.js";
 import { readFileSync } from "node:fs";
 
 test("the page's departments match server/depts.js", () => {
@@ -94,4 +95,13 @@ test("store helpers", () => {
   assert.equal(stableJson({ b: 1, a: { d: 2, c: [3, { y: 1, x: 2 }] } }), stableJson({ a: { c: [3, { x: 2, y: 1 }], d: 2 }, b: 1 }));
   assert.throws(() => runQuery([], { where: "x" }), /where/);
   assert.throws(() => runQuery([], { orderBy: "at" }), /orderBy/);
+});
+
+test("the server notices an index.html whose 사비 rules are older than its own check", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.equal(rulesProblem(html), "");
+  const old = html.replace(/return Object\.freeze\(\{ checkStatement, readWorkbook, summarize,/, "return Object.freeze({ checkStatement,");
+  assert.notEqual(old, html);
+  assert.match(rulesProblem(old), /오래된 버전.*readWorkbook, summarize/);
+  assert.match(rulesProblem("<p>no rules</p>"), /양식 규칙이 없어요/);
 });

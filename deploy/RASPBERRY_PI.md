@@ -225,7 +225,28 @@ sudo apt update && sudo apt full-upgrade -y && sudo reboot
 
 첨부 파일(사진, 도면, 영수증)은 claude.ai 파일 저장소에 있어서 함께 옮겨지지 않아요. 필요한 파일은 다시 올려 주세요.
 
-## 10. 휴대폰에 앱처럼 설치
+## 10. 노트북에서 쓰던 피트보드 옮겨 오기
+
+Windows 노트북([WINDOWS.md](WINDOWS.md))에서 Tailscale Funnel로 쓰던 피트보드를 파이로 옮겨요. 주소, 계정과 비밀번호, 데이터, 첨부 파일, 설정이 모두 그대로예요.
+
+1. **미리 공지하세요.** 백업한 뒤에 들어온 기록은 옮겨지지 않아요.
+2. **노트북에서 백업:** `tailscale funnel --https=443 off` 로 바깥 접속을 막고, 노트북 브라우저로 `http://localhost:8080/admin` → 백업 · 복원 → **전체 백업 내려받기**. 받은 뒤 서버 창을 꺼요.
+3. **파이 준비:** 2단계(`bash deploy/install.sh`)만 해요. 가입은 하지 않아도 돼요.
+4. **파이에서 복원:** 백업 파일을 파이로 옮기고(USB, 또는 노트북에서 `scp fsk-full-….tar.gz <사용자 이름>@fsk-pit.local:~`):
+
+   ```bash
+   sudo systemctl stop fsk-pitboard
+   cd ~/SCHEDULE_TRACKER
+   DATA_DIR=~/fsk-data npm run admin -- restore ~/fsk-full-….tar.gz   # 파이에서 이미 가입했다면 끝에 --force
+   sudo systemctl start fsk-pitboard
+   ```
+
+5. **주소 넘기기:** Tailscale 관리 화면 → Machines에서 **노트북(pitboard)을 먼저 삭제**해요. 파이에서 `bash deploy/install.sh --tailscale` 로 Tailscale에 로그인한 뒤 `sudo tailscale set --hostname=pitboard` 로 이름을 맞추고, `bash deploy/install.sh --tailscale` 를 한 번 더 실행해요. 같은 이름(`pitboard`)이라 주소가 그대로예요. 노트북을 지우지 않으면 파이가 `pitboard-1` 같은 다른 이름을 받아요.
+6. **확인:** 주소로 들어가 로그인해요. 복원하면 로그인 상태가 초기화돼서 팀원도 모두 한 번씩 다시 로그인해야 해요(비밀번호는 그대로). 노트북에서 외부 복사 폴더를 정해 뒀다면 Windows 경로라서, 관리 창에서 파이 경로(예: `/media/<사용자 이름>/BACKUP/fsk`)로 바꿔요.
+
+서버 두 대가 같은 주소에 동시에 붙어 있으면 안 돼요. 데이터가 다른 두 서버를 팀원들이 섞어 쓰게 돼요. 노트북을 다시 켜더라도 Funnel은 꺼 둔 채로 두세요.
+
+## 11. 휴대폰에 앱처럼 설치
 
 HTTPS 주소(4단계의 Cloudflare Tunnel 또는 Tailscale)로 접속해야 해요.
 

@@ -157,7 +157,19 @@
     es.addEventListener("notify", (ev) => onNotify(JSON.parse(ev.data)));
     es.addEventListener("profile", (ev) => onProfile(JSON.parse(ev.data)));
     es.addEventListener("reload", () => location.reload());
+    es.addEventListener("access", reloadForAccess);
     es.addEventListener("error", () => { fetch("/api/me", { credentials: "same-origin" }).then((r) => { if (r.status === 401) toLogin(); }).catch(() => setOffline(true)); });
+  }
+  // A developer changed my 권한 or 직책: reload so menus and buttons follow. An open dialog may hold unsaved input,
+  // so wait until it is closed (saved or cancelled). Queued offline changes are kept in storage across the reload.
+  let accessPending = false;
+  function reloadForAccess() {
+    const openDialog = () => document.querySelector("dialog[open]");
+    if (!openDialog()) return location.reload();
+    if (accessPending) return;
+    accessPending = true;
+    notice("권한이 바뀌었어요. 지금 쓰던 창을 닫으면 새로고침해요.");
+    document.addEventListener("close", () => { if (!openDialog()) location.reload(); }, true);
   }
   function refetchAll() { docListeners.forEach((set) => set.forEach((l) => l.fetch())); queryListeners.forEach((q) => q.fetch()); }
 

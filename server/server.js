@@ -14,7 +14,7 @@ import { analyzeExport, remapRows } from "./migrate.js";
 import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
 import { contentMatches, cleanName } from "./filetype.js";
 import { DEPARTMENTS, DEPTS, deptLabel, DEPTS_PLACEHOLDER } from "./depts.js";
-import { checkExpenseFile } from "./expense-check.js";
+import { checkExpenseFile, rulesProblem } from "./expense-check.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -65,7 +65,9 @@ function broadcast(path, doc) {
   const payload = `event: change\ndata: ${JSON.stringify({ path, collection: docs.collectionOf(path), op: doc ? "set" : "delete", doc: doc || null })}\n\n`;
   for (const c of clients) if (rules.canRead(c.user, path)) c.res.write(payload);
 }
-function dropStreams(userId) { for (const c of clients) if (c.user.id === userId) c.res.end(); }
+// Leave the set at once: the stream's "close" comes later, and a broadcast in between would write after end and crash the server.
+// With an event, the page hears it before the stream ends ("access": reload to show the new 권한).
+function dropStreams(userId, event) { for (const c of clients) if (c.user.id === userId) { clients.delete(c); c.res.end(event ? `event: ${event}\ndata: {}\n\n` : undefined); } }
 function pushTo(userId, event, data) { for (const c of clients) if (c.user.id === userId) c.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }
 // A name or department change reaches that person's open pages at once, and the page's people list.
 function profileChanged(u) {
@@ -100,7 +102,7 @@ function handOver(ctx, targetId, position, dept) {
   if (!position) return moved;
   for (const u of auth.list()) {
     if (u.id === targetId || u.position !== position || (position === "part_lead" && u.dept !== dept)) continue;
-    auth.update(u.id, { position: "" }); dropStreams(u.id);
+    auth.update(u.id, { position: "" }); dropStreams(u.id, "access");
     audit(ctx, "role.change", u.username, `${POSITION_LABEL[position]} → 팀원 (새 ${POSITION_LABEL[position]}에게 넘김)`);
     moved.push({ name: u.name, position });
   }
@@ -272,12 +274,26 @@ function pageSource() {
 }
 const safeJson = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
 const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+// The page keeps the CDN tag's integrity hash, so the local copy must match it byte for byte or the browser refuses it
+// (사비 xlsx check: "파일 분석 도구를 불러오지 못했어요"). Git on Windows turning LF into CRLF is the usual cause.
+function jszipMatchesPage() {
+  const want = (pageSource().match(/jszip\.min\.js" integrity="(sha512-[^"]+)"/) || [])[1];
+  return !want || want === "sha512-" + crypto.createHash("sha512").update(staticFile("vendor/jszip.min.js")).digest("base64");
+}
+// The file is cached for a year, so its address carries a hash of its content: a fixed copy gets a new address
+// instead of browsers keeping a bad one they already hold.
+let jszipUrl = { mtime: 0, url: "" };
+function localJszip() {
+  const m = statSync(join(HERE, "public", "vendor", "jszip.min.js")).mtimeMs;
+  if (m !== jszipUrl.mtime) jszipUrl = { mtime: m, url: "/vendor/jszip.min.js?v=" + crypto.createHash("sha256").update(staticFile("vendor/jszip.min.js")).digest("hex").slice(0, 12) };
+  return jszipUrl.url;
+}
 function renderPage(user) {
   const me = { ...auth.publicUser(user), level: levelOf(user) };
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">`
     + `<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#131A24"><link rel="icon" href="/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icons/icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="피트보드">`
     + `<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>`
-    + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource().replace(JSZIP_CDN, "/vendor/jszip.min.js")}\n</body></html>`;
+    + `<script>window.__FSK_ME=${safeJson(me)};</script><script src="/fsk-runtime.js"></script></head><body>\n${pageSource().replace(JSZIP_CDN, localJszip())}\n</body></html>`;
 }
 const staticFile = (name) => readFileSync(join(HERE, "public", name));
 function sendStatic(res, name, type, cache = "no-cache", extra = {}) {
@@ -418,6 +434,7 @@ async function checkSubmittedFile(ctx, sub) {
   // The page stores the xlsx base64-wrapped as text/plain (the claude.ai asset store does not take xlsx); a raw xlsx also works.
   const raw = await fsp.readFile(assetPath(id));
   const buf = row.content_type === "text/plain" ? Buffer.from(raw.toString("latin1").trim(), "base64") : raw;
+  if (rulesProblem(pageSource())) throw new StoreError("quota_or_state", "서버의 index.html 이 서버 코드와 버전이 달라서 사비 내역서를 확인할 수 없어요. 개발자에게 알려 주세요.", 500); // not 503: the page treats 502-504 as offline and would queue it
   return checkExpenseFile(pageSource(), buf, cleanName(String(sub.fileName || "")));
 }
 function afterWrite(ctx, path, prevData, d) {
@@ -593,6 +610,7 @@ route("GET", "/api/stream", (ctx) => {
   clients.add(client);
   const ping = setInterval(() => res.write(": ping\n\n"), 25000);
   req.on("close", () => { clearInterval(ping); clients.delete(client); });
+  res.on("error", () => clients.delete(client)); // a failed write to one page must not take the server down
 });
 
 // notifications (the bell in the page)
@@ -725,7 +743,7 @@ route("POST", "/api/admin/users/:id", async (ctx) => {
   if (changes.length) audit(ctx, status !== u.status && u.status === "pending" && status === "active" ? "user.approve" : "user.update", u.username, changes.join(", "));
   if (status !== "active") auth.endAllSessions(u.id);
   if (name !== u.name || dept !== u.dept) profileChanged(auth.byId(u.id)); else syncPerson(auth.byId(u.id));
-  if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id); syncRoles(); }
+  if (role !== u.role || status !== u.status || position !== (u.position || "") || moved.length) { dropStreams(u.id, "access"); syncRoles(); }
   send(ctx.res, 200, { user: auth.publicUser(auth.byId(u.id)), handedOver: moved });
 }, { auth: "developer" });
 route("POST", "/api/admin/users/:id/reset-password", (ctx) => {
@@ -955,6 +973,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`FSK 피트보드 ${VERSION} · http://${CONFIG.host}:${CONFIG.port} · data ${CONFIG.dataDir}`);
     if (auth.count() === 0) console.log("아직 계정이 없어요. /login 에서 처음 가입하는 사람이 개발자 계정이 돼요.");
+    const pageProblem = rulesProblem(pageSource());
+    if (pageProblem) console.warn(`주의: ${pageProblem} 이대로는 사비 내역서를 제출할 수 없어요. 저장소의 index.html 을 쓰거나(git checkout -- index.html), 고친 화면을 최신 index.html 에 다시 옮겨 주세요.`);
+    if (!jszipMatchesPage()) console.warn("주의: server/public/vendor/jszip.min.js 가 원본과 달라서 사비 내역서(xlsx)를 읽을 수 없어요. 저장소 폴더에서 이 파일을 지우고 git checkout -- server/public/vendor/jszip.min.js 로 다시 받으세요.");
   });
   const tick = () => { autoBackupTick(); auth.purgeSessions(); pruneLimits(); try { pruneHistory(); } catch (e) { console.error("history prune failed", e); } try { notifier.tick(); } catch (e) { console.error("notify tick failed", e); } };
   setInterval(tick, 10 * 60000);

@@ -23,7 +23,9 @@ const CONFIG = {
   port: Number(process.env.PORT || 8080),
   host: process.env.HOST || "127.0.0.1",
   dataDir: process.env.DATA_DIR || join(ROOT, "data"),
-  trustProxy: process.env.TRUST_PROXY === "1",
+  // Which proxy in front of the server to believe (only safe while HOST=127.0.0.1, so nothing reaches the server around it):
+  // "1" Cloudflare Tunnel (client IP in CF-Connecting-IP), "tailscale" tailscale serve / funnel (it overwrites X-Forwarded-For).
+  proxy: process.env.TRUST_PROXY === "1" ? "cloudflare" : process.env.TRUST_PROXY === "tailscale" ? "tailscale" : "",
   cookieSecure: process.env.COOKIE_SECURE === "1",
   // Extra hosts allowed for the team webhook besides Discord and Slack (e.g. a self-hosted Mattermost). Set on the server only.
   webhookHosts: String(process.env.WEBHOOK_HOSTS || "").split(",").map((h) => h.trim()).filter(Boolean)
@@ -151,7 +153,7 @@ function autoBackupTick() {
 // manual backups in the copy, so a mistake (or an attacker) deleting data on the server cannot wipe the copy.
 function mirrorCheck(dir) {
   if (!dir) return null;
-  if (!isAbsolute(dir)) return "절대 경로로 적어 주세요 (예: /media/pi/BACKUP/fsk).";
+  if (!isAbsolute(dir)) return "절대 경로로 적어 주세요 (예: /mnt/backup/fsk).";
   const r = resolve(dir), dd = resolve(CONFIG.dataDir);
   if (r === dd || r.startsWith(dd + sep) || dd.startsWith(r + sep)) return "데이터 폴더와 겹치지 않는 곳이어야 해요.";
   if (!existsSync(r) || !statSync(r).isDirectory()) return "그 폴더가 없어요. USB 드라이브가 연결돼 있는지 확인하세요.";
@@ -241,8 +243,11 @@ async function readJson(req, limit = 1024 * 1024) {
   try { return buf.length ? JSON.parse(buf.toString("utf8")) : {}; } catch { throw new StoreError("invalid_argument", "JSON 형식이 아니에요."); }
 }
 const cookies = (req) => Object.fromEntries(String(req.headers.cookie || "").split(";").map((p) => p.trim().split("=")).filter((p) => p[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join("="))]));
-const isHttps = (req) => CONFIG.cookieSecure || (CONFIG.trustProxy && req.headers["x-forwarded-proto"] === "https");
-const clientIp = (req) => (CONFIG.trustProxy && (req.headers["cf-connecting-ip"] || String(req.headers["x-forwarded-for"] || "").split(",")[0].trim())) || req.socket.remoteAddress;
+const isHttps = (req) => CONFIG.cookieSecure || (!!CONFIG.proxy && req.headers["x-forwarded-proto"] === "https");
+// Tailscale passes a client's own CF-Connecting-IP through untouched, so behind it only its X-Forwarded-For counts.
+const forwardedIp = (req) => CONFIG.proxy === "tailscale" ? String(req.headers["x-forwarded-for"] || "").split(",").pop().trim()
+  : req.headers["cf-connecting-ip"] || String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+const clientIp = (req) => (CONFIG.proxy && forwardedIp(req)) || req.socket.remoteAddress;
 function setSessionCookie(req, res, token, maxAge) {
   res.setHeader("Set-Cookie", `fsk_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${isHttps(req) ? "; Secure" : ""}`);
 }
@@ -675,7 +680,7 @@ route("GET", "/api/admin/status", (ctx) => {
     },
     collections: docs.counts(), lastBackup: backups[0] || null, backupBytes: dirBytes(BACKUP_DIR),
     settings: { ...allSettings(), inviteCode: undefined, webhookUrl: undefined, webhookOn: !!setting("webhookUrl") },
-    behindProxy: CONFIG.trustProxy, cookieSecure: isHttps(ctx.req)
+    behindProxy: !!CONFIG.proxy, cookieSecure: isHttps(ctx.req)
   });
 }, { auth: "developer" });
 route("GET", "/api/admin/users", (ctx) => {

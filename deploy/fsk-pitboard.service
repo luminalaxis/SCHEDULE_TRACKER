@@ -1,11 +1,16 @@
 # systemd unit for the FSK 피트보드 server on a Raspberry Pi.
-# Install:  sudo cp deploy/fsk-pitboard.service /etc/systemd/system/
-#           (edit User / WorkingDirectory / DATA_DIR below if your paths differ)
-#           sudo systemctl daemon-reload && sudo systemctl enable --now fsk-pitboard
+# deploy/install.sh fills in the user, paths and port below and installs it; re-run it after changing this file.
+# By hand: sudo cp deploy/fsk-pitboard.service /etc/systemd/system/, change User / WorkingDirectory /
+#          DATA_DIR / ReadWritePaths to your own user and folders, then
+#          sudo systemctl daemon-reload && sudo systemctl enable --now fsk-pitboard
+# Keep your own additions (e.g. the off-site copy folder) in a drop-in so a re-install keeps them:
+#          sudo systemctl edit fsk-pitboard   →   [Service]  ReadWritePaths=-/mnt/backup
 [Unit]
 Description=FSK 피트보드
 After=network-online.target
 Wants=network-online.target
+# never give up restarting, however often it crashes
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -17,16 +22,16 @@ Environment=HOST=127.0.0.1
 Environment=DATA_DIR=/home/pi/fsk-data
 # Local time for notifications (quiet before 08:00) and the daily backup hour.
 Environment=TZ=Asia/Seoul
-# Trust the tunnel's forwarded headers (real client IP, https). Only safe while HOST=127.0.0.1.
+# Trust the proxy's forwarded headers (real client IP, https): 1 = Cloudflare Tunnel, tailscale = tailscale serve / funnel,
+# 0 = none. Only safe while HOST=127.0.0.1.
 Environment=TRUST_PROXY=1
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/server.js
 Restart=always
 RestartSec=3
+TimeoutStopSec=10
 NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=/home/pi/fsk-data
-# Off-site copy folder (관리 창 → 백업·복원 → 외부 복사). Uncomment and match the folder you set there:
-# ReadWritePaths=/media/pi/BACKUP
 PrivateTmp=true
 
 [Install]

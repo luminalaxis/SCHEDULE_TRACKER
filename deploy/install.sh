@@ -240,7 +240,7 @@ case "$MODE" in
   lan) info "접속: http://${IP:-<파이 IP>}:$PORT  (같은 와이파이 안에서)" ;;
   tailscale)
     TSURL=$(ts_url)
-    if sudo tailscale funnel status 2>/dev/null | grep -q "Funnel on"; then info "접속: ${TSURL:-https://<파이>.<tailnet>.ts.net}  (인터넷 어디서나, 팀원은 설치할 것 없음)"
+    if sudo tailscale serve status --json 2>/dev/null | grep -q '"AllowFunnel"'; then info "접속: ${TSURL:-https://<파이>.<tailnet>.ts.net}  (인터넷 어디서나, 팀원은 설치할 것 없음)"
     elif sudo tailscale serve status 2>/dev/null | grep -q "127.0.0.1:$PORT"; then info "접속: ${TSURL:-https://<파이>.<tailnet>.ts.net}  (Tailscale에 들어온 사람·공유받은 사람만)"
     else info "Tailscale 주소가 아직 열려 있지 않아요:  bash deploy/install.sh --tailscale"; fi ;;
   *) info "지금은 파이 안($BASE)에서만 받아요. 바깥 접속은 Cloudflare Tunnel을 연결하세요 (deploy/RASPBERRY_PI.md 4단계)." ;;

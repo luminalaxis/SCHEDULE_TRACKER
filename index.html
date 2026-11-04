@@ -485,6 +485,70 @@ body.tv-on { overflow: hidden; }
 .tv-foot button { font: inherit; font-size: 13px; color: #B8C0CC; background: #13161B; border: 1px solid #262B34; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
 .tv-foot button:hover { color: #fff; border-color: #5F6876; }
 
+/* toast with an action (되돌리기) */
+.toast { display: flex; align-items: center; gap: 14px; }
+.toast button { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 2px 0; white-space: nowrap; }
+
+/* 일정 목록 / 달력 switch (the sidebar's TV switch, on a light surface) */
+.msview { border-color: var(--line); background: var(--surface-2); }
+.msview button { color: var(--muted); }
+.msview button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+/* parts: multi-select and bulk edit */
+th.sel, td.sel { width: 34px; padding-right: 0; }
+td.sel input, th.sel input { width: 16px; height: 16px; margin: 0; vertical-align: middle; cursor: pointer; }
+table.ro .sel { display: none; }
+tr.picked td { background: var(--accent-soft); }
+.bulk { position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--r); box-shadow: 0 8px 28px rgba(16, 24, 40, .18); }
+.bulk > b { font-weight: 700; color: var(--accent); margin-right: 4px; }
+.bulk .field { padding: 5px 8px; font-size: 13px; }
+.bulk input.field { width: 110px; }
+.bulk label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.bulk .right { margin-left: auto; display: flex; gap: 6px; }
+
+/* CSV import preview */
+.imp-sum { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--r); }
+.imp-table { max-height: 320px; overflow: auto; }
+.imp-table td, .imp-table th { padding: 6px 10px; font-size: 12px; }
+.imp-warn { color: var(--warn); white-space: normal; min-width: 160px; }
+.act-new { color: var(--ok); font-weight: 600; }
+.act-upd { color: var(--accent); font-weight: 600; }
+.act-skip { color: var(--muted); }
+
+/* schedule calendar */
+.cal { background: var(--surface); border-radius: var(--r); box-shadow: var(--card-shadow); border: 1px solid var(--card-border); overflow: hidden; }
+.cal-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 14px; }
+.cal-h h3 { font-size: 18px; font-weight: 700; min-width: 7.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.cal-h .legend { margin-left: auto; }
+.cal-dow, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-dow span { font-size: 12px; color: var(--muted); padding: 6px 8px; background: var(--surface-2); border-top: 1px solid var(--line); }
+.cal-dow span:first-child, .cal-day.sun .cal-n { color: var(--bad); }
+.cal-day { min-height: 108px; border-top: 1px solid var(--grid); border-left: 1px solid var(--grid); padding: 4px 5px 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; cursor: pointer; }
+.cal-day:nth-child(7n+1) { border-left: 0; }
+.cal-day:hover { background: var(--surface-2); }
+.cal-day.out { background: var(--surface-2); }
+.cal-day.out .cal-n { color: var(--muted); font-weight: 400; }
+.cal-day[aria-selected="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-n { font-size: 12px; font-weight: 600; width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 999px; flex: none; }
+.cal-day.today .cal-n { background: var(--accent); color: var(--accent-ink); }
+.cal-ev { display: block; width: 100%; border: 0; font: inherit; text-align: left; font-size: 11px; line-height: 1.4; padding: 1px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface-2); color: var(--ink); cursor: pointer; }
+.cal-ev.ms { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.cal-ev.comp { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.cal-ev.part { box-shadow: inset 3px 0 0 var(--dc, var(--muted)); }
+.cal-ev.part.late { color: var(--bad); font-weight: 600; }
+.cal-ev.done { text-decoration: line-through; color: var(--muted); }
+.cal-more { font-size: 11px; color: var(--muted); padding-left: 6px; }
+.cal-dots { display: none; gap: 3px; flex-wrap: wrap; padding-left: 4px; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--dc, var(--accent)); }
+.cal-list { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.cal-list h4 { font-size: 14px; font-weight: 600; }
+.cal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; border: 0; background: none; font: inherit; color: inherit; text-align: left; padding: 6px 0; border-top: 1px solid var(--grid); width: 100%; }
+button.cal-row { cursor: pointer; }
+button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.cal-t { font-weight: 600; }
+.cal-load { font-size: 12px; color: var(--muted); }
+.cal-load b { color: var(--warn); }
+
 @media (max-width: 860px) {
   /* phones & small tablets: the sidebar becomes a slim top band + a bottom tab bar */
   .shell { display: block; }
@@ -506,6 +570,7 @@ body.tv-on { overflow: hidden; }
   .top-in { min-height: 56px; padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px)); }
   .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .bulk { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
   .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 900px) { .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } .slist { max-height: 360px; overflow-y: auto; }
@@ -551,7 +616,13 @@ body.tv-on { overflow: hidden; }
   .ck > summary { padding: 12px; }
   .action input, .issue-side input, .ms-side input, .check input { width: 20px; height: 20px; }
   .cform .btn { min-height: 40px; }
-  #partsList th:nth-child(4), #partsList td:nth-child(4), #partsList th:nth-child(5), #partsList td:nth-child(5) { display: none; }
+  #partsList th:nth-child(5), #partsList td:nth-child(5), #partsList th:nth-child(6), #partsList td:nth-child(6) { display: none; }
+  .bulk input.field { width: 96px; }
+  /* calendar: dots in the cells, the chosen day's list below */
+  .cal-day { min-height: 54px; padding: 3px 2px 5px; align-items: center; }
+  .cal-day .cal-ev, .cal-day .cal-more { display: none; }
+  .cal-dots { display: flex; justify-content: center; padding: 0; }
+  .cal-h .legend { margin-left: 0; width: 100%; }
   dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
   .dlg { padding: 16px 16px 0; min-height: 100%; }
   .dlg h3 { font-size: 22px; }
@@ -664,6 +735,7 @@ body.tv-on { overflow: hidden; }
         <h2>부품 목록</h2>
         <div class="toolbar">
           <span class="count num" id="count"></span>
+          <button class="btn" id="btnImport" type="button" hidden>CSV 가져오기</button>
           <button class="btn" id="btnExport" type="button" hidden>BOM 내보내기 (CSV)</button>
           <button class="btn primary" id="btnAdd" type="button" hidden>+ 부품 추가</button>
         </div>
@@ -674,6 +746,7 @@ body.tv-on { overflow: hidden; }
         <div class="toolbar" id="partsEmptyActions" hidden>
           <button class="btn primary" type="button" id="btnTemplate">기본 부품 목록 넣기 (EV)</button>
           <button class="btn" type="button" id="btnAddEmpty">직접 추가</button>
+          <button class="btn" type="button" id="btnImportEmpty">CSV에서 가져오기</button>
         </div>
         <p class="hint" id="partsEmptyHint" hidden>기본 목록은 프레임, 업라이트, 어큐뮬레이터, TSAL처럼 대부분의 EV 팀이 만드는 부품 이름만 다섯 부서에 나눠 넣어요. 질량, 비용, 담당자는 비워 두니 팀에 맞게 고치거나 지우면 돼요.</p>
       </div>
@@ -690,10 +763,22 @@ body.tv-on { overflow: hidden; }
           </select>
         </div>
         <div class="scroll">
-          <table>
-            <thead><tr><th>단계</th><th>부품</th><th>부서</th><th>구분</th><th class="r">수량</th><th class="r">질량</th><th class="r">금액</th><th>담당</th><th>마감</th></tr></thead>
+          <table id="partTable">
+            <thead><tr><th class="sel"><input type="checkbox" id="pickAll" aria-label="보이는 부품 모두 선택"></th><th>단계</th><th>부품</th><th>부서</th><th>구분</th><th class="r">수량</th><th class="r">질량</th><th class="r">금액</th><th>담당</th><th>마감</th></tr></thead>
             <tbody id="partBody"></tbody>
           </table>
+        </div>
+        <div class="bulk" id="bulkBar" role="region" aria-label="선택한 부품 한꺼번에 바꾸기" hidden>
+          <b id="bulkCount">0개 선택</b>
+          <select class="field" id="bStage" aria-label="단계"></select>
+          <select class="field" id="bDept" aria-label="부서"></select>
+          <input class="field" id="bOwner" maxlength="40" placeholder="담당 그대로" aria-label="담당">
+          <label>마감<input class="field" type="date" id="bDue" aria-label="마감일"></label>
+          <button class="btn primary sm" type="button" id="bApply">적용</button>
+          <div class="right">
+            <button class="btn danger sm" type="button" id="bDelete">삭제</button>
+            <button class="btn ghost sm" type="button" id="bClear">선택 해제</button>
+          </div>
         </div>
       </div>
     </section>
@@ -755,6 +840,10 @@ body.tv-on { overflow: hidden; }
     <div class="sec-head">
       <h2 class="sec-title" style="font-family:var(--font-display);font-weight:600;font-size:22px">대회 준비 일정</h2>
       <div class="toolbar">
+        <div class="viewsw msview" role="group" aria-label="일정 보기 방식">
+          <button type="button" data-msview="list" aria-pressed="true">목록</button>
+          <button type="button" data-msview="cal" aria-pressed="false">달력</button>
+        </div>
         <select class="field" id="msDept" aria-label="부서"></select>
         <button class="btn primary" type="button" id="btnAddMs" hidden>+ 일정 추가</button>
       </div>
@@ -837,6 +926,7 @@ body.tv-on { overflow: hidden; }
     <div class="txt" id="pHist" hidden><span>최근 변경</span><div class="mini-hist" id="pHistList"></div></div>
     <div class="dlg-foot">
       <button class="btn danger" type="button" id="btnDelPart" hidden>삭제</button>
+      <button class="btn ghost sm" type="button" data-copylink id="btnPartLink" hidden>링크 복사</button>
       <div class="right">
         <button class="btn" type="button" data-close>취소</button>
         <button class="btn primary" type="submit" id="btnSavePart">저장</button>
@@ -1001,6 +1091,23 @@ body.tv-on { overflow: hidden; }
       <div class="right">
         <button class="btn" type="button" data-close>취소</button>
         <button class="btn primary" type="submit">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgImport">
+  <form class="dlg" id="formImport">
+    <h3>CSV에서 부품 가져오기</h3>
+    <p class="hint">'BOM 내보내기'로 받은 파일이나 엑셀·구글 시트에서 CSV로 저장한 파일을 올려요. 첫 줄은 머리글이어야 하고, <b>부품명</b> 열만 있으면 돼요. 부서 · 부품번호 · 구분 · 제작 단계 · 수량 · 개당 질량(g) · 개당 비용(원) · 공급처 · 담당자 · 마감일 · 메모 열을 알아봐요. 엑셀의 한글 CSV(EUC-KR)도 읽어요.</p>
+    <div class="toolbar"><span class="btn filebtn">CSV 파일 선택<input type="file" id="impFile" accept=".csv,.tsv,.txt,text/csv"></span><span class="hint" id="impFileName">선택한 파일 없음</span></div>
+    <label class="check"><input type="checkbox" id="impOverwrite" checked> 이미 있는 부품(부품번호, 또는 부서와 이름이 같은 것)은 파일 내용으로 고치기</label>
+    <div id="impResult"></div>
+    <div class="dlg-foot">
+      <span class="hint" id="impHint"></span>
+      <div class="right">
+        <button class="btn" type="button" data-close>취소</button>
+        <button class="btn primary" type="submit" id="btnImpGo" disabled>가져오기</button>
       </div>
     </div>
   </form>
@@ -1199,6 +1306,109 @@ window.FSKExpenseRules = (() => {
 })();
 </script>
 <script>
+// BOM CSV 가져오기 규칙: pure functions with no DOM access, used by the page below and by test/bom-import.test.js.
+window.FSKBom = (() => {
+  // Excel in Korean saves "CSV" as EUC-KR (CP949); everything else is UTF-8, often with a BOM.
+  function decode(bytes) {
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^﻿/, ""); }
+    catch { try { return new TextDecoder("euc-kr").decode(bytes); } catch { return new TextDecoder().decode(bytes); } }
+  }
+  // RFC 4180 with the delimiter guessed from the first line (comma, tab from a sheet, or semicolon).
+  function parseCsv(text) {
+    const first = String(text).split(/\r?\n/, 1)[0] || "";
+    const count = (ch) => first.split(ch).length - 1;
+    const delim = [",", "\t", ";"].sort((a, b) => count(b) - count(a))[0];
+    const rows = []; let row = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; continue; }
+      if (c === '"' && cell === "") q = true;
+      else if (c === delim) { row.push(cell); cell = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+      else cell += c;
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter((r) => r.some((v) => v.trim() !== ""));
+  }
+  const norm = (s) => String(s ?? "").toLowerCase().replace(/[\s·_\-]/g, "");
+  const HEAD = {
+    name: ["부품명", "부품", "부품이름", "이름", "품명", "품목", "name", "part", "partname"],
+    partNo: ["부품번호", "번호", "도면번호", "partno", "partnumber", "p/n", "pn"],
+    dept: ["부서", "팀", "파트", "시스템", "dept", "department", "team", "system"],
+    make: ["구분", "제작/구매", "제작구매", "makebuy", "make/buy", "make", "type"],
+    stage: ["제작단계", "단계", "진행단계", "상태", "stage", "status"],
+    qty: ["수량", "개수", "qty", "quantity"],
+    unitMass: ["개당질량(g)", "개당질량", "질량(g)", "질량", "무게(g)", "무게", "mass(g)", "mass", "weight(g)", "weight"],
+    unitMassKg: ["개당질량(kg)", "질량(kg)", "무게(kg)", "mass(kg)", "weight(kg)"],
+    unitCost: ["개당비용(원)", "개당비용", "단가(원)", "단가", "비용(원)", "비용", "가격", "cost", "unitcost", "price"],
+    supplier: ["공급처/가공처", "공급처", "가공처", "구매처", "업체", "supplier", "vendor"],
+    owner: ["담당자", "담당", "owner", "assignee"],
+    due: ["마감일", "마감", "납기", "due", "duedate", "deadline"],
+    note: ["메모", "비고", "note", "notes", "memo"]
+  };
+  const HEAD_OF = new Map(); Object.entries(HEAD).forEach(([k, list]) => list.forEach((h) => HEAD_OF.set(norm(h), k)));
+  const DEPT_ALIAS = {
+    battery: ["배터리", "어큐뮬레이터", "축전", "battery", "accumulator", "bat"],
+    circuit: ["회로", "전장", "전기", "전자", "하네스", "circuit", "electrical", "electronics", "lv", "hv"],
+    chassis: ["프레임현가", "프레임", "현가", "섀시", "샤시", "차체", "서스펜션", "조향", "제동", "chassis", "frame", "suspension"],
+    aero: ["에어로", "공력", "바디", "aero", "aerodynamics", "body"],
+    powertrain: ["파워트레인", "구동", "동력", "구동계", "powertrain", "drivetrain", "pt"]
+  };
+  const DEPT_OF = new Map(); Object.entries(DEPT_ALIAS).forEach(([k, list]) => list.forEach((h) => DEPT_OF.set(norm(h), k)));
+  const STAGE_ALIAS = { design: ["설계", "design", "cad"], order: ["발주", "구매중", "order", "ordered"], machining: ["가공", "제작중", "제작", "machining", "manufacturing"], inspect: ["검수", "검사", "inspect", "inspection"], assembly: ["조립", "assembly"], done: ["완료", "완성", "done", "complete", "completed"] };
+  const STAGE_OF = new Map(); Object.entries(STAGE_ALIAS).forEach(([k, list]) => list.forEach((h) => STAGE_OF.set(norm(h), k)));
+  const toNumber = (v) => { const s = String(v ?? "").replace(/[,\s원₩g]|kg$/gi, ""); return s !== "" && isFinite(Number(s)) ? Number(s) : null; };
+  function toDate(v, year = new Date().getFullYear()) {
+    const s = String(v ?? "").trim();
+    const pad = (n) => String(n).padStart(2, "0"), ok = (y, m, d) => m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(m)}-${pad(d)}` : null;
+    let m = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})\s*일?\.?$/); if (m) return ok(+m[1], +m[2], +m[3]);
+    m = s.match(/^(\d{1,2})\s*[/.월]\s*(\d{1,2})\s*일?$/); if (m) return ok(year, +m[1], +m[2]);
+    return null;
+  }
+  // rows: parseCsv output. Returns the columns found and one entry per data row with only the fields that row sets.
+  function toParts(rows) {
+    if (!rows.length) return { error: "파일이 비어 있어요.", cols: [], items: [] };
+    const head = rows[0].map((h) => HEAD_OF.get(norm(h)) || null);
+    if (!head.includes("name")) return { error: "'부품명' 열을 찾을 수 없어요. 첫 줄에 머리글(부품명, 부서, 수량 …)이 있어야 해요.", cols: [], items: [] };
+    const cols = [...new Set(head.filter(Boolean).map((k) => k === "unitMassKg" ? "unitMass" : k))];
+    const items = [];
+    rows.slice(1).forEach((r, i) => {
+      const data = {}, warns = [], cell = (k) => { const at = head.indexOf(k); return at < 0 ? undefined : String(r[at] ?? "").trim(); };
+      const name = cell("name");
+      if (!name) { items.push({ line: i + 2, skip: true, data, warns: ["부품명이 비어 있어 건너뛰어요"] }); return; }
+      data.name = name.slice(0, 80);
+      const text = (k, max) => { const v = cell(k); if (v !== undefined) data[k] = v.slice(0, max); };
+      text("partNo", 40); text("supplier", 60); text("owner", 40); text("note", 1000);
+      const dept = cell("dept");
+      if (dept) { const k = DEPT_OF.get(norm(dept)); if (k) data.dept = k; else warns.push(`부서 '${dept}'를 알 수 없어요`); }
+      const make = cell("make");
+      if (make) { if (/구매|구입|buy|purchase|cots/i.test(make)) data.make = "buy"; else if (/제작|가공|자작|make|fab/i.test(make)) data.make = "make"; else warns.push(`구분 '${make}'를 알 수 없어요`); }
+      const stage = cell("stage");
+      if (stage) { const k = STAGE_OF.get(norm(stage)); if (k) data.stage = k; else warns.push(`단계 '${stage}'를 알 수 없어요`); }
+      const qty = cell("qty");
+      if (qty !== undefined && qty !== "") { const n = toNumber(qty); if (n !== null && n >= 1) data.qty = Math.round(n); else warns.push(`수량 '${qty}'가 숫자가 아니에요`); }
+      const num = (raw, label, scale) => { if (raw === undefined) return undefined; if (raw === "") return null; const n = toNumber(raw); if (n === null || n < 0) { warns.push(`${label} '${raw}'가 숫자가 아니에요`); return undefined; } return n * scale; };
+      const g = num(cell("unitMass"), "질량", 1), kgv = num(cell("unitMassKg"), "질량", 1000);
+      if (kgv !== undefined && kgv !== null) data.unitMass = kgv; else if (g !== undefined) data.unitMass = g; else if (kgv === null) data.unitMass = null;
+      const cost = num(cell("unitCost"), "비용", 1); if (cost !== undefined) data.unitCost = cost === null ? null : Math.round(cost);
+      const due = cell("due");
+      if (due !== undefined) { if (due === "") data.due = ""; else { const d = toDate(due); if (d) data.due = d; else warns.push(`마감일 '${due}'를 읽을 수 없어요`); } }
+      items.push({ line: i + 2, data, warns });
+    });
+    return { cols, items };
+  }
+  const key = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  // Which existing part a row updates: same 부품번호, else same 부서 + 이름 (or a unique name when the row has no 부서).
+  function matchPart(data, parts, deptOf) {
+    if (data.partNo) { const p = parts.find((x) => key(x.partNo) && key(x.partNo) === key(data.partNo)); if (p) return p; }
+    const same = parts.filter((x) => key(x.name) === key(data.name));
+    if (data.dept) return same.find((x) => deptOf(x) === data.dept) || null;
+    return same.length === 1 ? same[0] : null;
+  }
+  return Object.freeze({ decode, parseCsv, toParts, toDate, matchPart });
+})();
+</script>
+<script>
 (() => {
   // ---------- domain ----------
   const DEPTS = [
@@ -1321,8 +1531,68 @@ window.FSKExpenseRules = (() => {
     parts: [], cfg: {}, ckCfg: null, sessions: [], logs: [], comments: [], checks: [], milestones: [], history: [],
     sel: null, editPart: null, editSession: null, editLog: null, editMs: null, ckOpen: true,
     att: { keep: [], add: [], remove: [] }, linkDraft: [],
-    me: { dept: store.get("fsk.me.dept"), name: store.get("fsk.me.name") }
+    me: { dept: store.get("fsk.me.dept"), name: store.get("fsk.me.name") },
+    picked: new Set(), pendingOpen: null, expLoaded: false,
+    msView: store.get("fsk.ms.view") === "cal" ? "cal" : "list", calMonth: todayStr().slice(0, 7), calDay: todayStr(), calParts: store.get("fsk.cal.parts") !== "0"
   };
+  const TABS = ["today", "parts", "sessions", "trend", "issues", "schedule", "expense", "history"];
+
+  // ---------- address (#parts, #sessions/<id>, #parts/<id>, #expense/<key>) ----------
+  // Switching tabs adds a history entry (the phone's back button goes to the previous tab); picking a session or
+  // opening a part only rewrites the address so it can be copied and shared.
+  function readRoute() {
+    const raw = location.hash.replace(/^#\/?/, ""), at = raw.indexOf("/");
+    const tab = at < 0 ? raw : raw.slice(0, at);
+    let id = "";
+    try { id = at < 0 ? "" : decodeURIComponent(raw.slice(at + 1)); } catch {}
+    return TABS.includes(tab) ? { tab, id } : null;
+  }
+  function routeHash() {
+    if ($("dlgPart").open && state.editPart) return "#parts/" + encodeURIComponent(state.editPart);
+    if ($("dlgExp").open && state.xOpen) return "#expense/" + encodeURIComponent(state.xOpen);
+    if (state.tab === "sessions" && state.sel) return "#sessions/" + encodeURIComponent(state.sel);
+    return state.tab === "today" ? "" : "#" + state.tab;
+  }
+  // routedHash is the address this page last wrote or applied. When the address differs from it, someone navigated
+  // (a link, the back button) and the hashchange handler has not run yet: leave the address alone until it does.
+  let routedTab = null, routedHash = location.hash;
+  function syncRoute() {
+    if (location.hash !== routedHash) return;
+    const h = routeHash(), push = routedTab !== null && routedTab !== state.tab;
+    routedTab = state.tab;
+    if (h === location.hash || (!h && !location.hash)) return;
+    try { history[push ? "pushState" : "replaceState"](null, "", h || location.pathname + location.search); } catch {}
+    routedHash = location.hash;
+  }
+  function applyRoute(r) {
+    if (!r) return;
+    state.tab = r.tab; routedTab = r.tab;
+    if (r.tab === "sessions" && r.id) state.sel = r.id;
+    state.pendingOpen = r.id && (r.tab === "parts" || r.tab === "expense") ? { tab: r.tab, id: r.id } : null;
+    if (!state.pendingOpen) { if ($("dlgPart").open) $("dlgPart").close(); if ($("dlgExp").open) $("dlgExp").close(); }
+  }
+  // a part or 사비 내역서 named in the address opens once its data has arrived
+  function openPending() {
+    const o = state.pendingOpen;
+    if (!o || !live()) return;
+    if (o.tab === "parts") {
+      state.pendingOpen = null;
+      if (state.parts.some((p) => p.id === o.id)) { if (!($("dlgPart").open && state.editPart === o.id)) openPart(o.id); }
+      else toast("링크의 부품을 찾을 수 없어요. 지워졌을 수 있어요.");
+    } else if (o.tab === "expense" && state.expLoaded) {
+      state.pendingOpen = null;
+      if (allSubs().some((s) => s.key === o.id)) { if (!$("dlgExp").open) openExp(o.id); }
+      else toast("링크의 사비 내역서를 찾을 수 없거나 볼 권한이 없어요.");
+    }
+  }
+  function shareUrl(hash) { return location.origin + location.pathname + hash; }
+  async function copyLink(hash) {
+    const url = shareUrl(hash);
+    try { await navigator.clipboard.writeText(url); toast("링크를 복사했어요. 팀 채팅에 붙여 넣으면 이 화면이 바로 열려요."); }
+    catch { toast(url); }
+  }
+
+  applyRoute(readRoute());
   const live = () => state.phase === "live";
   const sessionIds = () => new Set(state.sessions.map((s) => s.id));
   const isIssue = (l) => l.status === "warn" || l.status === "bad";
@@ -1391,7 +1661,7 @@ window.FSKExpenseRules = (() => {
     // Expense settlement: each person writes only their own expenses/<id> and reviews/<id>; config/roles is owner-only (see db rules).
     colPeople = db.collection("people"); colExp = db.collection("expenses"); colRev = db.collection("reviews"); rolesRef = db.doc("config/roles");
     colPeople.onSnapshot((s) => { state.people = rows(s); if (!state.registered) registerMe(); }, () => {});
-    colExp.onSnapshot((s) => { state.expenseDocs = rows(s); renderExpenseIfOpen(); }, () => {});
+    colExp.onSnapshot((s) => { state.expenseDocs = rows(s); state.expLoaded = true; renderExpenseIfOpen(); openPending(); }, () => {});
     colRev.onSnapshot((s) => { state.reviewDocs = rows(s); renderExpenseIfOpen(); }, () => {});
     rolesRef.onSnapshot((s) => {
       state.roles = s.exists ? s.data() : null; state.rolesLoaded = true;
@@ -1415,6 +1685,8 @@ window.FSKExpenseRules = (() => {
   $("mKind").innerHTML = MS_KINDS.map((k) => `<option>${k}</option>`).join("");
   $("fst").innerHTML = `<option value="all">모든 단계</option><option value="open">미완료만</option><option value="late">마감 지남</option><option value="issue">테스트 이슈 있음</option>` + STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   $("pStage").innerHTML = STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+  $("bStage").innerHTML = `<option value="">단계 그대로</option>` + STAGES.map(([k, l]) => `<option value="${k}">단계 → ${l}</option>`).join("");
+  $("bDept").innerHTML = `<option value="">부서 그대로</option>` + DEPTS.map((d) => `<option value="${d.k}">부서 → ${d.l}</option>`).join("");
   $("sEvent").innerHTML = EVENTS.map((e) => `<option>${e}</option>`).join("");
   $("tEvent").innerHTML = `<option value="">모든 종목</option>` + EVENTS.map((e) => `<option>${e}</option>`).join("");
   $("stageLegend").innerHTML = STAGES.map(([, l], i) => `<span><i style="background:var(--s${i})"></i>${l}</span>`).join("");
@@ -1467,7 +1739,7 @@ window.FSKExpenseRules = (() => {
     const waiting = isManager() ? liveSubs().filter((s) => ["pending", "fix"].includes(statusOf(s)) || isChanged(s)).length : 0;
     $("expBadge").hidden = !waiting; $("expBadge").textContent = waiting;
 
-    ["today", "parts", "sessions", "trend", "issues", "schedule", "expense", "history"].forEach((t) => {
+    TABS.forEach((t) => {
       $("view-" + t).hidden = state.tab !== t;
       $("tab-" + t).setAttribute("aria-selected", String(state.tab === t));
     });
@@ -1477,6 +1749,8 @@ window.FSKExpenseRules = (() => {
     document.body.classList.toggle("tv-on", tv);
     $("tv").hidden = !tv;
     if (tv) renderTV();
+    syncRoute();
+    openPending();
   }
 
   // ---------- 오늘 ----------
@@ -1613,6 +1887,7 @@ window.FSKExpenseRules = (() => {
     const total = parts.length;
     $("btnAdd").hidden = !(live() && canWrite && total);
     $("btnExport").hidden = !(live() && total);
+    $("btnImport").hidden = !(live() && canWrite && total);
 
     const counts = stageCounts(parts), done = counts[STAGE_INDEX.done];
     if (total) {
@@ -1697,11 +1972,17 @@ window.FSKExpenseRules = (() => {
     list.sort(by[sort] || by.dept);
     $("count").textContent = list.length === state.parts.length ? `${list.length}개` : `${state.parts.length}개 중 ${list.length}개`;
     const dis = state.canWrite ? "" : " disabled";
+    // selection only covers parts that are on screen, so a filter change never leaves hidden parts selected
+    const shown = new Set(list.map((p) => p.id));
+    [...state.picked].forEach((id) => { if (!shown.has(id)) state.picked.delete(id); });
+    $("partTable").classList.toggle("ro", !state.canWrite);
     $("partBody").innerHTML = list.length ? list.map((p) => {
       const si = STAGE_INDEX[p.stage] ?? 0, q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost), dk = deptOf(p);
       const opts = STAGES.map(([k, l]) => `<option value="${k}"${k === (p.stage || "design") ? " selected" : ""}>${l}</option>`).join("");
       const iss = issueMap[p.id], natt = (p.attachments || []).length;
-      return `<tr>
+      const on = state.picked.has(p.id);
+      return `<tr${on ? ' class="picked"' : ""}>
+        <td class="sel"><input type="checkbox" data-pick="${esc(p.id)}" aria-label="${esc(p.name || "부품")} 선택"${on ? " checked" : ""}${lockedFor(p) ? " disabled" : ""}></td>
         <td><span class="dot" style="background:var(--s${si})"></span><select class="st" data-stage="${esc(p.id)}" aria-label="제작 단계"${dis || (lockedFor(p) ? " disabled" : "")}>${opts}</select></td>
         <td class="pcell"><button class="pname" type="button" data-part="${esc(p.id)}">${esc(p.name || "(이름 없음)")}</button>${iss ? `<button class="flag" type="button" data-part="${esc(p.id)}" title="미해결 테스트 이슈">⚠ 이슈 ${iss}</button>` : ""}${natt ? `<span class="clip">첨부 ${natt}</span>` : ""}${p.locked ? `<span class="lock" title="${esc(p.locked.by || "")} 잠금">🔒 잠김</span>` : ""}${p.partNo ? `<span class="pno">${esc(p.partNo)}</span>` : ""}</td>
         <td><span class="dname">${dmark(dk)}${DEPT[dk].l}</span></td>
@@ -1712,7 +1993,16 @@ window.FSKExpenseRules = (() => {
         <td>${ownerName(p) ? esc(ownerName(p)) : '<span class="dim">–</span>'}</td>
         <td class="num ${isLate(p) ? "late" : ""}">${p.due ? esc(fmtDate(p.due)) : '<span class="dim">–</span>'}</td>
       </tr>`;
-    }).join("") : `<tr><td colspan="9" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
+    }).join("") : `<tr><td colspan="10" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
+    renderBulk(list.filter((p) => !lockedFor(p)).length);
+  }
+  function renderBulk(visible) {
+    const n = state.picked.size, all = $("pickAll");
+    all.checked = !!n && n === visible; all.indeterminate = !!n && n < visible;
+    $("bulkBar").hidden = !(n && state.canWrite);
+    $("bulkCount").textContent = `${n}개 선택`;
+    const del = $("bDelete");
+    if (!del.classList.contains("armed")) del.textContent = "삭제";
   }
 
   // ---------- sessions ----------
@@ -1808,7 +2098,7 @@ window.FSKExpenseRules = (() => {
       <div class="dhead">
         <div class="dhead-top">
           <div><h2>${esc(s.event || "주행")}</h2><span class="sub">${esc(fmtDate(s.date))}${s.location ? " · " + esc(s.location) : ""}</span></div>
-          ${cw ? `<div class="toolbar"><button class="btn sm" type="button" id="btnEditSession">세션 수정</button><button class="btn primary sm" type="button" data-addlog="${esc(state.me.dept || "")}">+ 부서 기록</button></div>` : ""}
+          <div class="toolbar">${window.FSK_SELF_HOSTED ? `<button class="btn ghost sm" type="button" data-copylink="#sessions/${esc(encodeURIComponent(s.id))}">링크 복사</button>` : ""}${cw ? `<button class="btn sm" type="button" id="btnEditSession">세션 수정</button><button class="btn primary sm" type="button" data-addlog="${esc(state.me.dept || "")}">+ 부서 기록</button>` : ""}</div>
         </div>
         <div class="facts">${facts}</div>
         ${s.goal ? `<p class="goal"><b>테스트 목적</b> · ${esc(s.goal)}</p>` : ""}
@@ -1977,7 +2267,9 @@ window.FSKExpenseRules = (() => {
     const sugg = MS_SUGGEST.filter(([t]) => !have.has(t));
     $("msSugg").hidden = !(cw && sugg.length);
     $("msSugg").innerHTML = `<span>자주 쓰는 일정:</span>` + sugg.map(([t, k]) => `<button class="btn sm" type="button" data-msnew="${esc(t)}" data-mskind="${esc(k)}">+ ${esc(t)}</button>`).join("");
+    document.querySelectorAll("[data-msview]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msview === state.msView)));
     if (!live()) { $("msBody").innerHTML = `<div class="empty"><p>저장소에 연결되면 대회 준비 일정이 여기에 나타나요.</p></div>`; return; }
+    if (state.msView === "cal") { renderCalendar(); return; }
     const fd = $("msDept").value, t = todayStr();
     const list = state.milestones.filter((m) => !fd || !m.dept || m.dept === fd).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     if (!list.length) {
@@ -1988,6 +2280,80 @@ window.FSKExpenseRules = (() => {
     $("msBody").innerHTML = `<div class="ms-list">${upcoming.length ? upcoming.map((m, i) => msRow(m, i === 0)).join("") : '<p class="dim">남은 일정이 없어요.</p>'}</div>
       ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4><div class="ms-list">${rest.map((m) => msRow(m, false)).join("")}</div>` : ""}`;
   }
+
+  // month calendar: milestones and part deadlines together, so a crowded week shows up before it arrives
+  function renderCalendar() {
+    const fd = $("msDept").value, t = todayStr(), cw = state.canWrite && state.canManageTeam;
+    const [y, mo] = state.calMonth.split("-").map(Number);
+    const first = new Date(y, mo - 1, 1), lead = first.getDay(), cells = Math.ceil((lead + new Date(y, mo, 0).getDate()) / 7) * 7;
+    const byDay = {}, add = (date, ev) => { if (date) (byDay[date] = byDay[date] || []).push(ev); };
+    const ms = state.milestones.filter((m) => !fd || !m.dept || m.dept === fd);
+    const comp = state.cfg.compDate;
+    if (comp && !ms.some((m) => m.date === comp && m.kind === "대회")) add(comp, { kind: "comp", order: 0 });
+    ms.forEach((m) => add(m.date, { kind: "ms", m, order: 1 }));
+    if (state.calParts) state.parts.filter((p) => p.due && (!fd || deptOf(p) === fd)).forEach((p) => add(p.due, { kind: "part", p, order: p.stage === "done" ? 4 : isLate(p) ? 2 : 3 }));
+    Object.values(byDay).forEach((l) => l.sort((a, b) => a.order - b.order));
+    const partTitle = (p) => `${p.name || "(이름 없음)"} · ${DEPT[deptOf(p)].l} · ${STAGE_LABEL[p.stage] || "설계"}${p.owner ? " · " + p.owner : ""}`;
+    const chip = (e) => {
+      if (e.kind === "comp") return `<span class="cal-ev comp">🏁 대회</span>`;
+      if (e.kind === "ms") { const cls = `cal-ev ms${e.m.done ? " done" : ""}`, tt = esc(`${e.m.title} · ${e.m.kind || "기타"}`); return cw ? `<button type="button" class="${cls}" data-ms="${esc(e.m.id)}" title="${tt}">${esc(e.m.title)}</button>` : `<span class="${cls}" title="${tt}">${esc(e.m.title)}</span>`; }
+      const p = e.p;
+      return `<button type="button" class="cal-ev part${isLate(p) ? " late" : ""}${p.stage === "done" ? " done" : ""}" data-part="${esc(p.id)}" style="--dc:var(--c${DEPT[deptOf(p)].c})" title="${esc(partTitle(p))}">${esc(p.name || "(이름 없음)")}</button>`;
+    };
+    const dotColor = (e) => e.kind === "part" ? (isLate(e.p) ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : "var(--accent)";
+    let grid = "", monthParts = 0, monthMs = 0, busy = { n: 0, from: "", to: "" }, week = 0, weekFrom = "";
+    for (let i = 0; i < cells; i++) {
+      const d = new Date(y, mo - 1, 1 - lead + i), ds = ymd(d), evs = byDay[ds] || [], inMonth = d.getMonth() === mo - 1;
+      const openParts = evs.filter((e) => e.kind === "part" && e.p.stage !== "done").length;
+      if (inMonth) { monthParts += evs.filter((e) => e.kind === "part").length; monthMs += evs.filter((e) => e.kind === "ms").length; }
+      if (i % 7 === 0) { week = 0; weekFrom = ds; }
+      week += openParts;
+      if (i % 7 === 6 && week > busy.n) busy = { n: week, from: weekFrom, to: ds };
+      grid += `<div class="cal-day${inMonth ? "" : " out"}${ds === t ? " today" : ""}${d.getDay() === 0 ? " sun" : ""}" role="gridcell" tabindex="0" data-calday="${ds}" aria-selected="${ds === state.calDay}" aria-label="${d.getMonth() + 1}월 ${d.getDate()}일${evs.length ? `, ${evs.length}건` : ""}">
+        <span class="cal-n">${d.getDate()}</span>${evs.slice(0, 3).map(chip).join("")}${evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}건 더</span>` : ""}<span class="cal-dots">${evs.slice(0, 5).map((e) => `<i style="--dc:${dotColor(e)}"></i>`).join("")}</span></div>`;
+    }
+    const sel = byDay[state.calDay] || [];
+    const row = (e) => {
+      if (e.kind === "comp") return `<div class="cal-row"><span class="tag make">대회</span><span class="cal-t">${esc(state.cfg.carName || "우리 팀 차량")} 대회</span><span class="dim">${dLabel(daysUntil(comp))}</span></div>`;
+      if (e.kind === "ms") {
+        const m = e.m, inner = `<span class="tag">${esc(m.kind || "기타")}</span><span class="cal-t">${esc(m.title)}</span>${DEPT[m.dept] ? `<span class="dname">${dmark(m.dept)}${DEPT[m.dept].l}</span>` : '<span class="dim">팀 전체</span>'}<span class="dim">${m.done ? "완료" : dLabel(daysUntil(m.date))}</span>`;
+        return cw ? `<button type="button" class="cal-row" data-ms="${esc(m.id)}">${inner}</button>` : `<div class="cal-row">${inner}</div>`;
+      }
+      const p = e.p, dk = deptOf(p);
+      return `<button type="button" class="cal-row" data-part="${esc(p.id)}"><span class="dname">${dmark(dk)}${DEPT[dk].l}</span><span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${isLate(p) ? '<b class="late">마감 지남</b>' : ""}</button>`;
+    };
+    const [sy, sm, sd] = state.calDay.split("-").map(Number);
+    $("msBody").innerHTML = `<div class="cal">
+      <div class="cal-h">
+        <button class="btn sm" type="button" data-calnav="-1" aria-label="이전 달">‹</button><h3>${y}년 ${mo}월</h3><button class="btn sm" type="button" data-calnav="1" aria-label="다음 달">›</button>
+        <button class="btn ghost sm" type="button" data-calnav="0">오늘</button>
+        <label class="check"><input type="checkbox" id="calParts"${state.calParts ? " checked" : ""}> 부품 마감 보기</label>
+        <div class="legend"><span><i style="background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)"></i>일정</span><span><i style="background:var(--c3)"></i>부품 마감 (색 = 부서)</span><span><i style="background:var(--bad)"></i>마감 지남</span></div>
+      </div>
+      <p class="cal-load hint pad">이번 달 일정 ${monthMs}건${state.calParts ? ` · 부품 마감 ${monthParts}개${busy.n >= 3 ? ` · 가장 몰린 주 ${fmtShort(busy.from)}~${fmtShort(busy.to)} <b>남은 부품 ${busy.n}개</b>` : ""}` : ""}</p>
+      <div class="cal-dow" aria-hidden="true">${["일", "월", "화", "수", "목", "금", "토"].map((w) => `<span>${w}</span>`).join("")}</div>
+      <div class="cal-grid" role="grid" aria-label="${y}년 ${mo}월">${grid}</div>
+      <div class="cal-list"><h4>${new Date(sy, sm - 1, sd).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}</h4>
+        ${sel.length ? sel.map(row).join("") : '<p class="hint">이 날은 일정이나 부품 마감이 없어요.</p>'}</div>
+    </div>`;
+  }
+  function moveCalendar(step) {
+    if (step === 0) { state.calMonth = todayStr().slice(0, 7); state.calDay = todayStr(); }
+    else { const [y, m] = state.calMonth.split("-").map(Number), d = new Date(y, m - 1 + step, 1); state.calMonth = ymd(d).slice(0, 7); state.calDay = ymd(d); }
+    renderSchedule();
+  }
+  document.addEventListener("click", (e) => {
+    const v = e.target.closest("[data-msview]");
+    if (v) { state.msView = v.dataset.msview; store.set("fsk.ms.view", state.msView); renderSchedule(); return; }
+    const nav = e.target.closest("[data-calnav]"); if (nav) { moveCalendar(Number(nav.dataset.calnav)); return; }
+    const day = e.target.closest("[data-calday]");
+    if (day && !e.target.closest("[data-part],[data-ms]")) { state.calDay = day.dataset.calday; renderSchedule(); const c = document.querySelector(`[data-calday="${state.calDay}"]`); if (c) c.focus({ preventScroll: true }); }
+  });
+  document.addEventListener("keydown", (e) => {
+    const day = e.target.closest && e.target.closest(".cal-day");
+    if (day && e.target === day && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); day.click(); }
+  });
+  document.addEventListener("change", (e) => { if (e.target.id === "calParts") { state.calParts = e.target.checked; store.set("fsk.cal.parts", state.calParts ? "1" : "0"); renderSchedule(); } });
 
   // ---------- history ----------
   function renderHistory() {
@@ -2012,7 +2378,38 @@ window.FSKExpenseRules = (() => {
 
   // ---------- toast & delete arming ----------
   let toastTimer;
-  function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 3400); }
+  // action: { label, run } shows a button in the toast (되돌리기) and keeps it up longer
+  function toast(msg, action) {
+    const t = $("toast"), text = document.createElement("span");
+    text.textContent = msg; t.replaceChildren(text);
+    if (action) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = action.label;
+      b.addEventListener("click", () => { t.hidden = true; clearTimeout(toastTimer); action.run(); }, { once: true });
+      t.append(b);
+    }
+    t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, action ? UNDO_MS : 3400);
+  }
+
+  // ---------- undo ----------
+  // Deleted documents are kept in memory for the undo window; their attachment files are removed only after it,
+  // or when the page is closed.
+  const UNDO_MS = 9000;
+  const strip = ({ id, ...rest }) => rest;
+  const pendingDrops = new Set();
+  function dropAssetsLater(list) {
+    const ids = (list || []).map((a) => a && a.id).filter(Boolean);
+    if (!assets || !ids.length) return () => {};
+    const job = { run() { clearTimeout(job.timer); pendingDrops.delete(job); ids.forEach((id) => { try { Promise.resolve(assets.delete(id)).catch(() => {}); } catch {} }); } };
+    job.timer = setTimeout(job.run, UNDO_MS + 2000);
+    pendingDrops.add(job);
+    return () => { clearTimeout(job.timer); pendingDrops.delete(job); };
+  }
+  addEventListener("pagehide", () => [...pendingDrops].forEach((j) => j.run()));
+  const undo = (what, restore) => ({ label: "되돌리기", run: async () => {
+    try { await restore(); toast(`${what} 되돌렸어요`); render(); }
+    catch (err) { toast(explain(err)); }
+  } });
   function armDelete(b, label) { if (b.classList.contains("armed")) return true; b.classList.add("armed"); b.textContent = label || "한 번 더 눌러 삭제"; return false; }
   function resetDelete(b, text, show) { b.hidden = !show; b.classList.remove("armed"); b.textContent = text; b.disabled = false; }
 
@@ -2130,8 +2527,11 @@ window.FSKExpenseRules = (() => {
     const ph = p ? state.history.filter((h) => h.targetId === p.id).slice(0, 5) : [];
     $("pHist").hidden = !ph.length;
     $("pHistList").innerHTML = ph.map((h) => `<div><span class="mono">${esc(fmtWhen(h.at))}</span><span>${esc(h.by || "이름 미입력")} · ${esc(h.action)}${h.detail ? " · " + esc(h.detail) : ""}</span></div>`).join("");
-    dlgP.showModal();
+    $("btnPartLink").hidden = !(p && window.FSK_SELF_HOSTED);
+    if (!dlgP.open) dlgP.showModal();
+    syncRoute();
   }
+  dlgP.addEventListener("close", () => { state.editPart = null; syncRoute(); });
   function partDiff(old, nw) {
     const ch = [];
     if ((old.stage || "design") !== nw.stage) ch.push(`단계 ${STAGE_LABEL[old.stage] || "설계"} → ${STAGE_LABEL[nw.stage]}`);
@@ -2188,12 +2588,13 @@ window.FSKExpenseRules = (() => {
     const b = e.currentTarget;
     if (!armDelete(b)) return;
     b.disabled = true;
-    const p = state.parts.find((x) => x.id === state.editPart);
+    const id = state.editPart, p = state.parts.find((x) => x.id === id);
     try {
-      await attempt(() => colP.doc(state.editPart).delete());
-      if (assets && p) for (const a of p.attachments || []) { try { await assets.delete(a.id); } catch {} }
-      hist("part", "부품 삭제", p?.name, state.editPart, "");
-      dlgP.close(); toast("부품을 삭제했어요");
+      await attempt(() => colP.doc(id).delete());
+      const keep = dropAssetsLater(p?.attachments);
+      hist("part", "부품 삭제", p?.name, id, "");
+      dlgP.close();
+      toast(`${p?.name || "부품"}을(를) 삭제했어요`, p && undo("삭제를", async () => { keep(); await attempt(() => colP.doc(id).set(strip(p))); hist("part", "부품 삭제 취소", p.name, id, ""); }));
     } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
@@ -2255,16 +2656,24 @@ window.FSKExpenseRules = (() => {
     if (!armDelete(b, n ? `부서 기록 ${n}개도 함께 삭제돼요. 한 번 더 누르세요` : "한 번 더 눌러 삭제")) return;
     b.disabled = true;
     const s = state.sessions.find((x) => x.id === sid);
+    const comments = state.comments.filter((c) => c.sessionId === sid), checks = state.checks.filter((c) => c.sessionId === sid), logs = logsOf(sid);
     try {
-      for (const c of state.comments.filter((c) => c.sessionId === sid)) await attempt(() => colC.doc(c.id).delete());
-      for (const c of state.checks.filter((c) => c.sessionId === sid)) await attempt(() => colK.doc(c.id).delete());
-      for (const l of logsOf(sid)) {
-        await attempt(() => colL.doc(l.id).delete());
-        if (assets) for (const a of l.attachments || []) { try { await assets.delete(a.id); } catch {} }
-      }
+      for (const c of comments) await attempt(() => colC.doc(c.id).delete());
+      for (const c of checks) await attempt(() => colK.doc(c.id).delete());
+      for (const l of logs) await attempt(() => colL.doc(l.id).delete());
       await attempt(() => colS.doc(sid).delete());
+      const keep = dropAssetsLater(logs.flatMap((l) => l.attachments || []));
       hist("session", "세션 삭제", s ? `${fmtShort(s.date)} ${s.event}` : "", sid, n ? `부서 기록 ${n}개 포함` : "");
-      state.sel = null; dlgS.close(); toast("세션을 삭제했어요");
+      state.sel = null; dlgS.close();
+      toast("세션을 삭제했어요", s && undo("세션 삭제를", async () => {
+        keep();
+        await attempt(() => colS.doc(sid).set(strip(s)));
+        for (const l of logs) await attempt(() => colL.doc(l.id).set(strip(l)));
+        for (const c of comments) await attempt(() => colC.doc(c.id).set(strip(c)));
+        for (const c of checks) await attempt(() => colK.doc(c.id).set(strip(c)));
+        hist("session", "세션 삭제 취소", `${fmtShort(s.date)} ${s.event}`, sid, n ? `부서 기록 ${n}개 포함` : "");
+        state.sel = sid; state.tab = "sessions";
+      }));
     } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
@@ -2390,13 +2799,19 @@ window.FSKExpenseRules = (() => {
     const b = e.currentTarget, id = state.editLog;
     if (!armDelete(b)) return;
     b.disabled = true;
-    const l = state.logs.find((x) => x.id === id);
+    const l = state.logs.find((x) => x.id === id), comments = state.comments.filter((c) => c.logId === id);
     try {
-      for (const c of state.comments.filter((c) => c.logId === id)) await attempt(() => colC.doc(c.id).delete());
+      for (const c of comments) await attempt(() => colC.doc(c.id).delete());
       await attempt(() => colL.doc(id).delete());
-      if (assets && l) for (const a of l.attachments || []) { try { await assets.delete(a.id); } catch {} }
+      const keep = dropAssetsLater(l?.attachments);
       hist("log", "부서 기록 삭제", l ? DEPT[l.dept]?.l : "", l?.sessionId, "");
-      dlgL.close(); toast("기록을 삭제했어요");
+      dlgL.close();
+      toast("기록을 삭제했어요", l && undo("기록 삭제를", async () => {
+        keep();
+        await attempt(() => colL.doc(id).set(strip(l)));
+        for (const c of comments) await attempt(() => colC.doc(c.id).set(strip(c)));
+        hist("log", "부서 기록 삭제 취소", DEPT[l.dept]?.l || "", l.sessionId, "");
+      }));
     } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
@@ -2429,9 +2844,11 @@ window.FSKExpenseRules = (() => {
     const b = e.currentTarget;
     if (!armDelete(b)) return;
     b.disabled = true;
-    const m = state.milestones.find((x) => x.id === state.editMs);
-    try { await attempt(() => colM.doc(state.editMs).delete()); hist("milestone", "일정 삭제", m?.title, state.editMs, m ? fmtDate(m.date) : ""); dlgM.close(); toast("일정을 삭제했어요"); }
-    catch (err) { toast(explain(err)); b.disabled = false; }
+    const id = state.editMs, m = state.milestones.find((x) => x.id === id);
+    try {
+      await attempt(() => colM.doc(id).delete()); hist("milestone", "일정 삭제", m?.title, id, m ? fmtDate(m.date) : ""); dlgM.close();
+      toast("일정을 삭제했어요", m && undo("일정 삭제를", async () => { await attempt(() => colM.doc(id).set(strip(m))); hist("milestone", "일정 삭제 취소", m.title, id, fmtDate(m.date)); }));
+    } catch (err) { toast(explain(err)); b.disabled = false; }
   });
 
   // ---------- events ----------
@@ -2451,6 +2868,64 @@ window.FSKExpenseRules = (() => {
   $("meName").addEventListener("change", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); render(); });
   $("meName").addEventListener("input", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); });
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { state.tab = t.dataset.tab; render(); }));
+  // links to a session or a part
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-copylink]");
+    if (b) copyLink(b.dataset.copylink || (state.editPart ? "#parts/" + encodeURIComponent(state.editPart) : location.hash));
+  });
+  addEventListener("hashchange", () => { routedHash = location.hash; applyRoute(readRoute() || { tab: "today", id: "" }); render(); window.scrollTo({ top: 0 }); });
+
+  // ---------- parts: multi-select and bulk edit ----------
+  document.addEventListener("change", (e) => {
+    const pick = e.target.closest("input[data-pick]");
+    if (pick) { if (pick.checked) state.picked.add(pick.dataset.pick); else state.picked.delete(pick.dataset.pick); pick.closest("tr").classList.toggle("picked", pick.checked); resetDelete($("bDelete"), "삭제", true); renderBulk($("partBody").querySelectorAll("input[data-pick]:not(:disabled)").length); return; }
+    if (e.target.id === "pickAll") {
+      $("partBody").querySelectorAll("input[data-pick]:not(:disabled)").forEach((c) => { if (e.target.checked) state.picked.add(c.dataset.pick); else state.picked.delete(c.dataset.pick); });
+      resetDelete($("bDelete"), "삭제", true); renderPartList();
+    }
+  });
+  function clearPicked() { state.picked.clear(); ["bStage", "bDept", "bOwner", "bDue"].forEach((id) => { $(id).value = ""; }); resetDelete($("bDelete"), "삭제", true); renderPartList(); }
+  $("bClear").addEventListener("click", clearPicked);
+  // writes one part at a time (the server has no batch call); stops at the first failure and says how far it got
+  async function eachPart(ids, btn, label, fn) {
+    let n = 0;
+    try { for (const id of ids) { btn.textContent = `${label} ${n + 1}/${ids.length}`; await fn(id); n++; } return { n }; }
+    catch (err) { return { n, err }; }
+  }
+  $("bApply").addEventListener("click", async (e) => {
+    const btn = e.currentTarget, patch = {};
+    if ($("bStage").value) patch.stage = $("bStage").value;
+    if ($("bDept").value) patch.dept = $("bDept").value;
+    if ($("bOwner").value.trim()) { patch.owner = $("bOwner").value.trim(); patch.ownerUid = ""; }
+    if ($("bDue").value) patch.due = $("bDue").value;
+    if (!Object.keys(patch).length) { toast("바꿀 단계, 부서, 담당, 마감 중 하나를 정해 주세요"); return; }
+    const ids = [...state.picked].filter((id) => state.parts.some((p) => p.id === id));
+    const before = Object.fromEntries(ids.map((id) => { const p = state.parts.find((x) => x.id === id); return [id, { stage: p.stage || "design", dept: deptOf(p), owner: p.owner || "", ownerUid: p.ownerUid || "", due: p.due || "" }]; }));
+    const desc = [patch.stage && `단계 → ${STAGE_LABEL[patch.stage]}`, patch.dept && `부서 → ${DEPT[patch.dept].l}`, patch.owner && `담당 → ${patch.owner}`, patch.due && `마감 → ${patch.due}`].filter(Boolean).join(", ");
+    btn.disabled = true;
+    const { n, err } = await eachPart(ids, btn, "적용 중", (id) => attempt(() => colP.doc(id).update({ ...patch, updatedAt: stamp() })));
+    btn.disabled = false; btn.textContent = "적용";
+    if (n) hist("part", "부품 일괄 수정", `${n}개`, "", desc);
+    const done = ids.slice(0, n);
+    const back = undo("일괄 수정을", async () => {
+      for (const id of done) if (state.parts.some((p) => p.id === id)) await attempt(() => colP.doc(id).update({ ...Object.fromEntries(Object.keys(patch).map((k) => [k, before[id][k]])), updatedAt: stamp() }));
+      hist("part", "부품 일괄 수정 취소", `${done.length}개`, "", desc);
+    });
+    if (err) toast(`${n}개까지 바꾸고 멈췄어요. ${explain(err)}`, n ? back : undefined);
+    else { clearPicked(); toast(`${n}개 부품을 바꿨어요 · ${desc}`, back); }
+  });
+  $("bDelete").addEventListener("click", async (e) => {
+    const btn = e.currentTarget, ids = [...state.picked];
+    if (!armDelete(btn, `${ids.length}개 삭제? 한 번 더`)) return;
+    const gone = ids.map((id) => state.parts.find((p) => p.id === id)).filter(Boolean);
+    btn.disabled = true;
+    const { n, err } = await eachPart(gone.map((p) => p.id), btn, "삭제 중", (id) => attempt(() => colP.doc(id).delete()));
+    const removed = gone.slice(0, n), keep = dropAssetsLater(removed.flatMap((p) => p.attachments || []));
+    if (n) hist("part", "부품 일괄 삭제", `${n}개`, "", removed.slice(0, 5).map((p) => p.name).join(", ") + (n > 5 ? ` 외 ${n - 5}개` : ""));
+    const back = undo("삭제를", async () => { keep(); for (const p of removed) await attempt(() => colP.doc(p.id).set(strip(p))); hist("part", "부품 일괄 삭제 취소", `${removed.length}개`, "", ""); });
+    clearPicked(); btn.disabled = false;
+    toast(err ? `${n}개까지 지우고 멈췄어요. ${explain(err)}` : `부품 ${n}개를 삭제했어요`, n ? back : undefined);
+  });
   $("pitNext").addEventListener("click", () => { state.tab = "schedule"; render(); });
   $("btnAdd").addEventListener("click", () => openPart(null));
   $("btnAddEmpty").addEventListener("click", () => openPart(null));
@@ -2572,6 +3047,89 @@ window.FSKExpenseRules = (() => {
     }
     try { await navigator.clipboard.writeText(csv); toast("파일로 저장할 수 없어 CSV를 클립보드에 복사했어요"); }
     catch { toast("이 화면에서는 내보낼 수 없어요"); }
+  });
+
+  // ---------- BOM CSV import ----------
+  const dlgI = $("dlgImport");
+  const FIELD_LABEL = { name: "이름", partNo: "번호", dept: "부서", make: "구분", stage: "단계", qty: "수량", unitMass: "질량", unitCost: "비용", supplier: "공급처", owner: "담당", due: "마감", note: "메모" };
+  // what a part holds for a field, with the same defaults the page shows
+  const partField = (p, k) => k === "owner" ? ownerName(p) : k === "ownerUid" ? (p.ownerUid || "") : k === "dept" ? deptOf(p) : k === "stage" ? (p.stage || "design") : k === "qty" ? qtyOf(p) : k === "make" ? (p.make || "make") : (k === "unitMass" || k === "unitCost") ? num(p[k]) : (p[k] || "");
+  function openImport() {
+    state.imp = null; state.impPlan = null; state.impFile = "";
+    $("impFile").value = ""; $("impFileName").textContent = "선택한 파일 없음"; $("impResult").innerHTML = ""; $("impHint").textContent = "";
+    $("btnImpGo").disabled = true; $("btnImpGo").textContent = "가져오기";
+    dlgI.showModal();
+  }
+  $("btnImport").addEventListener("click", openImport);
+  $("btnImportEmpty").addEventListener("click", openImport);
+  $("impFile").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    $("impFileName").textContent = `${f.name} · ${fmtBytes(f.size)}`;
+    state.impFile = f.name;
+    if (f.size > 2 * 1024 * 1024) state.imp = { error: "파일이 너무 커요 (2MB까지). 부품 목록만 들어 있는 CSV인지 확인해 주세요." };
+    else { const { decode, parseCsv, toParts } = window.FSKBom; state.imp = toParts(parseCsv(decode(new Uint8Array(await f.arrayBuffer())))); }
+    planImport();
+  });
+  $("impOverwrite").addEventListener("change", planImport);
+  function planImport() {
+    const res = state.imp, go = $("btnImpGo");
+    if (!res) return;
+    if (res.error) { $("impResult").innerHTML = `<div class="checks"><div><span class="e">✕</span><p>${esc(res.error)}</p></div></div>`; go.disabled = true; state.impPlan = null; return; }
+    const over = $("impOverwrite").checked, seen = new Set();
+    const plan = res.items.map((it) => {
+      if (it.skip) return { ...it, act: "skip" };
+      const match = window.FSKBom.matchPart(it.data, state.parts, deptOf);
+      const k = match ? "id:" + match.id : `${it.data.dept || ""}|${it.data.partNo || it.data.name.toLowerCase()}`;
+      if (seen.has(k)) return { ...it, act: "skip", warns: [...it.warns, "파일 안에서 같은 부품이 또 나와요"] };
+      seen.add(k);
+      if (!match) return { ...it, act: "new" };
+      if (!over) return { ...it, act: "skip", match, warns: [...it.warns, "이미 있는 부품이라 건너뛰어요"] };
+      if (lockedFor(match)) return { ...it, act: "skip", match, warns: [...it.warns, "잠긴 부품이라 그 부서 파트장만 고칠 수 있어요"] };
+      const patch = Object.fromEntries(Object.entries(it.data).filter(([f, v]) => partField(match, f) !== v));
+      if (patch.owner !== undefined) patch.ownerUid = "";
+      return Object.keys(patch).length ? { ...it, act: "upd", match, patch } : { ...it, act: "same", match };
+    });
+    state.impPlan = plan;
+    const count = (a) => plan.filter((p) => p.act === a).length, nNew = count("new"), nUpd = count("upd");
+    const ACT = { new: '<span class="act-new">추가</span>', upd: '<span class="act-upd">수정</span>', same: '<span class="act-skip">변경 없음</span>', skip: '<span class="act-skip">건너뜀</span>' };
+    const cols = res.cols.map((c) => FIELD_LABEL[c]).filter(Boolean).join(", ");
+    $("impResult").innerHTML = `<div class="imp-sum"><div class="fact"><span>새 부품</span><b>${nNew}개</b></div><div class="fact"><span>고칠 부품</span><b>${nUpd}개</b></div><div class="fact"><span>변경 없음</span><b>${count("same")}개</b></div><div class="fact"><span>건너뜀</span><b>${count("skip")}개</b></div><div class="fact"><span>읽은 열</span><b>${esc(cols)}</b></div></div>
+      <div class="scroll imp-table"><table><thead><tr><th>줄</th><th>처리</th><th>부서</th><th>부품명</th><th>바뀌는 칸</th><th>확인할 점</th></tr></thead><tbody>${plan.slice(0, 80).map((p) => {
+        const dk = p.data.dept || (p.match ? deptOf(p.match) : "");
+        return `<tr><td class="num dim">${p.line}</td><td>${ACT[p.act]}</td><td>${DEPT[dk] ? `<span class="dname">${dmark(dk)}${DEPT[dk].l}</span>` : '<span class="dim">내 부서</span>'}</td><td>${esc(p.data.name || "")}</td>
+          <td class="dim">${p.act === "upd" ? esc(Object.keys(p.patch).map((f) => FIELD_LABEL[f]).filter(Boolean).join(", ")) : ""}</td><td class="imp-warn">${esc(p.warns.join(" · "))}</td></tr>`;
+      }).join("")}${plan.length > 80 ? `<tr><td colspan="6" class="dim">외 ${plan.length - 80}줄</td></tr>` : ""}</tbody></table></div>`;
+    go.disabled = !(nNew + nUpd);
+    go.textContent = nNew + nUpd ? `${nNew + nUpd}개 가져오기` : "가져올 부품 없음";
+    $("impHint").textContent = plan.some((p) => p.act === "new" && !p.data.dept) ? `부서가 없는 새 부품은 ${DEPT[state.me.dept]?.l || "프레임·현가"}에 넣어요.` : "";
+  }
+  $("formImport").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const plan = state.impPlan; if (!plan || !state.canWrite) return;
+    const work = plan.filter((p) => p.act === "new" || p.act === "upd"), btn = $("btnImpGo"), fallback = DEPT[state.me.dept] ? state.me.dept : "chassis";
+    const added = [], before = [];
+    btn.disabled = true;
+    const { err } = await eachPart(work, btn, "가져오는 중", async (it) => {
+      if (it.act === "new") {
+        const d = it.data;
+        added.push(await savePart(null, { name: d.name, partNo: d.partNo || "", dept: d.dept || fallback, make: d.make || "make", stage: d.stage || "design", qty: d.qty || 1,
+          unitMass: d.unitMass ?? null, unitCost: d.unitCost ?? null, owner: d.owner || "", supplier: d.supplier || "", due: d.due || "", note: d.note || "", attachments: [] }));
+      } else {
+        const prev = Object.fromEntries(Object.keys(it.patch).map((f) => [f, partField(it.match, f)]));
+        await attempt(() => colP.doc(it.match.id).update({ ...it.patch, updatedAt: stamp() }));
+        before.push([it.match.id, prev]);
+      }
+    });
+    btn.disabled = false; btn.textContent = "가져오기";
+    const what = `${added.length}개 추가 · ${before.length}개 수정`;
+    if (added.length || before.length) hist("part", "CSV 가져오기", what, "", state.impFile || "");
+    const back = undo("가져오기를", async () => {
+      for (const id of added) await attempt(() => colP.doc(id).delete());
+      for (const [id, prev] of before) if (state.parts.some((p) => p.id === id)) await attempt(() => colP.doc(id).update({ ...prev, updatedAt: stamp() }));
+      hist("part", "CSV 가져오기 취소", what, "", state.impFile || "");
+    });
+    if (err) { toast(`${added.length + before.length}개까지 가져오고 멈췄어요. ${explain(err)}`, added.length + before.length ? back : undefined); return; }
+    dlgI.close(); toast(`부품을 가져왔어요 · ${what}`, back);
   });
 
   // ---------- 사비 정산 ----------
@@ -2775,7 +3333,8 @@ window.FSKExpenseRules = (() => {
 
   // detail + treasurer actions
   const dlgX = $("dlgExp");
-  function openExp(key) { state.xOpen = key; renderExpDetail(); dlgX.showModal(); }
+  function openExp(key) { state.xOpen = key; renderExpDetail(); if (!dlgX.open) dlgX.showModal(); syncRoute(); }
+  dlgX.addEventListener("close", () => { state.xOpen = null; syncRoute(); });
   function actionPanel(r, e, st) {
     return `<fieldset><legend class="fl">총무 처리 · 총무와 개발자에게만 보여요</legend>
       <div class="seg">${Object.entries(EXP_ST).map(([k, l]) => `<label><input type="radio" name="xst" value="${k}" ${k === st ? "checked" : ""}> ${l}</label>`).join("")}</div>

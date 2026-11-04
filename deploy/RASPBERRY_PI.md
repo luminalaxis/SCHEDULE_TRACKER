@@ -36,7 +36,7 @@ cd ~/SCHEDULE_TRACKER
 bash deploy/install.sh
 ```
 
-기본 설치는 서버가 파이 안에서만 받고, 바깥 접속은 4단계의 Cloudflare Tunnel이 맡아요. 터널 없이 같은 와이파이(또는 Tailscale) 안에서만 쓸 거면 마지막 줄을 `bash deploy/install.sh --lan` 으로 바꾸세요.
+기본 설치는 서버가 파이 안에서만 받아요. 바깥 접속은 3단계에서 개발자 계정을 만든 뒤 4단계에서 열어요 (도메인이 있으면 Cloudflare Tunnel, 없으면 `--tailscale`).
 
 설치 스크립트가 하는 일:
 
@@ -52,7 +52,7 @@ bash deploy/install.sh
 | 와이파이 절전 끄기 (와이파이일 때만) | 연결 끊김 줄이기 |
 | 전원 부족 기록, 데이터가 SD 카드에 있는지 확인 | 경고만 해요 |
 
-여러 번 실행해도 돼요. 포트, 데이터 폴더, 접속 방식은 처음 정한 대로 유지돼요. 옵션은 `bash deploy/install.sh --help` (`--port`, `--data-dir`, `--lan` / `--tunnel`, `--backup-dir`).
+여러 번 실행해도 돼요. 포트, 데이터 폴더, 접속 방식은 처음 정한 대로 유지돼요. 옵션은 `bash deploy/install.sh --help` (`--port`, `--data-dir`, `--tailscale` / `--tailscale-private` / `--lan` / `--tunnel`, `--backup-dir`).
 
 ## 3. 첫 개발자 계정
 
@@ -68,11 +68,15 @@ ssh -L 8080:127.0.0.1:8080 <사용자 이름>@fsk-pit.local
 
 가입한 뒤 관리 창(`/admin`) → 설정에서 가입 방식이 "승인제" 또는 "초대 코드"인지 확인하세요.
 
+팀원 가입은 같은 접속 주소(같은 와이파이)에서 한 시간에 10명까지 받아요. 회의 때 동아리방 와이파이로 한꺼번에 가입하면 11번째부터 "가입 신청이 너무 많아요"가 나와요. 이때는 휴대폰 데이터로 가입하거나, 개발자가 관리 창 → 사용자에서 계정을 직접 만들어 주세요.
+
 ## 4. 바깥에서 접속하기
 
-### 방법 A: Cloudflare Tunnel (추천)
+도메인이 있으면 A(Cloudflare Tunnel), 없으면 B(Tailscale Funnel)를 쓰세요. 둘 다 HTTPS 주소라서 휴대폰에 앱처럼 설치하기(10단계)와 오프라인 열기가 돼요. 두 방식 모두 서버는 파이 안에서만 받고, 바깥 요청은 터널이 들여보내요.
 
-포트포워딩 없이 HTTPS 주소가 생기고, 학교·기숙사 망에서도 대부분 동작해요. 휴대폰에 앱처럼 설치하기(10단계)도 HTTPS 주소가 있어야 해요. Cloudflare에 등록된 도메인이 필요해요.
+### 방법 A: Cloudflare Tunnel (도메인이 있을 때)
+
+포트포워딩 없이 HTTPS 주소가 생기고, 학교·기숙사 망에서도 대부분 동작해요. Cloudflare에 등록된 도메인이 필요해요.
 
 1. Cloudflare 대시보드 → **Zero Trust** → **Networks** → **Tunnels** 에서 터널을 만들어요 (종류 Cloudflared, 이름 `fsk`). 메뉴 이름은 조금 다를 수 있어요.
 2. 설치 화면에서 **Debian**, **arm64** 를 고르면 나오는 명령을 파이에 그대로 붙여 넣어요. 마지막 명령 `sudo cloudflared service install <토큰>` 이 cloudflared를 부팅할 때 자동으로 켜지는 서비스로 등록해요.
@@ -81,17 +85,38 @@ ssh -L 8080:127.0.0.1:8080 <사용자 이름>@fsk-pit.local
 
 도메인이 없을 때 잠깐 테스트만 하려면 `cloudflared tunnel --url http://localhost:8080` 을 실행하면 임시 `trycloudflare.com` 주소가 나와요. 재시작하면 주소가 바뀌니 24시간 운영에는 쓰지 마세요.
 
-### 방법 B: Tailscale (팀원만 접속)
+### 방법 B: Tailscale Funnel (도메인이 없을 때)
 
-팀원 모두가 Tailscale 앱을 깔고 같은 네트워크에 들어오는 방식이에요. 인터넷에 공개되지 않아 가장 안전해요.
+Tailscale이 `https://fsk-pit.<tailnet 이름>.ts.net` 같은 무료 HTTPS 주소를 줘요. 인터넷 어디서나 열리고, **팀원은 아무것도 설치하지 않아요.** Tailscale 계정은 개발자 한 명만 있으면 돼요.
+
+1. 노트북 브라우저에서 [tailscale.com](https://tailscale.com) 에 가입해요 (Google·GitHub 계정 등).
+2. 3단계에서 개발자 계정을 만든 다음, 파이에서:
+
+   ```bash
+   bash ~/SCHEDULE_TRACKER/deploy/install.sh --tailscale
+   ```
+
+   - Tailscale을 설치하고, 로그인 주소가 나오면 노트북 브라우저에서 열어 로그인해요.
+   - 처음이면 HTTPS 인증서와 Funnel을 허용하라는 주소가 나와요. 열어서 허용하면 설치가 이어져요.
+   - 마지막에 `접속: https://fsk-pit.….ts.net` 이 나와요. 이 주소를 팀에 공유하세요.
+3. 휴대폰 와이파이를 끄고 데이터로 그 주소가 열리는지 확인해요.
+
+알아 둘 것:
+
+- 주소 가운데 `tail1234` 같은 부분(tailnet 이름)은 Tailscale 관리 화면의 DNS 메뉴에서 기억하기 쉬운 이름으로 바꿀 수 있어요. 바꾸면 주소가 바뀌니 팀에 알리기 전에 하세요.
+- Funnel 트래픽에는 Tailscale이 정한 대역폭 제한이 있어요(수치는 공개되어 있지 않아요). 현황판과 사진·xlsx 정도는 괜찮지만 큰 동영상 첨부는 느릴 수 있어요.
+- 인터넷에 공개되는 주소예요. 관리 창 → 설정의 가입 방식을 "승인제"나 "초대 코드"로 두세요.
+- 서버는 `TRUST_PROXY=tailscale` 로 돌아요. Tailscale이 넣어 주는 접속 주소만 믿어서, 로그인 시도 제한과 감사 로그가 사람마다 따로 맞게 기록돼요.
+
+### 방법 C: Tailscale 안에서만 (인터넷에 공개하지 않기)
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up
-bash ~/SCHEDULE_TRACKER/deploy/install.sh --lan
+bash ~/SCHEDULE_TRACKER/deploy/install.sh --tailscale-private
 ```
 
-팀원은 `http://<파이의 Tailscale 이름 또는 IP>:8080` 으로 들어와요. HTTPS가 아니라서 휴대폰 앱 설치와 오프라인 열기는 되지 않을 수 있어요.
+Tailscale에 들어온 사람만 같은 `https://….ts.net` 주소로 들어와요. 가장 닫힌 방식이지만 팀원마다 Tailscale 계정과 앱이 필요하고, 쓸 때마다 휴대폰에서 Tailscale을 켜야 해요. 무료 요금제는 사용자 수가 적어서(지금 몇 명인지는 [Tailscale 요금제](https://tailscale.com/pricing) 확인) 30명이 쓰려면 관리 화면에서 파이를 팀원에게 **공유(Share)** 하거나 유료 요금제가 필요해요. 보통은 B를 추천해요.
+
+같은 와이파이 안에서만 쓰는 `--lan` 은 HTTP 주소(`http://<파이 IP>:8080`)라서 앱 설치·오프라인 열기가 안 될 수 있어요.
 
 ## 5. 24시간 잘 돌고 있는지 확인
 
@@ -111,9 +136,9 @@ curl http://127.0.0.1:8080/healthz      # {"ok":true,...}
 | 서버 프로세스가 죽음 | 3초 뒤 자동으로 다시 시작 |
 | 켜져 있는데 응답이 없음 | 2분마다 확인해서 30초 동안 응답이 없으면 다시 시작 |
 | 파이(운영체제)가 멈춤 | 하드웨어 워치독이 재부팅 |
-| 정전 | 전기가 들어오면 파이가 켜지고 서버와 터널이 자동으로 시작 |
+| 정전 | 전기가 들어오면 파이가 켜지고 서버와 터널(Cloudflare·Tailscale)이 자동으로 시작 |
 
-서버가 꺼진 걸 밖에서 바로 알고 싶으면, 무료 업타임 모니터(UptimeRobot 등)에 `https://pit.example.com/healthz` 를 등록해 두세요. 응답이 없으면 메일이나 앱 알림이 와요.
+서버가 꺼진 걸 밖에서 바로 알고 싶으면, 무료 업타임 모니터(UptimeRobot 등)에 바깥 주소 뒤에 `/healthz` 를 붙여 등록해 두세요 (예: `https://pit.example.com/healthz`, `https://fsk-pit.….ts.net/healthz`). 응답이 없으면 메일이나 앱 알림이 와요.
 
 ## 6. 백업
 
@@ -181,7 +206,7 @@ sudo apt update && sudo apt full-upgrade -y && sudo reboot
 |---|---|
 | 서버가 켜지지 않음 | `journalctl -u fsk-pitboard -n 50` 으로 오류를 확인하고, 고친 뒤 `bash deploy/install.sh` |
 | 파이가 혼자 재부팅됨 | `journalctl -b -1 -e` (직전 부팅의 마지막 로그), `vcgencmd get_throttled` (전원) |
-| 바깥 주소로 안 열림 | `systemctl status cloudflared`, 파이 안에서 `curl http://127.0.0.1:8080/healthz` |
+| 바깥 주소로 안 열림 | 파이 안에서 `curl http://127.0.0.1:8080/healthz` 로 서버부터 확인. Cloudflare는 `systemctl status cloudflared`, Tailscale은 `sudo tailscale funnel status` (없으면 `bash deploy/install.sh --tailscale`) |
 | 개발자 비밀번호를 잊음 | `DATA_DIR=~/fsk-data npm run admin -- reset-password <아이디>` |
 | 계정 목록 확인 | `DATA_DIR=~/fsk-data npm run admin -- list-users` |
 | 새 개발자 계정 만들기 | `DATA_DIR=~/fsk-data npm run admin -- create-user <아이디> developer <이름>` |
@@ -202,7 +227,7 @@ sudo apt update && sudo apt full-upgrade -y && sudo reboot
 
 ## 10. 휴대폰에 앱처럼 설치
 
-HTTPS 주소(4단계의 Cloudflare Tunnel)로 접속해야 해요.
+HTTPS 주소(4단계의 Cloudflare Tunnel 또는 Tailscale)로 접속해야 해요.
 
 - 안드로이드(Chrome): 메뉴 → **홈 화면에 추가** (또는 "앱 설치")
 - 아이폰(Safari): 공유 → **홈 화면에 추가**
@@ -211,7 +236,7 @@ HTTPS 주소(4단계의 Cloudflare Tunnel)로 접속해야 해요.
 
 ## 보안 체크리스트
 
-- [ ] 외부 공개는 HTTPS(Cloudflare Tunnel)로만, 설치는 `--lan` 없이 (서버는 파이 안에서만 받음)
+- [ ] 외부 공개는 HTTPS(Cloudflare Tunnel 또는 Tailscale Funnel)로만, 설치는 `--lan` 없이 (서버는 파이 안에서만 받음)
 - [ ] 바깥 접속을 열기 전에 개발자 계정부터 만들기 (처음 가입하는 사람이 개발자)
 - [ ] 관리 창 → 설정에서 가입 방식을 "승인제" 또는 "초대 코드"로
 - [ ] 개발자 계정은 강한 비밀번호, 개발자는 꼭 필요한 사람만

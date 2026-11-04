@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # FSK 피트보드를 라즈베리파이 한 대에 24시간 서버로 설치해요. 다시 실행해도 돼요(정한 설정은 그대로 두고 갱신해요).
-#   bash deploy/install.sh                  바깥 접속은 Cloudflare Tunnel로 (서버는 파이 안에서만 받음, 추천)
-#   bash deploy/install.sh --lan            같은 와이파이·Tailscale 안에서 http://<파이 IP>:8080 으로 바로 접속
-#   bash deploy/install.sh --tunnel         --lan 으로 쓰다가 터널 방식으로 돌아가기
+#   bash deploy/install.sh                  바깥 접속은 Cloudflare Tunnel로 (서버는 파이 안에서만 받음, 도메인 필요)
+#   bash deploy/install.sh --tailscale      도메인 없이 Tailscale Funnel로 https://<파이>.<tailnet>.ts.net 공개 주소
+#   bash deploy/install.sh --tailscale-private   Tailscale 안(공유받은 사람)에서만 https 주소로
+#   bash deploy/install.sh --lan            같은 와이파이 안에서 http://<파이 IP>:8080 으로 바로 접속
+#   bash deploy/install.sh --tunnel         다른 방식으로 쓰다가 Cloudflare Tunnel 방식으로 돌아가기
 #   bash deploy/install.sh --backup-dir /mnt/backup    외부 복사(USB 드라이브) 폴더에 쓸 수 있게
 #   bash deploy/install.sh --port 8080 --data-dir ~/fsk-data
 #   bash deploy/install.sh --print-unit     설치하지 않고 만들어질 서비스 파일만 보기
@@ -20,16 +22,18 @@ warn() { printf '  \033[33m주의:\033[0m %s\n' "$*"; }
 die() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 need() { [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 다음에 값을 적어 주세요."; }
 
-MODE="" PORT="" DATA="" BACKUP="" PRINT=0
+MODE="" TS="" PORT="" DATA="" BACKUP="" PRINT=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --lan) MODE=lan ;;
     --tunnel) MODE=tunnel ;;
+    --tailscale) MODE=tailscale TS=funnel ;;
+    --tailscale-private) MODE=tailscale TS=serve ;;
     --port) need "$@"; PORT=$2; shift ;;
     --data-dir) need "$@"; DATA=$2; shift ;;
     --backup-dir) need "$@"; BACKUP=$2; shift ;;
     --print-unit) PRINT=1 ;;
-    -h|--help) sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "모르는 옵션이에요: $1 (bash deploy/install.sh --help)" ;;
   esac
   shift
@@ -38,12 +42,19 @@ done
 # Settings: what was given now, else what the installed service already has, else defaults.
 current() { if [ -f "$UNIT" ]; then sed -n "s/^Environment=$1=//p" "$UNIT" | tail -n 1; fi; }
 U=$(id -un)
-if [ -z "$MODE" ]; then [ "$(current HOST)" = 0.0.0.0 ] && MODE=lan || MODE=tunnel; fi
+# (Tailscale keeps its own serve/funnel setting, so a plain re-run leaves it as it is.)
+if [ -z "$MODE" ]; then
+  if [ "$(current HOST)" = 0.0.0.0 ]; then MODE=lan; elif [ "$(current TRUST_PROXY)" = tailscale ]; then MODE=tailscale; else MODE=tunnel; fi
+fi
 PORT=${PORT:-$(current PORT)}; PORT=${PORT:-8080}
 DATA=${DATA:-$(current DATA_DIR)}; DATA=${DATA:-$HOME/fsk-data}
 DATA=$(realpath -m -- "${DATA/#\~/$HOME}")
 [ -z "$BACKUP" ] || BACKUP=$(realpath -m -- "${BACKUP/#\~/$HOME}")
-if [ "$MODE" = lan ]; then HOST=0.0.0.0 TRUST_PROXY=0; else HOST=127.0.0.1 TRUST_PROXY=1; fi
+case "$MODE" in
+  lan) HOST=0.0.0.0 TRUST_PROXY=0 ;;
+  tailscale) HOST=127.0.0.1 TRUST_PROXY=tailscale ;;
+  *) HOST=127.0.0.1 TRUST_PROXY=1 ;;
+esac
 NODE=$(command -v node || echo /usr/bin/node)
 
 case "$PORT" in ''|*[!0-9]*) die "포트는 숫자로 적어 주세요: $PORT" ;; esac
@@ -56,7 +67,7 @@ if [ -n "$BACKUP" ]; then case "$BACKUP/" in "$DATA"/*) die "외부 복사 폴�
 
 render_unit() {
   local lan_note=""
-  [ "$MODE" = lan ] && lan_note='s|^# Listen only on the Pi itself.*|# --lan: listen on every network (same Wi-Fi or Tailscale), with no tunnel in front.|'
+  [ "$MODE" = lan ] && lan_note='s|^# Listen only on the Pi itself.*|# --lan: listen on every network (same Wi-Fi), with no tunnel in front.|'
   sed -e "s|^User=.*|User=$U|" \
       -e "s|^WorkingDirectory=.*|WorkingDirectory=$REPO|" \
       -e "s|^Environment=PORT=.*|Environment=PORT=$PORT|" \
@@ -86,7 +97,13 @@ command -v sudo >/dev/null || die "sudo 가 필요해요."
 
 say "FSK 피트보드 설치"
 info "계정 $U · 코드 $REPO · 데이터 $DATA · 포트 $PORT"
-if [ "$MODE" = lan ]; then info "접속 방식: 같은 네트워크에서 바로 (--lan)"; else info "접속 방식: 파이 안에서만 받고 Cloudflare Tunnel로 바깥 연결"; fi
+case "$MODE$TS" in
+  lan) info "접속 방식: 같은 와이파이에서 바로 (--lan)" ;;
+  tailscalefunnel) info "접속 방식: Tailscale Funnel 공개 주소 (--tailscale)" ;;
+  tailscaleserve) info "접속 방식: Tailscale 안에서만 (--tailscale-private)" ;;
+  tailscale) info "접속 방식: Tailscale (지금 설정 유지)" ;;
+  *) info "접속 방식: 파이 안에서만 받고 Cloudflare Tunnel로 바깥 연결" ;;
+esac
 sudo -v
 
 case "$(uname -m)" in aarch64|arm64|x86_64) ;; *) warn "64비트 OS를 권장해요 (지금 $(uname -m)). Node.js $MIN_NODE 이상이 설치되지 않을 수 있어요." ;; esac
@@ -190,15 +207,46 @@ if ! health=$(curl -fsS -m 5 "$BASE/healthz" 2>/dev/null); then
 fi
 VERSION=$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$health")
 IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+FIRST=0; curl -fsS -m 5 "$BASE/api/auth/config" 2>/dev/null | grep -q '"firstUser":true' && FIRST=1
+
+ts_url() { tailscale status --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",(d)=>s+=d).on("end",()=>{try{const n=JSON.parse(s).Self.DNSName.replace(/\.$/,"");if(n)console.log("https://"+n)}catch{}})' || true; }
+if [ -n "$TS" ]; then
+  say "5. Tailscale"
+  if ! command -v tailscale >/dev/null; then
+    info "Tailscale 설치"
+    curl -fsSL https://tailscale.com/install.sh | sh
+  fi
+  if [ "$(tailscale status --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",(d)=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).BackendState)}catch{}})' || true)" != Running ]; then
+    info "아래에 나오는 주소를 열어 Tailscale에 로그인하세요 (개발자 본인 계정)."
+    sudo tailscale up
+  fi
+  if [ "$FIRST" = 1 ]; then
+    warn "아직 개발자 계정이 없어서 Tailscale 주소는 열지 않았어요. 아래처럼 먼저 가입한 뒤  bash deploy/install.sh --$( [ "$TS" = funnel ] && echo tailscale || echo tailscale-private )  을 한 번 더 실행하세요."
+  else
+    # one front door only: drop an earlier serve/funnel setting, then open the one asked for
+    sudo tailscale serve reset >/dev/null 2>&1 || true
+    if [ "$TS" = funnel ]; then
+      info "Funnel을 켜요. 처음이면 HTTPS 인증서·Funnel을 허용하는 주소가 나오니 열어서 허용하세요."
+      sudo tailscale funnel --bg "$PORT" || die "Funnel을 켜지 못했어요. 위 메시지를 확인하세요. Tailscale 안에서만 쓰려면  bash deploy/install.sh --tailscale-private"
+    else
+      info "Serve를 켜요. 처음이면 HTTPS 인증서를 허용하는 주소가 나오니 열어서 허용하세요."
+      sudo tailscale serve --bg "$PORT" || die "Tailscale Serve를 켜지 못했어요. 위 메시지를 확인하세요."
+    fi
+  fi
+fi
 
 say "다 됐어요. 피트보드 ${VERSION:-?} 이(가) 돌고 있어요."
-if [ "$MODE" = lan ]; then
-  info "접속: http://${IP:-<파이 IP>}:$PORT  (같은 와이파이·Tailscale 안에서)"
-else
-  info "지금은 파이 안($BASE)에서만 받아요. 바깥 접속은 Cloudflare Tunnel을 연결하세요 (deploy/RASPBERRY_PI.md 4단계)."
-fi
-if curl -fsS -m 5 "$BASE/api/auth/config" 2>/dev/null | grep -q '"firstUser":true'; then
-  warn "아직 계정이 없어요. 처음 가입하는 사람이 개발자(관리자)가 되니, 터널을 열기 전에 먼저 가입하세요."
+case "$MODE" in
+  lan) info "접속: http://${IP:-<파이 IP>}:$PORT  (같은 와이파이 안에서)" ;;
+  tailscale)
+    TSURL=$(ts_url)
+    if sudo tailscale funnel status 2>/dev/null | grep -q "Funnel on"; then info "접속: ${TSURL:-https://<파이>.<tailnet>.ts.net}  (인터넷 어디서나, 팀원은 설치할 것 없음)"
+    elif sudo tailscale serve status 2>/dev/null | grep -q "127.0.0.1:$PORT"; then info "접속: ${TSURL:-https://<파이>.<tailnet>.ts.net}  (Tailscale에 들어온 사람·공유받은 사람만)"
+    else info "Tailscale 주소가 아직 열려 있지 않아요:  bash deploy/install.sh --tailscale"; fi ;;
+  *) info "지금은 파이 안($BASE)에서만 받아요. 바깥 접속은 Cloudflare Tunnel을 연결하세요 (deploy/RASPBERRY_PI.md 4단계)." ;;
+esac
+if [ "$FIRST" = 1 ]; then
+  warn "아직 계정이 없어요. 처음 가입하는 사람이 개발자(관리자)가 되니, 바깥 주소를 열기 전에 먼저 가입하세요."
   if [ "$MODE" = lan ]; then
     info "브라우저에서 http://${IP:-<파이 IP>}:$PORT 을 열고 가입"
   else

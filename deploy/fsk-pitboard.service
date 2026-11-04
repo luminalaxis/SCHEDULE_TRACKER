@@ -22,7 +22,8 @@ Environment=HOST=127.0.0.1
 Environment=DATA_DIR=/home/pi/fsk-data
 # Local time for notifications (quiet before 08:00) and the daily backup hour.
 Environment=TZ=Asia/Seoul
-# Trust the tunnel's forwarded headers (real client IP, https). Only safe while HOST=127.0.0.1.
+# Trust the proxy's forwarded headers (real client IP, https): 1 = Cloudflare Tunnel, tailscale = tailscale serve / funnel,
+# 0 = none. Only safe while HOST=127.0.0.1.
 Environment=TRUST_PROXY=1
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/server.js
 Restart=always

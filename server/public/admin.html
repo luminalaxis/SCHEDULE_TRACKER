@@ -355,7 +355,7 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
     if (!s.users.org.viceLead.length) al.push(["warn", "부팀장(총무)이 지정되지 않았어요. 지금은 개발자만 사비 정산 지급 처리를 할 수 있어요.", '<button class="btn sm" type="button" data-go="users">지정하기</button>']);
     if (!s.lastBackup || Date.now() - new Date(s.lastBackup.createdAt) > 2 * 86400000) al.push(["bad", s.lastBackup ? `마지막 백업이 ${ago(s.lastBackup.createdAt)}이에요.` : "백업이 하나도 없어요.", '<button class="btn sm" type="button" data-go="backups">백업 만들기</button>']);
     if (s.disk && s.disk.free / s.disk.total < 0.1) al.push(["bad", `디스크 남은 공간이 ${bytes(s.disk.free)}뿐이에요. 오래된 백업이나 안 쓰는 첨부 파일을 정리하세요.`, ""]);
-    if (!s.cookieSecure) al.push(["info", "지금 HTTPS가 아닌 주소로 접속 중이에요. 외부에 공개할 때는 Cloudflare Tunnel 같은 HTTPS 경로를 쓰고 TRUST_PROXY=1로 실행하세요.", ""]);
+    if (!s.cookieSecure) al.push(["info", "지금 HTTPS가 아닌 주소로 접속 중이에요. 외부에 공개할 때는 Cloudflare Tunnel(TRUST_PROXY=1)이나 Tailscale(TRUST_PROXY=tailscale) 같은 HTTPS 경로를 쓰세요. 라즈베리파이에서는 deploy/install.sh가 맞춰 줘요.", ""]);
     if (!s.settings.autoBackup) al.push(["warn", "자동 백업이 꺼져 있어요.", '<button class="btn sm" type="button" data-go="settings">설정</button>']);
     const ml = s.settings.mirrorLast;
     if (!s.settings.mirrorDir) al.push(["info", "외부 복사가 설정되지 않았어요. 라즈베리파이가 고장 나면 데이터가 함께 사라질 수 있어요. USB 드라이브로 복사하도록 정해 두세요.", '<button class="btn sm" type="button" data-go="backups">설정하기</button>']);

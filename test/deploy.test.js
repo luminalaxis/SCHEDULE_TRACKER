@@ -1,5 +1,7 @@
 // The Raspberry Pi installer fills the systemd unit template (deploy/fsk-pitboard.service) with the account, paths and port.
 // These checks keep the template and deploy/install.sh in step; they only render units and never install anything.
+// The proxy modes it can pick (TRUST_PROXY=1 for Cloudflare Tunnel, tailscale for tailscale serve / funnel) are checked
+// against the real server at the end.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -7,6 +9,7 @@ import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { startServer, Client } from "./helpers/server.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const INSTALL = join(ROOT, "deploy", "install.sh");
@@ -29,6 +32,13 @@ test("installer renders the unit for this account, folders and port", { skip: !h
   assert.equal(tunnel.status, 0, tunnel.stderr);
   const t = lines(tunnel.stdout);
   for (const want of ["Environment=PORT=8080", "Environment=HOST=127.0.0.1", "Environment=TRUST_PROXY=1"]) assert.ok(t.has(want), want);
+
+  for (const flag of ["--tailscale", "--tailscale-private"]) {
+    const ts = render(flag, "--data-dir", "/srv/fsk-data");
+    assert.equal(ts.status, 0, ts.stderr);
+    const s = lines(ts.stdout);
+    for (const want of ["Environment=HOST=127.0.0.1", "Environment=TRUST_PROXY=tailscale"]) assert.ok(s.has(want), `${flag}: ${want}`);
+  }
 });
 
 test("installer refuses unsafe settings", { skip: !hasBash && "bash not found" }, () => {
@@ -59,4 +69,38 @@ test("systemd accepts the rendered units", { skip: !hasAnalyze && "systemd-analy
     const ours = (v.stdout + v.stderr).split("\n").filter((x) => x.includes(dir));
     assert.deepEqual(ours, [], "no warnings about our unit files");
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("behind Tailscale only its X-Forwarded-For names the client", async () => {
+  const srv = await startServer({ TRUST_PROXY: "tailscale" });
+  try {
+    // what tailscale serve sends: the real address in X-Forwarded-For (it overwrites the client's), https in X-Forwarded-Proto
+    const via = (ip, extra = {}) => ({ "x-forwarded-for": ip, "x-forwarded-proto": "https", ...extra });
+    const dev = new Client(srv.base);
+    assert.equal((await dev.req("POST", "/api/auth/signup", { username: "dev", password: "password1", name: "개발자" }, via("100.64.0.9"))).status, 200);
+    const x = new Client(srv.base);
+    for (let i = 0; i < 10; i++) {
+      const r = await x.req("POST", "/api/auth/login", { username: "nobody", password: "wrong-password" }, via("100.64.0.5", { "cf-connecting-ip": `203.0.113.${i}` }));
+      assert.equal(r.status, 401);
+    }
+    const blocked = await x.req("POST", "/api/auth/login", { username: "dev", password: "password1" }, via("100.64.0.5", { "cf-connecting-ip": "203.0.113.99" }));
+    assert.equal(blocked.status, 429, "a made-up CF-Connecting-IP does not get around the per-address limit");
+    const other = new Client(srv.base);
+    const ok = await other.req("POST", "/api/auth/login", { username: "dev", password: "password1" }, via("100.64.0.6"));
+    assert.equal(ok.status, 200, "someone else is not blocked by that address");
+    assert.match(ok.headers.get("set-cookie"), /; Secure/, "HTTPS through Tailscale gets a Secure cookie");
+    const audit = (await other.req("GET", "/api/admin/audit?action=login", undefined, via("100.64.0.6"))).json.entries;
+    assert.equal(audit.find((e) => e.action === "login").ip, "100.64.0.6");
+    assert.ok(audit.filter((e) => e.action === "login.fail").every((e) => e.ip === "100.64.0.5"));
+  } finally { srv.stop(); }
+});
+
+test("behind Cloudflare Tunnel CF-Connecting-IP names the client", async () => {
+  const srv = await startServer({ TRUST_PROXY: "1" });
+  try {
+    const dev = new Client(srv.base);
+    await dev.req("POST", "/api/auth/signup", { username: "dev", password: "password1", name: "개발자" }, { "cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "10.0.0.1, 198.51.100.7" });
+    const audit = (await dev.get("/api/admin/audit?action=signup")).json.entries;
+    assert.equal(audit[0].ip, "198.51.100.7");
+  } finally { srv.stop(); }
 });

@@ -196,6 +196,27 @@ test("deadlines and milestones remind the right people once", async () => {
   assert.match(issue, /윙 마운트 균열/); assert.doesNotMatch(issue, /@everyone/, "mentions in team text are defused");
 });
 
+test("공식 일정 reach everyone; a department's 부서 일정 only that department", async () => {
+  await dev.post("/api/db/set", { path: "milestones/off1", data: { title: "ESF 제출", date: dayOffset(1), kind: "서류 제출", dept: "battery", scope: "official" } });
+  await dev.post("/api/db/set", { path: "milestones/dep1", data: { title: "프레임 용접 마감", date: dayOffset(1), kind: "제작 마감", dept: "chassis", scope: "dept" } });
+  await dev.post("/api/db/set", { path: "milestones/team1", data: { title: "전체 회의", date: dayOffset(0), kind: "회의", dept: "", scope: "dept" } });
+  // saved before 공식 / 부서 existed: an organiser kind counts as 공식, so the whole team hears about it
+  await dev.post("/api/db/set", { path: "milestones/old1", data: { title: "차량 검사", date: dayOffset(7), kind: "차량 검사", dept: "aero" } });
+  await dev.post("/api/admin/notify-run", {});
+  for (const c of [dev, vice, a, b]) {
+    const titles = (await notes(c)).items.map((n) => n.title);
+    assert.ok(titles.includes("D-1 · ESF 제출"), "a 공식 일정 goes to everyone, whichever department prepares it");
+    assert.ok(titles.includes("D-DAY · 전체 회의"), "a team-wide 부서 일정 goes to everyone");
+    assert.ok(titles.includes("D-7 · 차량 검사"), "an older 차량 검사 is read as 공식");
+  }
+  assert.ok((await notes(a)).items.some((n) => n.title === "D-1 · 프레임 용접 마감"), "the department's own member");
+  for (const c of [dev, vice, b]) assert.ok(!(await notes(c)).items.some((n) => n.title === "D-1 · 프레임 용접 마감"), "other departments do not get a department's 부서 일정");
+  assert.match((await notes(b)).items.find((n) => n.title === "D-1 · ESF 제출").body, /공식 · 준비 배터리 · 서류 제출/);
+  assert.match((await notes(a)).items.find((n) => n.title === "D-1 · 프레임 용접 마감").body, /프레임·현가 · 제작 마감/);
+  const team = await waitFor(() => { const t = hooks.map((h) => h.body.content); return t.some((x) => /^🏁 D-1 · ESF 제출 \(공식 · 준비 배터리, /.test(x)) && t.some((x) => /^🗓️ D-1 · 프레임 용접 마감 \(프레임·현가, /.test(x)) ? t : null; });
+  assert.ok(team, "the team channel tells 공식 일정 (🏁) from 부서 일정 (🗓️)");
+});
+
 test("locked parts are changed only by their department's 파트장, 팀장·부팀장 and developers", async () => {
   const part = { name: "리어 윙 엔드플레이트", dept: "aero", stage: "design" };
   assert.equal((await a.post("/api/db/set", { path: "parts/lk1", data: { ...part, locked: { uid: b.id, by: "비" } } })).status, 403, "a 팀원 cannot lock");

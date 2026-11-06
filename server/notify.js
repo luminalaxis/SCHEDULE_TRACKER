@@ -4,7 +4,7 @@
 // Per person: 사비 정산 status changes → the submitter; new 사비 내역서 → 총무 (부팀장, else developers);
 // a comment on a test log → the log's author and earlier commenters; parts due in ≤3 days, today, or overdue → the
 // part's 담당 (the account picked as 담당, else an account with that name, else that department's 파트장); milestones at D-7, D-1, D-day → everyone
-// (or that department); sign-up requests → developers.
+// for a 공식 일정 or a team-wide 부서 일정, that department for a department's 부서 일정; sign-up requests → developers.
 // Team channel (if set up): milestones, a daily overdue-parts summary, new 주의/문제 test verdicts.
 
 import { DEPARTMENTS } from "./depts.js";
@@ -26,6 +26,10 @@ const dayNo = (s) => { const [y, m, d] = String(s).split("-").map(Number); retur
 const validDay = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const fmtDate = (s) => { const [y, m, d] = s.split("-"); return `${y}. ${Number(m)}. ${Number(d)}`; };
 const short = (s) => { const [, m, d] = String(s || "").split("-"); return m ? `${Number(m)}/${Number(d)}` : ""; };
+// 공식 일정 (organiser dates) or 부서 일정 (the team's own). Schedules saved before the split have no scope and their
+// kind decides; index.html (msScope) uses the same rule.
+export const OFFICIAL_KINDS = new Set(["서류 제출", "차량 검사", "대회"]);
+export const milestoneScope = (x) => x.scope === "official" || x.scope === "dept" ? x.scope : OFFICIAL_KINDS.has(x.kind) ? "official" : "dept";
 const clip = (s, n) => { const t = String(s ?? "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
 
 export function checkWebhookUrl(url, extraHosts = []) {
@@ -199,10 +203,13 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
       if (x.done || !validDay(x.date)) continue;
       const n = dayNo(x.date) - t, bucket = n === 7 ? "d7" : n === 1 ? "d1" : n === 0 ? "d0" : null;
       if (!bucket) continue;
-      const label = n === 0 ? "D-DAY" : `D-${n}`, to = x.dept ? active().filter((u) => u.dept === x.dept).map((u) => u.id) : active().map((u) => u.id);
+      // 공식 일정 go to everyone, whichever department prepares them; a department's 부서 일정 to that department
+      const official = milestoneScope(x) === "official", dept = own(DEPT, x.dept) ? x.dept : "";
+      const label = n === 0 ? "D-DAY" : `D-${n}`, to = !official && dept ? active().filter((u) => u.dept === dept).map((u) => u.id) : active().map((u) => u.id);
+      const who = official ? `공식${dept ? " · 준비 " + DEPT[dept] : ""}` : dept ? DEPT[dept] : "팀 전체";
       const dedupe = `ms:${m.id}:${x.date}:${bucket}`;
-      sent += notify(to, { kind: "milestone", title: `${label} · ${x.title || "일정"}`, body: `${fmtDate(x.date)} · ${x.kind || "일정"}${own(DEPT, x.dept) ? " · " + own(DEPT, x.dept) : ""}`, link: { tab: "schedule" }, dedupe });
-      sendTeam("schedule", `🗓️ ${label} · ${x.title || "일정"} (${fmtDate(x.date)}${own(DEPT, x.dept) ? ", " + own(DEPT, x.dept) : ""})${x.note ? `\n${clip(x.note, 200)}` : ""}`, dedupe);
+      sent += notify(to, { kind: "milestone", title: `${label} · ${x.title || "일정"}`, body: `${fmtDate(x.date)} · ${who} · ${x.kind || "일정"}`, link: { tab: "schedule" }, dedupe });
+      sendTeam("schedule", `${official ? "🏁" : "🗓️"} ${label} · ${x.title || "일정"} (${who}, ${fmtDate(x.date)})${x.note ? `\n${clip(x.note, 200)}` : ""}`, dedupe);
     }
     const cutoff = new Date(d.getTime() - KEEP_DAYS * 86400000).toISOString();
     q.prune.run(cutoff); q.logPrune.run(new Date(d.getTime() - 120 * 86400000).toISOString());

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Readable, PassThrough } from "node:stream";
 import { analyzeExport, remapRows } from "../server/migrate.js";
-import { checkWebhookUrl, webhookBody } from "../server/notify.js";
+import { checkWebhookUrl, webhookBody, milestoneScope, OFFICIAL_KINDS } from "../server/notify.js";
 import { writeTarGz, readTarGz } from "../server/archive.js";
 import { stableJson, runQuery } from "../server/store.js";
 import { contentMatches, cleanName } from "../server/filetype.js";
@@ -17,6 +17,18 @@ test("the page's departments match server/depts.js", () => {
   const page = Object.fromEntries([...block.matchAll(/\{ k: "(\w+)", l: "([^"]+)", c: \d/g)].map((m) => [m[1], m[2]]));
   assert.deepEqual(page, DEPARTMENTS, "index.html DEPTS and server/depts.js list the same departments, in the same order");
   assert.deepEqual(Object.keys(page), Object.keys(DEPARTMENTS));
+});
+
+test("공식 일정 and 부서 일정: the page and server/notify.js read a schedule the same way", () => {
+  const src = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const kinds = JSON.parse(src.match(/const MS_OFFICIAL_KINDS = new Set\((\[[^\]]*\])\)/)[1]);
+  assert.deepEqual(kinds, [...OFFICIAL_KINDS], "index.html MS_OFFICIAL_KINDS and server/notify.js OFFICIAL_KINDS match");
+  assert.equal(milestoneScope({ scope: "official", kind: "회의" }), "official", "a saved 구분 wins over the kind");
+  assert.equal(milestoneScope({ scope: "dept", kind: "서류 제출" }), "dept");
+  assert.equal(milestoneScope({ kind: "서류 제출", dept: "battery" }), "official", "saved before the split: an organiser kind is 공식");
+  assert.equal(milestoneScope({ kind: "제작 마감", dept: "chassis" }), "dept");
+  assert.equal(milestoneScope({}), "dept");
+  assert.equal(milestoneScope({ scope: "toString", kind: "대회" }), "official", "an unknown 구분 falls back to the kind");
 });
 
 test("upload content matches its type", () => {

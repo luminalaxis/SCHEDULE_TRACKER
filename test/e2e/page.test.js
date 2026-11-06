@@ -442,3 +442,66 @@ test("bulk edit, CSV import and the calendar", { skip, timeout: 90000 }, async (
   await page.waitForSelector("#dlgPart[open]");
   await ctx.close();
 });
+
+test("공식 일정 and 부서 일정: the pit board, the 구분 filter and the dialog tell them apart", { skip, timeout: 90000 }, async () => {
+  await dev.post("/api/db/set", { path: "milestones/sc-off", data: { title: "ESF 제출", date: dayOffset(10), kind: "서류 제출", dept: "battery", scope: "official" } });
+  await dev.post("/api/db/set", { path: "milestones/sc-dep", data: { title: "에어로 회의", date: dayOffset(2), kind: "회의", dept: "aero", scope: "dept" } });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const page = await signIn(ctx, "dev", "password1");
+  await page.waitForSelector("#pitNext:not([hidden])");
+  assert.match(await page.textContent("#pitNext"), /다음 공식 일정 · ESF 제출/, "the pit board shows the next 공식 일정, not a nearer 부서 일정");
+
+  await page.click("#tab-schedule");
+  await page.click('[data-msview="list"]');
+  const row = page.locator(".ms-list > .ms", { hasText: "ESF 제출" });
+  assert.ok(await row.evaluate((el) => el.classList.contains("official")));
+  assert.match(await row.textContent(), /공식.*서류 제출.*준비\s*배터리/s);
+  const titles = () => page.$$eval("#msBody .ms-title", (l) => l.map((e) => e.textContent));
+  await page.click('[data-msscope="official"]');
+  assert.ok((await titles()).includes("ESF 제출") && !(await titles()).includes("에어로 회의"), "공식 shows only 공식 일정");
+  await page.click('[data-msscope="dept"]');
+  assert.ok(!(await titles()).includes("ESF 제출") && (await titles()).includes("에어로 회의"), "부서 shows only 부서 일정");
+
+  // a new schedule starts in the 구분 the list shows
+  await page.click("#btnAddMs");
+  await page.waitForSelector("#dlgMs[open]");
+  assert.ok(await page.isChecked('input[name="mScope"][value="dept"]'));
+  assert.equal(await page.textContent("#mDeptLabel"), "부서");
+  assert.equal(await page.inputValue("#mKind"), "제작 마감");
+  await page.fill("#mTitle", "프레임 용접 마감");
+  await page.fill("#mDate", dayOffset(4));
+  await page.selectOption("#mDept", "chassis");
+  await page.click('#formMs button[type="submit"]');
+  await page.waitForSelector("#dlgMs", { state: "hidden" });
+  const saved = (await dev.post("/api/db/query", { collection: "milestones" })).json.docs.find((d) => d.data.title === "프레임 용접 마감");
+  assert.deepEqual([saved.data.scope, saved.data.kind, saved.data.dept], ["dept", "제작 마감", "chassis"]);
+
+  // a department filter keeps every 공식 일정, that department's own and the team-wide 부서 일정
+  await page.click('[data-msscope="all"]');
+  await page.selectOption("#msDept", "chassis");
+  assert.ok(await until(async () => { const t = await titles(); return t.includes("ESF 제출") && t.includes("프레임 용접 마감") && !t.includes("에어로 회의"); }));
+
+  // switching an organiser date to 부서 일정 swaps the 종류 list
+  await page.click('.ms-list > .ms:has-text("ESF 제출") [data-ms]');
+  await page.waitForSelector("#dlgMs[open]");
+  assert.ok(await page.isChecked('input[name="mScope"][value="official"]'));
+  assert.equal(await page.textContent("#mDeptLabel"), "준비 담당 부서");
+  await page.check('input[name="mScope"][value="dept"]');
+  assert.equal(await page.inputValue("#mKind"), "제작 마감");
+  assert.ok(!(await page.$$eval("#mKind option", (l) => l.map((o) => o.value))).includes("서류 제출"));
+  await page.keyboard.press("Escape");
+
+  await page.click('[data-msview="cal"]');
+  await page.waitForSelector(".cal-grid");
+  if (dayOffset(10).slice(0, 7) !== dayOffset(0).slice(0, 7)) await page.click('[data-calnav="1"]');
+  await page.waitForSelector('.cal-ev.ms.official:has-text("ESF 제출")'); // 공식 일정 chips are marked in the calendar
+  await shot(page, "desktop-schedule-scopes", true);
+  await ctx.close();
+
+  const phone = await browser.newContext({ baseURL: srv.base, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p2 = await signIn(phone, "aaa", "password-aaa");
+  await p2.click("#tab-schedule");
+  await p2.waitForSelector("#view-schedule:not([hidden]) .viewsw");
+  assert.ok(await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, "no sideways scrolling on the schedule tab");
+  await phone.close();
+});

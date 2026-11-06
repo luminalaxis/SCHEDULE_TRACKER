@@ -153,6 +153,51 @@ test("desktop and admin console screens", { skip, timeout: 90000 }, async () => 
   await ctx.close();
 });
 
+test("desktop: the sidebar folds to an icon rail, unfolds again and remembers it on this device", { skip, timeout: 90000 }, async () => {
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const page = await signIn(ctx, "aaa", "password-aaa");
+  const sideW = () => page.evaluate(() => Math.round(document.querySelector(".side").getBoundingClientRect().width));
+  const mainW = () => page.evaluate(() => Math.round(document.querySelector(".main-col").getBoundingClientRect().width));
+  assert.equal(await page.getAttribute("#btnSide", "aria-expanded"), "true");
+  const open = await sideW(), openMain = await mainW();
+  assert.ok(open > 200, `open sidebar shows the tab names (${open}px)`);
+  assert.ok(await page.isVisible("#tab-parts .tl"));
+
+  await page.click("#btnSide");
+  assert.equal(await page.getAttribute("#btnSide", "aria-expanded"), "false");
+  assert.ok(await sideW() <= 80, `folded to a rail (${await sideW()}px)`);
+  assert.ok(await mainW() > openMain + 120, "the board gets the room");
+  assert.equal(await page.getAttribute("#tab-parts", "title"), "부품 현황", "icons keep their names as tooltips");
+  assert.equal(await page.getAttribute("#btnSettings", "title"), "차량 설정");
+  assert.equal(await page.getByRole("tab", { name: "부품 현황" }).count(), 1, "and for screen readers");
+  await page.click("#tab-parts");
+  assert.equal(await page.getAttribute("#tab-parts", "aria-selected"), "true", "tabs still work folded");
+  await shot(page, "desktop-sidebar-rail");
+
+  await page.reload();
+  await page.waitForSelector(".acct-bar");
+  assert.ok(await sideW() <= 80, "still folded after a reload");
+  assert.equal(await page.getAttribute("#btnSide", "aria-expanded"), "false");
+
+  // phones ignore it: they keep the bottom tab bar
+  const phone = await browser.newContext({ baseURL: srv.base, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, storageState: await ctx.storageState() });
+  const pp = await phone.newPage();
+  await pp.goto("/");
+  await pp.waitForSelector(".acct-bar");
+  assert.equal(await pp.isVisible("#btnSide"), false, "no fold button on phones");
+  assert.equal(await pp.evaluate(() => getComputedStyle(document.querySelector(".tabs")).position), "fixed", "bottom tab bar as usual");
+  assert.ok(await pp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0);
+  await phone.close();
+
+  await page.click("#btnSide");
+  assert.equal(await sideW(), open, "unfolds to the full sidebar");
+  assert.equal(await page.getAttribute("#tab-parts", "title"), null);
+  await page.reload();
+  await page.waitForSelector(".acct-bar");
+  assert.equal(await sideW(), open, "and stays unfolded");
+  await ctx.close();
+});
+
 test("오늘 first screen", { skip, timeout: 90000 }, async () => {
   // parts with deadlines around today for the dev's department
   const d = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };

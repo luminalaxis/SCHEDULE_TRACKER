@@ -16,6 +16,7 @@ import { createNotifier, checkWebhookUrl, WEBHOOK_KINDS } from "./notify.js";
 import { contentMatches, cleanName } from "./filetype.js";
 import { DEPARTMENTS, DEPTS, deptLabel, DEPTS_PLACEHOLDER } from "./depts.js";
 import { checkExpenseFile, rulesProblem } from "./expense-check.js";
+import { buildRunReport, runsRules, ReportBusy, LOGGER_LIMITS } from "./runs-export.js";
 import { localStamp, localMonth, autoBackupDue, writeFileDurable, appendDurable, syncDir } from "./durable.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -920,6 +921,48 @@ route("GET", "/_blob/:id", (ctx) => {
   if (!canSeeAsset(ctx.user, a)) { ctx.res.writeHead(403, { ...SECURITY_HEADERS, "Content-Type": "text/plain; charset=utf-8" }); return ctx.res.end("사비 내역서 파일은 제출자·총무·개발자만 볼 수 있어요."); }
   ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": a.content_type, "Content-Length": a.size, "Cache-Control": "private, max-age=3600", "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'" });
   createReadStream(assetPath(id)).pipe(ctx.res);
+});
+
+// ---------- 주행 기록 분석 보고서 ----------
+// The page asks for it from 주행 기록 내보내기. The server reads the records the person may read, runs the page's
+// export rules on them in a worker (with the logger CSVs attached to the department records, when asked), and sends
+// the xlsx back to that person only.
+const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const kstToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+route("POST", "/api/export/runs", async (ctx) => {
+  const b = await readJson(ctx.req, AUTH_BODY);
+  const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+  const opts = { from: date(b.from), to: date(b.to), event: String(b.event || "").slice(0, 40), today: kstToday(), generatedAt: new Date().toISOString() };
+  const readable = (c) => docs.list(c).filter((d) => rules.canRead(ctx.user, d.path)).map((d) => ({ ...d.data, id: d.id }));
+  const car = docs.get("config/car");
+  const data = { sessions: readable("sessions"), logs: readable("logs"), checks: readable("checks"), comments: readable("comments"), parts: readable("parts"), carName: car && rules.canRead(ctx.user, car.path) ? String(car.data.carName || "") : "" };
+  let R;
+  try { R = runsRules(pageSource()); } catch { throw new StoreError("quota_or_state", "서버의 index.html 에 주행 기록 내보내기 규칙이 없어요. 개발자에게 알려 주세요.", 500); }
+  const P = R.prepare(data, opts);
+  if (!P.sessions.length) return send(ctx.res, 400, { code: "invalid_argument", message: "고른 기간 · 종목에 세션이 없어요." });
+  let files = null;
+  if (b.logger) {
+    files = []; let bytes = 0;
+    for (const l of P.logs) for (const a of Array.isArray(l.attachments) ? l.attachments : []) {
+      if (!R.isLoggerFile(a)) continue;
+      const id = String(a.id || "").replace(/^\/_blob\//, ""), row = validAssetId(id) && assetGet.get(id), name = String(a.name || "").slice(0, 200);
+      if (!row || !existsSync(assetPath(id)) || !canSeeAsset(ctx.user, row)) { files.push({ logId: l.id, name, skip: "서버에서 파일을 찾을 수 없어요." }); continue; }
+      if (files.length >= LOGGER_LIMITS.files || bytes + row.size > LOGGER_LIMITS.bytes) { files.push({ logId: l.id, name, skip: "로거 파일이 많아 이 파일은 건너뛰었어요. 기간을 좁혀 보세요." }); continue; }
+      bytes += row.size;
+      files.push({ logId: l.id, name, path: assetPath(id) });
+    }
+  }
+  let buf;
+  try { buf = await buildRunReport(pageSource(), data, files, opts); }
+  catch (e) {
+    if (e instanceof ReportBusy) return send(ctx.res, 429, { code: "rate_limited", message: "다른 사람이 보고서를 만드는 중이에요. 잠시 후 다시 시도하세요." });
+    console.error(new Date().toISOString(), "run report failed", e);
+    return send(ctx.res, 500, { code: "unavailable", message: e && e.message === "timeout" ? "보고서를 만드는 데 너무 오래 걸려요. 기간을 좁히거나 로거 분석을 끄고 다시 시도하세요." : "보고서를 만들지 못했어요. 기간을 좁혀 다시 시도하세요." });
+  }
+  audit(ctx, "export.runs", "", `세션 ${P.sessions.length} · 기록 ${P.logs.length}${files ? ` · 로거 ${files.filter((f) => f.path).length}` : ""}`);
+  const name = R.fileName(data.carName, "주행분석", opts, "xlsx", opts.today);
+  ctx.res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": XLSX_TYPE, "Content-Length": buf.length, "Cache-Control": "no-store", "Content-Disposition": `attachment; filename="report.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}` });
+  ctx.res.end(buf);
 });
 
 // ---------- admin (developer only) ----------

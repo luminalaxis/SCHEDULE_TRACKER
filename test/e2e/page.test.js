@@ -527,3 +527,33 @@ test("공식 일정 and 부서 일정: the pit board, the 구분 filter, departm
   assert.ok(await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, "no sideways scrolling on the schedule tab");
   await phone.close();
 });
+
+test("주행 기록 내보내기: 노션용 CSV from the page, 분석 보고서 from the server", { skip, timeout: 90000 }, async () => {
+  const up = await a.post("/api/assets", Buffer.from("time,cellT\n0,30\n1,44\n"), { "content-type": "text/csv", "x-file-name": "bms.csv" });
+  await a.post("/api/db/set", { path: "logs/rx1", data: { sessionId: "s1", dept: "chassis", status: "warn", author: "이에이", metrics: { pFL: 12, pFR: 13 }, action: "공기압 재조정", attachments: [{ id: up.json.id, name: "bms.csv", type: "text/csv", size: 22 }], createdAt: "2026-10-12T03:00:00Z" } });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  const page = await signIn(ctx, "aaa", "password-aaa");
+  await page.click("#tab-sessions");
+  await page.click("#btnRunExport");
+  await page.waitForSelector("#dlgRunExport[open]");
+  assert.match(await page.textContent("#rxCount"), /^세션 1개 · 부서 기록 \d+개$/);
+  // headless Chromium reports any non-ASCII download name as "download", so read the names the page asked for
+  await page.evaluate(() => { window.__dlNames = []; const click = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { window.__dlNames.push(this.download); return click.call(this); }; });
+  await page.uncheck("#rxSessions");
+  const [csv] = await Promise.all([page.waitForEvent("download"), page.click("#btnRxGo")]);
+  const text = await readFile(await csv.path(), "utf8");
+  assert.ok(text.startsWith("﻿기록,세션,"), "부서 기록 표 with a BOM");
+  assert.match(text, /공기압 평균 \(psi\)/); assert.match(text, /,12\.5,/, "computed 공기압 평균");
+  await page.click("#btnRunExport");
+  await page.check('input[name="rxk"][value="report"]');
+  assert.match(await page.textContent("#rxCount"), /로거 CSV 1개/);
+  await shot(page, "run-export");
+  const [rep] = await Promise.all([page.waitForEvent("download"), page.click("#btnRxGo")]);
+  assert.deepEqual(await page.evaluate(() => window.__dlNames), ["KR-27_부서기록_" + await page.evaluate(() => new Date().toLocaleDateString("en-CA")) + ".csv", "KR-27_주행분석_" + await page.evaluate(() => new Date().toLocaleDateString("en-CA")) + ".xlsx"]);
+  const mod = { exports: {} }; // the vendored JSZip is UMD: given module/exports it hands JSZip back
+  new Function("module", "exports", await readFile(new URL("../../server/public/vendor/jszip.min.js", import.meta.url), "utf8"))(mod, mod.exports);
+  const zip = await mod.exports.loadAsync(await readFile(await rep.path()));
+  assert.match(await zip.file("xl/workbook.xml").async("string"), /name="로거 분석"/);
+  assert.match(await zip.file("xl/worksheets/sheet8.xml").async("string"), /cellT/);
+  await ctx.close();
+});

@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <style>
-/* Layout (pit-wall redesign): dark left sidebar (car · tabs · 일반/TV · 차량 설정; a bottom tab bar on phones) + sticky top bar (D-day chip · account). Red only for D-day / overdue / problems, part stages as a grey → green ramp, condensed racing numerals.
+/* Layout (pit-wall redesign): dark left sidebar (car · tabs · 차량 설정; a bottom tab bar on phones) + sticky top bar (D-day chip · account). Red only for D-day / overdue / problems, part stages as a grey → green ramp, condensed racing numerals.
    Previous layout: one-line sticky header (car · D-day pill · account · 일반/TV switch) → pill tabs. 오늘 = today's cards + my department's parts. TV = read-only workshop screen (full-window overlay).
    Earlier layout notes: pit-board header (car + D-day + next deadline + who am I) → tabs. 부품 현황 = gauges, department matrix, parts sheet. 테스트 세션 = list + pre-run checklist + per-department cards. 추이 분석 = metric chart + verdict matrix. 이슈, 일정 (timeline), 변경 이력 (activity log). Workshop-drawing neutrals, CAD-selection blue accent, part stages as a sequential ramp ending in green, departments as fixed categorical hues. */
 :root {
@@ -15,6 +15,8 @@
   --s0: #D9DAD6; --s1: #B5B7B3; --s2: #8B8E8B; --s3: #5E6161; --s4: #2E3031; --s5: #2A9D5C; --track-bg: #E7E7E3;
   --card-border: var(--line); --card-shadow: none;
   --c1: #2F6BDB; --c2: #D48A00; --c3: #11907A; --c4: #7A5AE0; --c5: #C04B95;
+  /* department tints: a schedule row or calendar chip takes its department's soft colour */
+  --c1-soft: #EAF0FB; --c2-soft: #FBF3E6; --c3-soft: #E7F4F2; --c4-soft: #F2EEFC; --c5-soft: #F9EDF4;
   --side: #121315; --side-ink: #C9CACD; --side-muted: #9A9CA1; --side-hover: #1C1D20; --side-active: #26272B; --side-line: #2A2B2F; --side-red: #FF5A4E;
   --chip: #131415; --chip-ink: #F4F4F1; --chip-muted: #A6A8AD; --chip-line: #131415; --chip-red: #FF6A5E;
   --font-display: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
@@ -32,6 +34,7 @@
     --s0: #34363B; --s1: #4F5258; --s2: #72757C; --s3: #9A9DA3; --s4: #CDCFD2; --s5: #45C27F; --track-bg: #24252A;
     --card-border: var(--line); --card-shadow: none;
     --c1: #5B8DF0; --c2: #E8A21C; --c3: #2DB596; --c4: #9B82F5; --c5: #DB6BB0;
+    --c1-soft: #20293A; --c2-soft: #352C1A; --c3-soft: #1A2F2D; --c4-soft: #2A273B; --c5-soft: #342430;
     --side: #08090A; --side-hover: #141518; --side-active: #1C1D21; --side-line: #1E1F22;
     --chip: #1F2024; --chip-ink: #ECECE9; --chip-muted: #A0A2A8; --chip-line: #383A40;
     color-scheme: dark;
@@ -45,6 +48,7 @@
   --s0: #34363B; --s1: #4F5258; --s2: #72757C; --s3: #9A9DA3; --s4: #CDCFD2; --s5: #45C27F; --track-bg: #24252A;
   --card-border: var(--line); --card-shadow: none;
   --c1: #5B8DF0; --c2: #E8A21C; --c3: #2DB596; --c4: #9B82F5; --c5: #DB6BB0;
+  --c1-soft: #20293A; --c2-soft: #352C1A; --c3-soft: #1A2F2D; --c4-soft: #2A273B; --c5-soft: #342430;
   --side: #08090A; --side-hover: #141518; --side-active: #1C1D21; --side-line: #1E1F22;
   --chip: #1F2024; --chip-ink: #ECECE9; --chip-muted: #A0A2A8; --chip-line: #383A40;
   color-scheme: dark;
@@ -165,6 +169,7 @@ main { padding-block: 20px 72px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
 .legend i.ln { width: 14px; height: 2px; border-radius: 1px; }
+.legend i.chip { width: 20px; border-radius: 3px; }
 
 /* tables */
 .scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
@@ -333,6 +338,18 @@ details.tbl summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .ms-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--muted); }
 .ms-note { font-size: 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ms-side { display: flex; gap: 8px; align-items: center; }
+/* Each row carries its group's colour (--dc, set inline): red for 공식 일정, the department's colour for its
+   부서 일정 (tinted with --dcs), grey for 팀 전체. Rows are grouped: 공식 일정, 팀 전체, then each department. */
+.ms-groups { display: flex; flex-direction: column; gap: 18px; }
+.ms-gh { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; margin: 0 0 8px; }
+.ms-gh::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 2px; background: var(--dc, var(--muted)); }
+.ms-gh small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.ms-groups.past .ms-gh { font-size: 13px; color: var(--muted); }
+.ms-list > .ms { position: relative; }
+.ms-list > .ms::before { content: ""; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 4px; border-radius: var(--r-card) 0 0 var(--r-card); background: var(--dc, var(--line-2)); }
+.ms-list > .ms.dept { background: var(--dcs, var(--surface)); }
+.tag.official { background: var(--race); border-color: var(--race); color: var(--surface); font-weight: 600; }
+.dchip { display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; line-height: 18px; border-radius: 4px; border: 1px solid var(--dc, var(--line)); background: var(--surface); color: var(--ink); font-weight: 600; white-space: nowrap; }
 .sub-h { font-size: 12px; color: var(--muted); letter-spacing: .06em; margin-top: 8px; }
 .sugg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
 
@@ -455,41 +472,12 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .tdue { font-family: var(--font-num); font-size: 19px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 .tdue.late { color: var(--bad); } .tdue.soon { color: var(--warn); } .tdue.none { color: var(--muted); font-family: var(--font-body); font-weight: 500; font-size: 12px; }
 
-/* TV: read-only workshop screen, always dark, sized to the screen */
-body.tv-on { overflow: hidden; }
-.tv { position: fixed; inset: 0; z-index: 50; background: #08090A; color: #F3F5F8; display: grid; grid-template-columns: 1fr 1.25fr 1.2fr; grid-template-rows: 1fr auto; gap: clamp(16px, 2.2vw, 36px); padding: clamp(18px, 3vw, 52px) clamp(18px, 3.4vw, 60px) clamp(14px, 1.6vw, 28px); overflow: auto; font-family: var(--font-body); }
-.tv h4 { font-size: clamp(11px, .85vw, 15px); letter-spacing: .14em; color: #8A93A2; margin: 0 0 clamp(8px, .8vw, 14px); font-weight: 600; }
-.tv-car { font-family: var(--font-num); font-size: clamp(26px, 2.6vw, 52px); font-weight: 700; letter-spacing: .03em; overflow-wrap: anywhere; }
-.tv-dday { font-family: var(--font-num); font-size: clamp(84px, 10.5vw, 220px); line-height: .9; font-weight: 700; color: #FF5A4E; margin: clamp(8px, 1vw, 18px) 0 6px; }
-.tv-dday.unset { font-size: clamp(36px, 4vw, 80px); color: #8A93A2; }
-.tv-sub { font-size: clamp(14px, 1.2vw, 22px); color: #B8C0CC; }
-.tv-block { margin-top: clamp(18px, 2.2vw, 40px); }
-.tv-ms { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(14px, 1.15vw, 22px); border-bottom: 1px solid #262B34; padding: 8px 0; }
-.tv-ms b, .tv-li b, .tv-dep b, .tv-big b { font-family: var(--font-num); font-weight: 700; }
-.tv-ms b { font-size: clamp(18px, 1.5vw, 28px); color: #FF5A4E; white-space: nowrap; }
-.tv-big { display: flex; gap: clamp(14px, 2vw, 34px); margin-bottom: clamp(16px, 1.8vw, 32px); }
-.tv-big div { flex: 1; min-width: 0; }
-.tv-big b { display: block; font-size: clamp(40px, 4.2vw, 80px); line-height: 1; }
-.tv-big span { font-size: clamp(12px, .95vw, 17px); color: #8A93A2; }
-.tv-dep { display: grid; grid-template-columns: minmax(80px, 8vw) 1fr 64px; gap: 14px; align-items: center; font-size: clamp(14px, 1.1vw, 20px); margin-bottom: clamp(10px, .9vw, 16px); }
-.tv-dep .t { height: clamp(10px, 1vw, 18px); background: #1E1F23; overflow: hidden; }
-.tv-dep .t i { display: block; height: 100%; background: #45C27F; }
-.tv-dep b { text-align: right; font-size: clamp(18px, 1.4vw, 26px); }
-.tv-li { display: flex; flex-direction: column; gap: 8px; margin-bottom: clamp(16px, 1.6vw, 28px); }
-.tv-li div { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: clamp(14px, 1.1vw, 20px); background: #13161B; border-radius: 8px; padding: clamp(8px, .7vw, 12px) 16px; border-left: 5px solid var(--c); }
-.tv-li em { font-style: normal; color: #8A93A2; font-size: .85em; margin-left: 6px; }
-.tv-li b { font-size: clamp(18px, 1.3vw, 24px); color: var(--c); white-space: nowrap; }
-.tv-none { color: #5F6876; font-size: clamp(14px, 1.1vw, 20px); padding: 6px 0 18px; }
-.tv-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; color: #5F6876; font-size: clamp(12px, .9vw, 16px); border-top: 1px solid #262B34; padding-top: 14px; }
-.tv-foot div { display: flex; gap: 8px; }
-.tv-foot button { font: inherit; font-size: 13px; color: #B8C0CC; background: #13161B; border: 1px solid #262B34; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
-.tv-foot button:hover { color: #fff; border-color: #5F6876; }
 
 /* toast with an action (되돌리기) */
 .toast { display: flex; align-items: center; gap: 14px; }
 .toast button { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 2px 0; white-space: nowrap; }
 
-/* 일정 목록 / 달력 switch (the sidebar's TV switch, on a light surface) */
+/* 일정 page switches (목록 / 달력, 날짜순 / 부서별, 전체 / 공식 / 부서): .viewsw pills on a light surface */
 .msview { border-color: var(--line); background: var(--surface-2); }
 .msview button { color: var(--muted); }
 .msview button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
@@ -532,7 +520,9 @@ tr.picked td { background: var(--accent-soft); }
 .cal-n { font-size: 12px; font-weight: 600; width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 999px; flex: none; }
 .cal-day.today .cal-n { background: var(--accent); color: var(--accent-ink); }
 .cal-ev { display: block; width: 100%; border: 0; font: inherit; text-align: left; font-size: 11px; line-height: 1.4; padding: 1px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface-2); color: var(--ink); cursor: pointer; }
-.cal-ev.ms { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.cal-ev.ms { background: var(--dcs, var(--accent-soft)); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--dc, var(--line-2)); }
+.cal-ev.ms.official:not(.done) { color: var(--race); }
+.cal-ev.ms.done { background: var(--surface-2); }
 .cal-ev.comp { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .cal-ev.part { box-shadow: inset 3px 0 0 var(--dc, var(--muted)); }
 .cal-ev.part.late { color: var(--bad); font-weight: 600; }
@@ -540,13 +530,17 @@ tr.picked td { background: var(--accent-soft); }
 .cal-more { font-size: 11px; color: var(--muted); padding-left: 6px; }
 .cal-dots { display: none; gap: 3px; flex-wrap: wrap; padding-left: 4px; }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--dc, var(--accent)); }
+.cal-dots i.sq { border-radius: 1px; } /* a schedule; round dots are part deadlines */
 .cal-list { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
 .cal-list h4 { font-size: 14px; font-weight: 600; }
+.cal-gh { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 6px; }
+.cal-gh::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--dc, var(--muted)); }
+.legend.dkey { padding: 0 14px 10px; }
 .cal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; border: 0; background: none; font: inherit; color: inherit; text-align: left; padding: 6px 0; border-top: 1px solid var(--grid); width: 100%; }
 button.cal-row { cursor: pointer; }
 button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .cal-t { font-weight: 600; }
-.cal-load { font-size: 12px; color: var(--muted); }
+.cal-load { font-size: 12px; color: var(--muted); padding: 0 14px 6px; }
 .cal-load b { color: var(--warn); }
 
 @media (max-width: 860px) {
@@ -574,8 +568,7 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
   .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 900px) { .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } .slist { max-height: 360px; overflow-y: auto; }
-  .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tgrid .tcard:last-child { grid-column: 1 / -1; }
-  .tv { grid-template-columns: 1fr; grid-template-rows: none; } }
+  .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tgrid .tcard:last-child { grid-column: 1 / -1; } }
 @media (max-width: 600px) {
   .ms { grid-template-columns: auto minmax(0, 1fr); }
   .ms-side { grid-column: 1 / -1; justify-content: flex-end; }
@@ -652,10 +645,6 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
       <button class="tab" role="tab" id="tab-history" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2"/></svg><span class="tl">변경 이력</span><span class="ts" aria-hidden="true">이력</span></button>
     </nav>
     <div class="side-foot">
-      <div class="viewsw" role="group" aria-label="화면 전환">
-        <button type="button" data-view="normal" aria-pressed="true">일반</button>
-        <button type="button" data-view="tv" aria-pressed="false" title="작업실 모니터용 읽기 전용 화면">TV</button>
-      </div>
       <button class="btn ghost side-btn" id="btnSettings" type="button" aria-label="차량 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg><span>차량 설정</span></button>
     </div>
   </aside>
@@ -843,6 +832,15 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
         <div class="viewsw msview" role="group" aria-label="일정 보기 방식">
           <button type="button" data-msview="list" aria-pressed="true">목록</button>
           <button type="button" data-msview="cal" aria-pressed="false">달력</button>
+        </div>
+        <div class="viewsw msview" role="group" aria-label="목록 정렬" id="msGroupSw">
+          <button type="button" data-msgroup="date" aria-pressed="false">날짜순</button>
+          <button type="button" data-msgroup="dept" aria-pressed="true">부서별</button>
+        </div>
+        <div class="viewsw msview" role="group" aria-label="일정 구분">
+          <button type="button" data-msscope="all" aria-pressed="true">전체</button>
+          <button type="button" data-msscope="official" aria-pressed="false">공식</button>
+          <button type="button" data-msscope="dept" aria-pressed="false">부서</button>
         </div>
         <select class="field" id="msDept" aria-label="부서"></select>
         <button class="btn primary" type="button" id="btnAddMs" hidden>+ 일정 추가</button>
@@ -1043,11 +1041,19 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
 <dialog id="dlgMs">
   <form class="dlg" id="formMs">
     <h3 id="dlgMsTitle">일정 추가</h3>
+    <fieldset>
+      <legend class="fl">구분</legend>
+      <div class="seg">
+        <label><input type="radio" name="mScope" value="official" checked> 공식 일정</label>
+        <label><input type="radio" name="mScope" value="dept"> 부서 일정</label>
+      </div>
+      <p class="hint" id="mScopeHint"></p>
+    </fieldset>
     <div class="grid2">
       <label class="f full">제목 *<input id="mTitle" required maxlength="80" placeholder="예: 설계 보고서 제출"></label>
       <label class="f">날짜 *<input id="mDate" type="date" required></label>
       <label class="f">종류<select id="mKind"></select></label>
-      <label class="f">담당 부서<select id="mDept"></select></label>
+      <label class="f"><span id="mDeptLabel">준비 담당 부서</span><select id="mDept"></select></label>
       <label class="f full">메모<textarea id="mNote" maxlength="600" placeholder="제출처, 준비물, 공지 링크"></textarea></label>
     </div>
     <label class="check"><input type="checkbox" id="mDone"> 완료</label>
@@ -1113,7 +1119,6 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
   </form>
 </dialog>
 
-<div class="tv" id="tv" role="region" aria-label="공방 TV 화면" hidden></div>
 
 <dialog id="dlgPrivacy" aria-labelledby="pvTitle">
   <div class="dlg">
@@ -1122,7 +1127,7 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
       <li>이 페이지는 claude.ai Artifact에서 돌아가요. 데이터는 Artifact의 공유 저장소에 있고, 페이지를 열 수 있는 사람이 함께 봐요. 사람 구분은 claude.ai 계정 기준이고, 계정 정보는 claude.ai(Anthropic)의 개인정보 처리방침을 따라요.</li>
       <li>저장하는 것: 각자 적은 이름·부서, 부품·테스트 기록·의견·점검·일정, 변경 이력(90일), 사비 내역서(신청자 이름, 계좌번호가 든 원본 파일, 영수증 사진, 금액).</li>
       <li>사비 내역서 원본과 영수증은 페이지를 열 수 있는 사람이 기술적으로 열어 볼 수 있어요. 화면에서 전체 계좌번호는 총무와 소유자에게만 보여요. 계좌 정보를 더 안전하게 다루려면 자체 서버 버전을 쓰세요.</li>
-      <li>이 기기의 브라우저 저장소에는 내 이름·부서와 화면 설정(일반/TV, 닫은 안내)만 저장해요. 광고·분석·추적 쿠키는 없어요.</li>
+      <li>이 기기의 브라우저 저장소에는 내 이름·부서와 화면 설정(일정 보기 방식, 닫은 안내)만 저장해요. 광고·분석·추적 쿠키는 없어요.</li>
       <li>글꼴(Google Fonts)과 xlsx 읽기 도구(JSZip, cdnjs)를 외부에서 불러와요. 이때 접속 IP 주소가 Google과 Cloudflare에 전달돼요.</li>
       <li>내 정보를 지우고 싶으면 페이지 소유자(개발자)에게 요청하세요. 소유자는 사비 내역서를 "완전 삭제"로 파일까지 지울 수 있어요.</li>
     </ul>
@@ -1443,7 +1448,26 @@ window.FSKBom = (() => {
   const EVENTS = ["셰이크다운", "가속", "스키드패드", "오토크로스", "엔듀런스", "브레이크 테스트", "자유 주행"];
   const VERDICT = { ok: ["✓", "정상"], warn: ["!", "주의"], bad: ["✕", "문제"] };
   const SERIES_C = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
-  const MS_KINDS = ["서류 제출", "차량 검사", "제작 마감", "테스트", "대회", "기타"];
+  // 일정 구분: 공식 일정 = dates the competition organisers set (대회, 서류 제출, 차량 검사), which the whole team works
+  // towards; 부서 일정 = dates the team sets for itself (a department's 제작 마감, a test day, a meeting), for one
+  // department or the whole team. Schedules saved before this split have no scope; their kind decides
+  // (server/notify.js uses the same rule).
+  const MS_SCOPES = { official: "공식 일정", dept: "부서 일정" };
+  const MS_KINDS = { official: ["서류 제출", "차량 검사", "대회", "기타"], dept: ["제작 마감", "테스트", "회의", "기타"] };
+  const MS_OFFICIAL_KINDS = new Set(["서류 제출", "차량 검사", "대회"]);
+  const msScope = (m) => m.scope === "official" || m.scope === "dept" ? m.scope : MS_OFFICIAL_KINDS.has(m.kind) ? "official" : "dept";
+  const isOfficial = (m) => msScope(m) === "official";
+  // Schedules are shown in groups, in this order: 공식 일정, 팀 전체 (부서 일정 for everyone), then each department.
+  // A group's colours go in --dc (bar, mark) and --dcs (tint): red for 공식, grey for 팀 전체, else the department's.
+  const MS_GROUPS = [["official", "공식 일정"], ["team", "팀 전체"], ...DEPTS.map((d) => [d.k, d.l])];
+  const MS_GROUP_RANK = Object.fromEntries(MS_GROUPS.map(([k], i) => [k, i]));
+  const msGroupOf = (m) => isOfficial(m) ? "official" : DEPT[m.dept] ? m.dept : "team";
+  const groupTone = (k) => k === "official" ? "--dc:var(--race);--dcs:var(--race-soft)" : DEPT[k] ? `--dc:var(--c${DEPT[k].c});--dcs:var(--c${DEPT[k].c}-soft)` : "--dc:var(--s2);--dcs:var(--surface-2)";
+  function byGroup(items, groupOf) {
+    const by = {};
+    items.forEach((x) => { const k = groupOf(x); (by[k] = by[k] || []).push(x); });
+    return MS_GROUPS.filter(([k]) => by[k]).map(([k, l]) => ({ k, l, items: by[k] }));
+  }
   const MS_SUGGEST = [["설계 보고서 제출", "서류 제출"], ["비용 보고서 (BOM) 제출", "서류 제출"], ["ESF (전기 안전 양식) 제출", "서류 제출"], ["차량 검사", "차량 검사"], ["대회 본선", "대회"]];
   const HIST_TYPES = { part: "부품", session: "세션", log: "부서 기록", comment: "의견", check: "점검", milestone: "일정", expense: "사비 정산", config: "설정" };
 
@@ -1525,15 +1549,14 @@ window.FSKBom = (() => {
   let colP, cfgRef, ckRef, colS, colL, colC, colK, colM, colH, colPeople, colExp, colRev, rolesRef;
   const state = {
     phase: "loading", canWrite: true, canManageTeam: false, tab: "today", uid: "", isOwner: false,
-    // 일반 / TV: ?view=tv in the address (for a kiosk bookmark) wins over the last choice on this device
-    view: (() => { try { const v = new URLSearchParams(location.search).get("view"); if (v === "tv" || v === "normal") return v; } catch {} return store.get("fsk.view") === "tv" ? "tv" : "normal"; })(),
     roles: null, rolesLoaded: false, people: [], expenseDocs: [], reviewDocs: [], xDraft: null, acctCache: {},
     parts: [], cfg: {}, ckCfg: null, sessions: [], logs: [], comments: [], checks: [], milestones: [], history: [],
     sel: null, editPart: null, editSession: null, editLog: null, editMs: null, ckOpen: true,
     att: { keep: [], add: [], remove: [] }, linkDraft: [],
     me: { dept: store.get("fsk.me.dept"), name: store.get("fsk.me.name") },
     picked: new Set(), pendingOpen: null, expLoaded: false,
-    msView: store.get("fsk.ms.view") === "cal" ? "cal" : "list", calMonth: todayStr().slice(0, 7), calDay: todayStr(), calParts: store.get("fsk.cal.parts") !== "0"
+    msView: store.get("fsk.ms.view") === "cal" ? "cal" : "list", msScope: ["official", "dept"].includes(store.get("fsk.ms.scope")) ? store.get("fsk.ms.scope") : "all",
+    msGroup: store.get("fsk.ms.group") === "date" ? "date" : "dept", calMonth: todayStr().slice(0, 7), calDay: todayStr(), calParts: store.get("fsk.cal.parts") !== "0"
   };
   const TABS = ["today", "parts", "sessions", "trend", "issues", "schedule", "expense", "history"];
 
@@ -1682,7 +1705,6 @@ window.FSKBom = (() => {
   $("msDept").innerHTML = `<option value="">모든 부서</option>` + deptOptions;
   $("hDept").innerHTML = `<option value="">모든 부서</option>` + deptOptions;
   $("mDept").innerHTML = `<option value="">팀 전체</option>` + deptOptions;
-  $("mKind").innerHTML = MS_KINDS.map((k) => `<option>${k}</option>`).join("");
   $("fst").innerHTML = `<option value="all">모든 단계</option><option value="open">미완료만</option><option value="late">마감 지남</option><option value="issue">테스트 이슈 있음</option>` + STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   $("pStage").innerHTML = STAGES.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   $("bStage").innerHTML = `<option value="">단계 그대로</option>` + STAGES.map(([k, l]) => `<option value="${k}">단계 → ${l}</option>`).join("");
@@ -1701,9 +1723,16 @@ window.FSKBom = (() => {
   }).join("");
 
   // ---------- render ----------
-  function nextMilestone() {
+  function upcomingMs() {
     const t = todayStr();
-    return state.milestones.filter((m) => !m.done && m.date && m.date >= t).sort((a, b) => a.date.localeCompare(b.date))[0];
+    return state.milestones.filter((m) => !m.done && m.date && m.date >= t).sort((a, b) => a.date.localeCompare(b.date));
+  }
+  // 부서 일정 that concern me: my department's and the team-wide ones
+  const isMineMs = (m) => !isOfficial(m) && (!m.dept || m.dept === state.me.dept);
+  // the pit board shows the next 공식 일정; a department's own date only when no 공식 일정 is left
+  function nextMilestone() {
+    const l = upcomingMs();
+    return l.find(isOfficial) || l.find(isMineMs);
   }
 
   function render() {
@@ -1718,7 +1747,7 @@ window.FSKBom = (() => {
     } else { $("ddayNum").textContent = "날짜 미정"; $("ddayDate").textContent = ""; pit.classList.add("unset"); }
     const nm = nextMilestone(), pn = $("pitNext");
     pn.hidden = !nm;
-    if (nm) { const n = daysUntil(nm.date); pn.innerHTML = `다음 일정 · <b>${esc(nm.title)}</b> <span class="${n <= 7 ? "soon" : ""}">${dLabel(n)}</span>`; }
+    if (nm) { const n = daysUntil(nm.date); pn.innerHTML = `${isOfficial(nm) ? "다음 공식 일정" : "다음 부서 일정"} · <b>${esc(nm.title)}</b> <span class="${n <= 7 ? "soon" : ""}">${dLabel(n)}</span>`; }
     $("btnSettings").hidden = !(live() && canWrite && state.canManageTeam);
 
     const banner = $("banner");
@@ -1744,11 +1773,6 @@ window.FSKBom = (() => {
       $("tab-" + t).setAttribute("aria-selected", String(state.tab === t));
     });
     ({ today: renderToday, parts: renderParts, sessions: renderSessions, trend: renderTrend, issues: renderIssues, schedule: renderSchedule, expense: renderExpense, history: renderHistory })[state.tab]();
-    const tv = state.view === "tv";
-    document.querySelectorAll(".viewsw [data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
-    document.body.classList.toggle("tv-on", tv);
-    $("tv").hidden = !tv;
-    if (tv) renderTV();
     syncRoute();
     openPending();
   }
@@ -1763,7 +1787,7 @@ window.FSKBom = (() => {
       late: open.filter((p) => p.due < t).sort(byDue),
       soon: open.filter((p) => p.due >= t && daysUntil(p.due) <= 3).sort(byDue),
       issues: state.logs.filter((l) => openIssue(l, ids)).sort((a, b) => (b.status === "bad") - (a.status === "bad")),
-      ms: state.milestones.filter((m) => !m.done && m.date && m.date >= t).sort((a, b) => a.date.localeCompare(b.date)),
+      ms: upcomingMs(),
       last: sortedSessions(-1)[0] || null
     };
   }
@@ -1788,13 +1812,17 @@ window.FSKBom = (() => {
     }
     const { late, soon, issues, ms, last } = todayFacts(), cp = last ? checkProgress(last) : null;
     const bad = issues.filter((l) => l.status === "bad").length;
+    // 다음 일정 card: the next 공식 일정, then my department's next 부서 일정 (or the 공식 일정 after it)
+    const official = ms.filter(isOfficial), mine = ms.filter(isMineMs), head = official[0] || mine[0];
+    const msBody = !head ? (ms.length ? "남은 공식 일정이 없어요" : "남은 일정이 없어요") : esc(head.title) + (official[0] && mine[0] ? `<br>${DEPT[mine[0].dept] ? "우리 부서" : "팀"} · ${esc(mine[0].title)} ${dLabel(daysUntil(mine[0].date))}`
+      : official[1] ? ` · 그다음 ${esc(official[1].title)} ${dLabel(daysUntil(official[1].date))}` : "");
     const card = (k, color, label, value, body, extra = "") => `<button type="button" class="tcard" data-today="${k}" style="--c:${color}"><span>${label}</span><b class="num">${value}</b>${extra}<em>${body}</em></button>`;
     $("todayCards").innerHTML =
       // a zero is good news: green instead of the warning colour
       card("late", late.length ? "var(--bad)" : "var(--ok)", "마감 지난 부품", late.length, partNames(late))
       + card("soon", soon.length ? "var(--warn)" : "var(--ok)", "3일 안 마감", soon.length, partNames(soon))
       + card("issues", issues.length ? "var(--bad)" : "var(--ok)", "미해결 이슈", issues.length, issues.length ? `문제 ${bad} · 주의 ${issues.length - bad} · ${esc([...new Set(issues.map((l) => DEPT[l.dept]?.l || ""))].filter(Boolean).slice(0, 3).join(", "))}` : "없어요")
-      + card("schedule", "var(--race)", "다음 일정", ms[0] ? dLabel(daysUntil(ms[0].date)) : "–", ms[0] ? esc(ms[0].title) + (ms[1] ? ` · 그다음 ${esc(ms[1].title)} ${dLabel(daysUntil(ms[1].date))}` : "") : "남은 일정이 없어요")
+      + card("schedule", "var(--race)", official[0] ? "다음 공식 일정" : head ? "다음 부서 일정" : "다음 일정", head ? dLabel(daysUntil(head.date)) : "–", msBody)
       + card("check", "var(--ok)", last ? `주행 전 점검 · ${esc(last.event || "주행")}` : "주행 전 점검", cp ? `${cp.n}/${cp.total}` : "–",
         cp ? (cp.total && cp.n === cp.total ? `${esc(fmtShort(last.date))} 세션 · 출주 준비 완료` : `${esc(fmtShort(last.date))} 세션 · ${cp.total - cp.n}개 남았어요 →`) : "테스트 세션을 만들면 보여요",
         cp ? `<div class="track"><span class="fill ok" style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></span></div>` : "");
@@ -1821,44 +1849,10 @@ window.FSKBom = (() => {
   }
   document.addEventListener("click", (e) => { const c = e.target.closest("[data-today]"); if (c) openFromToday(c.dataset.today); });
 
-  // ---------- TV (workshop screen) ----------
-  function setView(v) {
-    state.view = v === "tv" ? "tv" : "normal"; store.set("fsk.view", state.view);
-    if (state.view === "normal" && document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    render();
-  }
-  function renderTV() {
-    const c = state.cfg, foot = `<div class="tv-foot"><span>읽기 전용 화면 · 팀원이 바꾼 내용은 바로 반영돼요 · ${new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준</span><div><button type="button" data-fullscreen>전체 화면</button><button type="button" data-view="normal">일반 화면으로 (Esc)</button></div></div>`;
-    if (!live()) { $("tv").innerHTML = `<div><h4>FSK 피트보드</h4><div class="tv-sub">${state.phase === "loading" ? "불러오는 중…" : "저장소에 연결할 수 없어요."}</div></div>${foot}`; return; }
-    const parts = state.parts, total = parts.length, done = parts.filter((p) => p.stage === "done").length;
-    let massG = 0, cost = 0;
-    parts.forEach((p) => { const q = qtyOf(p); massG += (num(p.unitMass) || 0) * q; cost += (num(p.unitCost) || 0) * q; });
-    const budget = num(c.budget), target = num(c.targetMass), d = c.compDate ? daysUntil(c.compDate) : null;
-    const { late, soon, issues, ms, last } = todayFacts(), cp = last && last.date === todayStr() ? checkProgress(last) : null;
-    const due = late.concat(soon).slice(0, 5), costPct = budget ? Math.round((cost / budget) * 100) : null;
-    $("tv").innerHTML = `<div>
-        <h4>FSK · 대회까지</h4><div class="tv-car">${esc(c.carName || "우리 팀 차량")}</div>
-        <div class="tv-dday${d === null ? " unset" : ""}">${d === null ? "날짜 미정" : d > 0 ? "D-" + d : d === 0 ? "D-DAY" : "대회 종료"}</div>
-        <div class="tv-sub">${c.compDate ? esc(fmtDate(c.compDate)) + " 대회" : "차량 설정에서 대회 날짜를 정해요"}</div>
-        <div class="tv-block"><h4>다가오는 일정</h4>${ms.length ? ms.slice(0, 4).map((m) => `<div class="tv-ms"><span>${esc(m.title)}</span><b>${dLabel(daysUntil(m.date))}</b></div>`).join("") : '<div class="tv-none">남은 일정이 없어요</div>'}</div>
-        ${cp ? `<div class="tv-block"><h4>오늘 주행 전 점검 · ${esc(last.event || "주행")}</h4><div class="tv-dep"><span>${cp.n}/${cp.total}</span><div class="t"><i style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></i></div><b>${cp.total ? Math.round((cp.n / cp.total) * 100) : 0}%</b></div></div>` : ""}
-      </div>
-      <div><h4>제작 현황</h4>
-        <div class="tv-big"><div><b>${total ? Math.round((done / total) * 100) : 0}%</b><span>${total}개 중 ${done}개 완료</span></div>
-          <div><b>${kg(massG)}</b><span>kg${target ? ` / 목표 ${target.toLocaleString("ko-KR")}kg` : ""}</span></div>
-          <div><b style="color:${costPct !== null && costPct > 100 ? "#FF5252" : "#F3F5F8"}">${costPct === null ? wonShort(cost).v : costPct + "%"}</b><span>${costPct === null ? wonShort(cost).u + " 부품 비용" : "예산 사용"}</span></div></div>
-        <h4>부서별 완료</h4>${DEPTS.map((x) => { const l = parts.filter((p) => deptOf(p) === x.k), v = l.length ? Math.round((l.filter((p) => p.stage === "done").length / l.length) * 100) : 0; return `<div class="tv-dep"><span>${x.l}</span><div class="t"><i style="width:${Math.max(v, 1)}%"></i></div><b>${l.length ? v + "%" : "–"}</b></div>`; }).join("")}
-      </div>
-      <div><h4>마감 지남 · 3일 안 마감</h4><div class="tv-li">${due.length ? due.map((p) => { const n = daysUntil(p.due); return `<div style="--c:${n < 0 ? "#FF5252" : "#FF9F1C"}"><span>${esc(p.name || "(이름 없음)")}<em>${DEPT[deptOf(p)].l}${ownerName(p) ? " · " + esc(ownerName(p)) : ""}</em></span><b>${dLabel(n)}</b></div>`; }).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
-        <h4>미해결 테스트 이슈</h4><div class="tv-li">${issues.length ? issues.slice(0, 4).map((l) => `<div style="--c:${l.status === "bad" ? "#FF5252" : "#FF9F1C"}"><span>${esc(DEPT[l.dept]?.l || "")}<em>${esc(String(l.analysis || l.observation || l.action || "").slice(0, 40))}</em></span><b>${l.status === "bad" ? "문제" : "주의"}</b></div>`).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
-      </div>${foot}`;
-  }
-  document.addEventListener("click", (e) => {
-    const v = e.target.closest("[data-view]"); if (v) { setView(v.dataset.view); return; }
-    if (e.target.closest("[data-fullscreen]")) { const el = document.documentElement; (el.requestFullscreen ? el.requestFullscreen() : Promise.reject()).catch(() => toast("이 화면에서는 전체 화면을 쓸 수 없어요. 브라우저의 전체 화면(F11)을 써 주세요.")); }
-  });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.view === "tv" && !document.querySelector("dialog[open]")) setView("normal"); });
-  setInterval(() => { if (state.view === "tv") renderTV(); else if (state.tab === "today") renderToday(); }, 60000);
+  // The TV screen (일반 / TV) was removed; forget a choice left on this device from before.
+  try { localStorage.removeItem("fsk.view"); } catch {}
+  // 오늘 shows D-days and "3일 안" counts: redraw it once a minute so it is right after midnight
+  setInterval(() => { if (state.tab === "today") renderToday(); }, 60000);
 
   // ---------- attachments view ----------
   function attView(list) {
@@ -2248,14 +2242,19 @@ window.FSKBom = (() => {
   }
 
   // ---------- schedule ----------
+  // which schedules a filter keeps: 구분 (전체 · 공식 · 부서), and for a department its own and the team-wide
+  // 부서 일정 plus every 공식 일정, since the whole team works towards those whoever prepares them
+  const msShown = (m, fd) => (state.msScope === "all" || msScope(m) === state.msScope) && (!fd || isOfficial(m) || !m.dept || m.dept === fd);
+  const dchip = (k) => `<span class="dchip" style="${groupTone(k)}">${dmark(k)}${DEPT[k].l}</span>`;
+  const msWho = (m) => !DEPT[m.dept] ? "<span>팀 전체</span>" : isOfficial(m) ? `<span class="dname">준비 ${dchip(m.dept)}</span>` : dchip(m.dept);
   function msRow(m, isNext) {
-    const n = m.date ? daysUntil(m.date) : null, cw = state.canWrite && state.canManageTeam;
+    const n = m.date ? daysUntil(m.date) : null, cw = state.canWrite && state.canManageTeam, off = isOfficial(m);
     const dcls = m.done ? "past" : n < 0 ? "past" : n <= 7 ? "soon" : "";
-    return `<div class="ms${m.done ? " done" : ""}${isNext ? " next" : ""}">
+    return `<div class="ms ${off ? "official" : "dept"}${m.done ? " done" : ""}${isNext ? " next" : ""}" style="${groupTone(msGroupOf(m))}">
       <span class="ms-date">${esc(fmtDate(m.date))}</span>
       <span class="ms-d ${dcls}">${m.done ? "완료" : n === null ? "–" : dLabel(n)}</span>
       <div class="ms-main"><span class="ms-title">${esc(m.title)}</span>
-        <span class="ms-meta"><span class="tag">${esc(m.kind || "기타")}</span>${DEPT[m.dept] ? `<span class="dname">${dmark(m.dept)}${DEPT[m.dept].l}</span>` : "<span>팀 전체</span>"}</span>
+        <span class="ms-meta">${off ? '<span class="tag official">공식</span>' : ""}<span class="tag">${esc(m.kind || "기타")}</span>${msWho(m)}</span>
         ${m.note ? `<span class="ms-note">${esc(m.note)}</span>` : ""}</div>
       <div class="ms-side">${cw ? `<label class="check"><input type="checkbox" data-msdone="${esc(m.id)}" ${m.done ? "checked" : ""}> 완료</label><button class="btn ghost sm" type="button" data-ms="${esc(m.id)}">수정</button>` : ""}</div>
     </div>`;
@@ -2265,20 +2264,31 @@ window.FSKBom = (() => {
     $("btnAddMs").hidden = !cw;
     const have = new Set(state.milestones.map((m) => m.title));
     const sugg = MS_SUGGEST.filter(([t]) => !have.has(t));
-    $("msSugg").hidden = !(cw && sugg.length);
-    $("msSugg").innerHTML = `<span>자주 쓰는 일정:</span>` + sugg.map(([t, k]) => `<button class="btn sm" type="button" data-msnew="${esc(t)}" data-mskind="${esc(k)}">+ ${esc(t)}</button>`).join("");
+    $("msSugg").hidden = !(cw && sugg.length && state.msScope !== "dept");
+    $("msSugg").innerHTML = `<span>자주 쓰는 공식 일정:</span>` + sugg.map(([t, k]) => `<button class="btn sm" type="button" data-msnew="${esc(t)}" data-mskind="${esc(k)}">+ ${esc(t)}</button>`).join("");
     document.querySelectorAll("[data-msview]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msview === state.msView)));
+    document.querySelectorAll("[data-msscope]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msscope === state.msScope)));
+    document.querySelectorAll("[data-msgroup]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msgroup === state.msGroup)));
+    $("msGroupSw").hidden = state.msView === "cal"; // the calendar has its own order
     if (!live()) { $("msBody").innerHTML = `<div class="empty"><p>저장소에 연결되면 대회 준비 일정이 여기에 나타나요.</p></div>`; return; }
     if (state.msView === "cal") { renderCalendar(); return; }
     const fd = $("msDept").value, t = todayStr();
-    const list = state.milestones.filter((m) => !fd || !m.dept || m.dept === fd).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const list = state.milestones.filter((m) => msShown(m, fd)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     if (!list.length) {
-      $("msBody").innerHTML = `<div class="empty"><h3>아직 일정이 없어요</h3><p>FSK 공지에 나온 설계 보고서, 비용 보고서, ESF 마감과 차량 검사, 대회 날짜를 입력하세요. 가장 가까운 일정이 맨 위 피트보드에 D-day로 표시돼요.</p></div>`;
+      $("msBody").innerHTML = state.milestones.length ? `<div class="empty"><h3>${state.msScope === "official" ? "공식 일정이 없어요" : state.msScope === "dept" ? "부서 일정이 없어요" : "이 부서의 일정이 없어요"}</h3><p>위에서 구분이나 부서를 바꿔 보세요.</p></div>`
+        : `<div class="empty"><h3>아직 일정이 없어요</h3><p>FSK 공지에 나온 설계 보고서, 비용 보고서, ESF 마감과 차량 검사, 대회 날짜는 <b>공식 일정</b>으로, 부서에서 정한 제작 마감·테스트·회의는 <b>부서 일정</b>으로 넣으세요. 가장 가까운 공식 일정이 맨 위 피트보드에 D-day로 표시돼요.</p></div>`;
       return;
     }
+    // the highlighted row is the next 공식 일정 (the next of any kind when only 부서 일정 are shown)
     const upcoming = list.filter((m) => !m.done && m.date >= t), rest = list.filter((m) => m.done || m.date < t).reverse();
-    $("msBody").innerHTML = `<div class="ms-list">${upcoming.length ? upcoming.map((m, i) => msRow(m, i === 0)).join("") : '<p class="dim">남은 일정이 없어요.</p>'}</div>
-      ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4><div class="ms-list">${rest.map((m) => msRow(m, false)).join("")}</div>` : ""}`;
+    const next = upcoming.find(isOfficial) || upcoming[0];
+    // 부서별: grouped (공식 일정, 팀 전체, then each department), each group in date order; 날짜순: one list
+    const rows = (l, past) => `<div class="ms-list">${l.map((m) => msRow(m, !past && m === next)).join("")}</div>`;
+    const groups = (l, past) => `<div class="ms-groups${past ? " past" : ""}">${byGroup(l, msGroupOf).map((g) => `<section class="ms-group" style="${groupTone(g.k)}" aria-label="${g.l}">
+        <h4 class="ms-gh">${g.l}<small>${past ? "" : "남은 "}${g.items.length}건</small></h4>${rows(g.items, past)}</section>`).join("")}</div>`;
+    const show = state.msGroup === "date" ? rows : groups;
+    $("msBody").innerHTML = `${upcoming.length ? show(upcoming) : '<p class="dim">남은 일정이 없어요.</p>'}
+      ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4>${show(rest, true)}` : ""}`;
   }
 
   // month calendar: milestones and part deadlines together, so a crowded week shows up before it arrives
@@ -2287,54 +2297,61 @@ window.FSKBom = (() => {
     const [y, mo] = state.calMonth.split("-").map(Number);
     const first = new Date(y, mo - 1, 1), lead = first.getDay(), cells = Math.ceil((lead + new Date(y, mo, 0).getDate()) / 7) * 7;
     const byDay = {}, add = (date, ev) => { if (date) (byDay[date] = byDay[date] || []).push(ev); };
-    const ms = state.milestones.filter((m) => !fd || !m.dept || m.dept === fd);
-    const comp = state.cfg.compDate;
-    if (comp && !ms.some((m) => m.date === comp && m.kind === "대회")) add(comp, { kind: "comp", order: 0 });
-    ms.forEach((m) => add(m.date, { kind: "ms", m, order: 1 }));
-    if (state.calParts) state.parts.filter((p) => p.due && (!fd || deptOf(p) === fd)).forEach((p) => add(p.due, { kind: "part", p, order: p.stage === "done" ? 4 : isLate(p) ? 2 : 3 }));
+    const ms = state.milestones.filter((m) => msShown(m, fd));
+    const comp = state.msScope === "dept" ? "" : state.cfg.compDate;
+    // a day lists 대회 and 공식 일정 first, then 부서 일정 by department, then part deadlines by department
+    // (late ones first); g is the group the day's list below files it under
+    if (comp && !ms.some((m) => m.date === comp && m.kind === "대회")) add(comp, { kind: "comp", g: "official", order: 0 });
+    ms.forEach((m) => { const g = msGroupOf(m); add(m.date, { kind: "ms", m, g, order: 10 + MS_GROUP_RANK[g] }); });
+    if (state.calParts) state.parts.filter((p) => p.due && (!fd || deptOf(p) === fd)).forEach((p) => { const g = deptOf(p); add(p.due, { kind: "part", p, g, order: 100 + MS_GROUP_RANK[g] * 3 + (p.stage === "done" ? 2 : isLate(p) ? 0 : 1) }); });
     Object.values(byDay).forEach((l) => l.sort((a, b) => a.order - b.order));
     const partTitle = (p) => `${p.name || "(이름 없음)"} · ${DEPT[deptOf(p)].l} · ${STAGE_LABEL[p.stage] || "설계"}${p.owner ? " · " + p.owner : ""}`;
     const chip = (e) => {
       if (e.kind === "comp") return `<span class="cal-ev comp">🏁 대회</span>`;
-      if (e.kind === "ms") { const cls = `cal-ev ms${e.m.done ? " done" : ""}`, tt = esc(`${e.m.title} · ${e.m.kind || "기타"}`); return cw ? `<button type="button" class="${cls}" data-ms="${esc(e.m.id)}" title="${tt}">${esc(e.m.title)}</button>` : `<span class="${cls}" title="${tt}">${esc(e.m.title)}</span>`; }
+      if (e.kind === "ms") {
+        const m = e.m, off = isOfficial(m), cls = `cal-ev ms${off ? " official" : ""}${m.done ? " done" : ""}`, st = ` style="${e.g === "team" ? "--dc:var(--s2)" : groupTone(e.g)}"`;
+        const tt = esc(`${m.title} · ${off ? "공식" : DEPT[m.dept] ? DEPT[m.dept].l : "팀 전체"} · ${m.kind || "기타"}`);
+        return cw ? `<button type="button" class="${cls}" data-ms="${esc(m.id)}" title="${tt}"${st}>${esc(m.title)}</button>` : `<span class="${cls}" title="${tt}"${st}>${esc(m.title)}</span>`;
+      }
       const p = e.p;
       return `<button type="button" class="cal-ev part${isLate(p) ? " late" : ""}${p.stage === "done" ? " done" : ""}" data-part="${esc(p.id)}" style="--dc:var(--c${DEPT[deptOf(p)].c})" title="${esc(partTitle(p))}">${esc(p.name || "(이름 없음)")}</button>`;
     };
-    const dotColor = (e) => e.kind === "part" ? (isLate(e.p) ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : "var(--accent)";
-    let grid = "", monthParts = 0, monthMs = 0, busy = { n: 0, from: "", to: "" }, week = 0, weekFrom = "";
+    const dotColor = (e) => e.kind === "part" ? (isLate(e.p) ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : e.g === "official" ? "var(--race)" : e.g === "team" ? "var(--s2)" : `var(--c${DEPT[e.g].c})`;
+    let grid = "", monthParts = 0, monthOff = 0, monthDept = 0, busy = { n: 0, from: "", to: "" }, week = 0, weekFrom = "";
     for (let i = 0; i < cells; i++) {
       const d = new Date(y, mo - 1, 1 - lead + i), ds = ymd(d), evs = byDay[ds] || [], inMonth = d.getMonth() === mo - 1;
       const openParts = evs.filter((e) => e.kind === "part" && e.p.stage !== "done").length;
-      if (inMonth) { monthParts += evs.filter((e) => e.kind === "part").length; monthMs += evs.filter((e) => e.kind === "ms").length; }
+      if (inMonth) evs.forEach((e) => { if (e.kind === "part") monthParts++; else if (e.kind === "ms") { if (isOfficial(e.m)) monthOff++; else monthDept++; } });
       if (i % 7 === 0) { week = 0; weekFrom = ds; }
       week += openParts;
       if (i % 7 === 6 && week > busy.n) busy = { n: week, from: weekFrom, to: ds };
       grid += `<div class="cal-day${inMonth ? "" : " out"}${ds === t ? " today" : ""}${d.getDay() === 0 ? " sun" : ""}" role="gridcell" tabindex="0" data-calday="${ds}" aria-selected="${ds === state.calDay}" aria-label="${d.getMonth() + 1}월 ${d.getDate()}일${evs.length ? `, ${evs.length}건` : ""}">
-        <span class="cal-n">${d.getDate()}</span>${evs.slice(0, 3).map(chip).join("")}${evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}건 더</span>` : ""}<span class="cal-dots">${evs.slice(0, 5).map((e) => `<i style="--dc:${dotColor(e)}"></i>`).join("")}</span></div>`;
+        <span class="cal-n">${d.getDate()}</span>${evs.slice(0, 3).map(chip).join("")}${evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}건 더</span>` : ""}<span class="cal-dots">${evs.slice(0, 5).map((e) => `<i${e.kind === "part" ? "" : ' class="sq"'} style="--dc:${dotColor(e)}"></i>`).join("")}</span></div>`;
     }
     const sel = byDay[state.calDay] || [];
     const row = (e) => {
       if (e.kind === "comp") return `<div class="cal-row"><span class="tag make">대회</span><span class="cal-t">${esc(state.cfg.carName || "우리 팀 차량")} 대회</span><span class="dim">${dLabel(daysUntil(comp))}</span></div>`;
       if (e.kind === "ms") {
-        const m = e.m, inner = `<span class="tag">${esc(m.kind || "기타")}</span><span class="cal-t">${esc(m.title)}</span>${DEPT[m.dept] ? `<span class="dname">${dmark(m.dept)}${DEPT[m.dept].l}</span>` : '<span class="dim">팀 전체</span>'}<span class="dim">${m.done ? "완료" : dLabel(daysUntil(m.date))}</span>`;
+        const m = e.m, inner = `${isOfficial(m) ? '<span class="tag official">공식</span>' : ""}<span class="tag">${esc(m.kind || "기타")}</span><span class="cal-t">${esc(m.title)}</span>${msWho(m)}<span class="dim">${m.done ? "완료" : dLabel(daysUntil(m.date))}</span>`;
         return cw ? `<button type="button" class="cal-row" data-ms="${esc(m.id)}">${inner}</button>` : `<div class="cal-row">${inner}</div>`;
       }
       const p = e.p, dk = deptOf(p);
-      return `<button type="button" class="cal-row" data-part="${esc(p.id)}"><span class="dname">${dmark(dk)}${DEPT[dk].l}</span><span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${isLate(p) ? '<b class="late">마감 지남</b>' : ""}</button>`;
+      return `<button type="button" class="cal-row" data-part="${esc(p.id)}">${dchip(dk)}<span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${isLate(p) ? '<b class="late">마감 지남</b>' : ""}</button>`;
     };
-    const [sy, sm, sd] = state.calDay.split("-").map(Number);
+    const [sy, sm, sd] = state.calDay.split("-").map(Number), selGroups = byGroup(sel, (e) => e.g);
     $("msBody").innerHTML = `<div class="cal">
       <div class="cal-h">
         <button class="btn sm" type="button" data-calnav="-1" aria-label="이전 달">‹</button><h3>${y}년 ${mo}월</h3><button class="btn sm" type="button" data-calnav="1" aria-label="다음 달">›</button>
         <button class="btn ghost sm" type="button" data-calnav="0">오늘</button>
         <label class="check"><input type="checkbox" id="calParts"${state.calParts ? " checked" : ""}> 부품 마감 보기</label>
-        <div class="legend"><span><i style="background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)"></i>일정</span><span><i style="background:var(--c3)"></i>부품 마감 (색 = 부서)</span><span><i style="background:var(--bad)"></i>마감 지남</span></div>
+        <div class="legend"><span><i class="chip" style="background:var(--race-soft);box-shadow:inset 3px 0 0 var(--race)"></i>공식 일정</span><span><i class="chip" style="background:var(--c3-soft);box-shadow:inset 3px 0 0 var(--c3)"></i>부서 일정</span><span><i class="chip" style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--c3)"></i>부품 마감</span><span><i style="background:var(--bad)"></i>마감 지남</span></div>
       </div>
-      <p class="cal-load hint pad">이번 달 일정 ${monthMs}건${state.calParts ? ` · 부품 마감 ${monthParts}개${busy.n >= 3 ? ` · 가장 몰린 주 ${fmtShort(busy.from)}~${fmtShort(busy.to)} <b>남은 부품 ${busy.n}개</b>` : ""}` : ""}</p>
+      <p class="cal-load hint pad">이번 달 ${[state.msScope !== "dept" ? `공식 일정 ${monthOff}건` : "", state.msScope !== "official" ? `부서 일정 ${monthDept}건` : ""].filter(Boolean).join(" · ")}${state.calParts ? ` · 부품 마감 ${monthParts}개${busy.n >= 3 ? ` · 가장 몰린 주 ${fmtShort(busy.from)}~${fmtShort(busy.to)} <b>남은 부품 ${busy.n}개</b>` : ""}` : ""}</p>
+      <div class="legend dkey" role="list" aria-label="부서 색">${DEPTS.map((d) => `<span role="listitem"><i style="background:var(--c${d.c})"></i>${d.l}</span>`).join("")}<span role="listitem"><i style="background:var(--s2)"></i>팀 전체</span></div>
       <div class="cal-dow" aria-hidden="true">${["일", "월", "화", "수", "목", "금", "토"].map((w) => `<span>${w}</span>`).join("")}</div>
       <div class="cal-grid" role="grid" aria-label="${y}년 ${mo}월">${grid}</div>
       <div class="cal-list"><h4>${new Date(sy, sm - 1, sd).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}</h4>
-        ${sel.length ? sel.map(row).join("") : '<p class="hint">이 날은 일정이나 부품 마감이 없어요.</p>'}</div>
+        ${!sel.length ? '<p class="hint">이 날은 일정이나 부품 마감이 없어요.</p>' : selGroups.length > 1 ? selGroups.map((g) => `<div class="cal-gh" style="${groupTone(g.k)}">${g.l}</div>${g.items.map(row).join("")}`).join("") : sel.map(row).join("")}</div>
     </div>`;
   }
   function moveCalendar(step) {
@@ -2345,6 +2362,10 @@ window.FSKBom = (() => {
   document.addEventListener("click", (e) => {
     const v = e.target.closest("[data-msview]");
     if (v) { state.msView = v.dataset.msview; store.set("fsk.ms.view", state.msView); renderSchedule(); return; }
+    const gr = e.target.closest("[data-msgroup]");
+    if (gr) { state.msGroup = gr.dataset.msgroup; store.set("fsk.ms.group", state.msGroup); renderSchedule(); return; }
+    const sc = e.target.closest("[data-msscope]");
+    if (sc) { state.msScope = sc.dataset.msscope; store.set("fsk.ms.scope", state.msScope); renderSchedule(); return; }
     const nav = e.target.closest("[data-calnav]"); if (nav) { moveCalendar(Number(nav.dataset.calnav)); return; }
     const day = e.target.closest("[data-calday]");
     if (day && !e.target.closest("[data-part],[data-ms]")) { state.calDay = day.dataset.calday; renderSchedule(); const c = document.querySelector(`[data-calday="${state.calDay}"]`); if (c) c.focus({ preventScroll: true }); }
@@ -2817,11 +2838,29 @@ window.FSKBom = (() => {
 
   // ---------- milestones ----------
   const dlgM = $("dlgMs");
+  const msFormScope = () => document.querySelector('input[name="mScope"]:checked')?.value === "dept" ? "dept" : "official";
+  // The 종류 list follows the 구분. Opening a saved schedule keeps its kind even when it is from the other list
+  // (say 서류 제출 on a 부서 일정); switching the 구분 keeps the kind only if the new list has it.
+  function syncMsScope(kind) {
+    const sc = msFormScope(), want = kind ?? $("mKind").value, kinds = MS_KINDS[sc].slice();
+    if (kind !== undefined && want && !kinds.includes(want)) kinds.splice(kinds.length - 1, 0, want);
+    $("mKind").innerHTML = kinds.map((k) => `<option>${esc(k)}</option>`).join("");
+    $("mKind").value = kinds.includes(want) ? want : kinds[0];
+    $("mDeptLabel").textContent = sc === "official" ? "준비 담당 부서" : "부서";
+    $("mScopeHint").textContent = sc === "official"
+      ? "대회 주최 측이 정한 날짜예요 (대회, 설계·비용 보고서, ESF, 차량 검사). 모두에게 알림이 가고, 피트보드 머리글에 D-day로 보여요."
+      : "팀이나 부서에서 정한 날짜예요 (제작 마감, 테스트, 회의). 부서를 고르면 그 부서 사람에게만 알림이 가요.";
+  }
+  document.querySelectorAll('input[name="mScope"]').forEach((r) => r.addEventListener("change", () => syncMsScope()));
   function openMs(m, preset) {
     state.editMs = m ? m.id : null;
     $("dlgMsTitle").textContent = m ? "일정 수정" : "일정 추가";
+    // a new schedule starts in the 구분 the list is showing (공식 when it shows both)
+    const sc = m ? msScope(m) : preset?.scope || (state.msScope === "dept" ? "dept" : "official");
+    document.querySelectorAll('input[name="mScope"]').forEach((r) => { r.checked = r.value === sc; });
     $("mTitle").value = m?.title || preset?.title || ""; $("mDate").value = m?.date || "";
-    $("mKind").value = m?.kind || preset?.kind || MS_KINDS[0]; $("mDept").value = m?.dept || "";
+    syncMsScope(m?.kind || preset?.kind || MS_KINDS[sc][0]);
+    $("mDept").value = m ? (DEPT[m.dept] ? m.dept : "") : sc === "dept" && DEPT[$("msDept").value] ? $("msDept").value : "";
     $("mNote").value = m?.note || ""; $("mDone").checked = !!m?.done;
     resetDelete($("btnDelMs"), "삭제", !!m);
     dlgM.showModal();
@@ -2832,11 +2871,11 @@ window.FSKBom = (() => {
     const title = $("mTitle").value.trim(), date = $("mDate").value;
     if (!title || !date) return;
     const old = state.editMs ? state.milestones.find((m) => m.id === state.editMs) : null;
-    const body = { title, date, kind: $("mKind").value, dept: $("mDept").value, note: $("mNote").value.trim(), done: $("mDone").checked, createdAt: old?.createdAt || stamp(), updatedAt: stamp() };
+    const scope = msFormScope(), body = { title, date, scope, kind: $("mKind").value, dept: $("mDept").value, note: $("mNote").value.trim(), done: $("mDone").checked, createdAt: old?.createdAt || stamp(), updatedAt: stamp() };
     const ref = state.editMs ? colM.doc(state.editMs) : colM.doc();
     try {
       await attempt(() => ref.set(body));
-      hist("milestone", old ? "일정 수정" : "일정 추가", title, ref.id, `${fmtDate(date)}${old && old.date !== date ? ` (이전 ${fmtDate(old.date)})` : ""}`);
+      hist("milestone", old ? "일정 수정" : "일정 추가", title, ref.id, `${MS_SCOPES[scope]} · ${fmtDate(date)}${old && old.date !== date ? ` (이전 ${fmtDate(old.date)})` : ""}${old && msScope(old) !== scope ? ` (이전 ${MS_SCOPES[msScope(old)]})` : ""}`);
       dlgM.close(); toast(old ? "일정을 저장했어요" : "일정을 추가했어요");
     } catch (err) { toast(explain(err)); }
   });
@@ -2952,7 +2991,7 @@ window.FSKBom = (() => {
       const add = t.closest("[data-addlog]"); if (add) { openLog(null, add.dataset.addlog); return; }
       const ed = t.closest("[data-editlog]"); if (ed) { const l = state.logs.find((x) => x.id === ed.dataset.editlog); if (l) openLog(l); return; }
       const ms = t.closest("[data-ms]"); if (ms) { openMs(state.milestones.find((m) => m.id === ms.dataset.ms)); return; }
-      const msn = t.closest("[data-msnew]"); if (msn) { openMs(null, { title: msn.dataset.msnew, kind: msn.dataset.mskind }); return; }
+      const msn = t.closest("[data-msnew]"); if (msn) { openMs(null, { title: msn.dataset.msnew, kind: msn.dataset.mskind, scope: "official" }); return; }
       const ex = t.closest("[data-exp]"); if (ex) { openExp(ex.dataset.exp); return; }
       if (t.closest("[data-expnew]")) { openExpNew(); return; }
     }

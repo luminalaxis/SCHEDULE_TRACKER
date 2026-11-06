@@ -153,7 +153,7 @@ test("desktop and admin console screens", { skip, timeout: 90000 }, async () => 
   await ctx.close();
 });
 
-test("오늘 first screen, and switching to the TV screen and back", { skip, timeout: 90000 }, async () => {
+test("오늘 first screen", { skip, timeout: 90000 }, async () => {
   // parts with deadlines around today for the dev's department
   const d = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
   await dev.post("/api/db/set", { path: "parts/late1", data: { name: "지연된 업라이트", dept: "chassis", stage: "machining", owner: "김개발", due: d(-2), qty: 1 } });
@@ -186,23 +186,13 @@ test("오늘 first screen, and switching to the TV screen and back", { skip, tim
   assert.equal(await page.getAttribute("#tab-parts", "aria-selected"), "true");
   assert.equal(await page.inputValue("#fst"), "late", "the card opens the parts list filtered to overdue parts");
 
-  await page.click('.viewsw [data-view="tv"]');
-  await page.waitForSelector("#tv:not([hidden]) .tv-dday");
-  assert.match(await page.textContent("#tv"), /지연된 업라이트/);
-  assert.match(await page.textContent("#tv"), /셀 온도 과열/);
-  await shot(page, "tv");
-  await page.reload();
-  await page.waitForSelector("#tv:not([hidden]) .tv-dday");
-  assert.ok(true, "the TV choice survives a reload (for the workshop monitor)");
-  await dev.post("/api/db/update", { path: "parts/late1", data: { stage: "done" } });
-  await page.waitForFunction(() => !document.getElementById("tv").textContent.includes("지연된 업라이트"));
-  await page.keyboard.press("Escape");
-  await page.waitForSelector("#tv", { state: "hidden" });
-  assert.equal(await page.getAttribute('.viewsw [data-view="normal"]', "aria-pressed"), "true");
+  // the TV screen is gone: no 일반 / TV switch, and an old ?view=tv bookmark opens the normal page
+  assert.equal(await page.$("[data-view]"), null);
+  await page.evaluate(() => localStorage.setItem("fsk.view", "tv"));
   await page.goto("/?view=tv");
-  await page.waitForSelector("#tv:not([hidden])");
-  await page.click('#tv [data-view="normal"]');
-  await page.waitForSelector("#tv", { state: "hidden" });
+  await page.waitForSelector("#view-today:not([hidden]) .tcard");
+  assert.equal(await page.$("#tv"), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("fsk.view")), null, "the old TV choice is forgotten");
   await ctx.close();
 });
 
@@ -441,4 +431,99 @@ test("bulk edit, CSV import and the calendar", { skip, timeout: 90000 }, async (
   await page.click('.cal-day.today [data-part="bulk2"]');
   await page.waitForSelector("#dlgPart[open]");
   await ctx.close();
+});
+
+test("공식 일정 and 부서 일정: the pit board, the 구분 filter, department groups and the dialog tell them apart", { skip, timeout: 90000 }, async () => {
+  await dev.post("/api/db/set", { path: "milestones/sc-off", data: { title: "ESF 제출", date: dayOffset(10), kind: "서류 제출", dept: "battery", scope: "official" } });
+  await dev.post("/api/db/set", { path: "milestones/sc-dep", data: { title: "에어로 회의", date: dayOffset(2), kind: "회의", dept: "aero", scope: "dept" } });
+  await dev.post("/api/db/set", { path: "milestones/sc-bat", data: { title: "셀 수입 검사", date: dayOffset(2), kind: "테스트", dept: "battery", scope: "dept" } });
+  const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
+  const page = await signIn(ctx, "dev", "password1");
+  await page.waitForSelector("#pitNext:not([hidden])");
+  assert.match(await page.textContent("#pitNext"), /다음 공식 일정 · ESF 제출/, "the pit board shows the next 공식 일정, not a nearer 부서 일정");
+
+  await page.click("#tab-schedule");
+  await page.click('[data-msview="list"]');
+  const row = page.locator(".ms-list > .ms", { hasText: "ESF 제출" });
+  assert.ok(await row.evaluate((el) => el.classList.contains("official")));
+  assert.match(await row.textContent(), /공식.*서류 제출.*준비\s*배터리/s);
+  const titles = () => page.$$eval("#msBody .ms-title", (l) => l.map((e) => e.textContent));
+  await page.click('[data-msscope="official"]');
+  assert.ok((await titles()).includes("ESF 제출") && !(await titles()).includes("에어로 회의"), "공식 shows only 공식 일정");
+  await page.click('[data-msscope="dept"]');
+  assert.ok(!(await titles()).includes("ESF 제출") && (await titles()).includes("에어로 회의"), "부서 shows only 부서 일정");
+
+  // a new schedule starts in the 구분 the list shows
+  await page.click("#btnAddMs");
+  await page.waitForSelector("#dlgMs[open]");
+  assert.ok(await page.isChecked('input[name="mScope"][value="dept"]'));
+  assert.equal(await page.textContent("#mDeptLabel"), "부서");
+  assert.equal(await page.inputValue("#mKind"), "제작 마감");
+  await page.fill("#mTitle", "프레임 용접 마감");
+  await page.fill("#mDate", dayOffset(4));
+  await page.selectOption("#mDept", "chassis");
+  await page.click('#formMs button[type="submit"]');
+  await page.waitForSelector("#dlgMs", { state: "hidden" });
+  const saved = (await dev.post("/api/db/query", { collection: "milestones" })).json.docs.find((d) => d.data.title === "프레임 용접 마감");
+  assert.deepEqual([saved.data.scope, saved.data.kind, saved.data.dept], ["dept", "제작 마감", "chassis"]);
+
+  // grouped: 공식 일정 first, then 팀 전체, then the departments in their usual order, each in its own colour
+  await page.click('[data-msscope="all"]');
+  const heads = await page.$$eval("#msBody .ms-groups:not(.past) .ms-gh", (l) => l.map((e) => e.firstChild.textContent));
+  assert.equal(heads[0], "공식 일정");
+  assert.ok(heads.indexOf("배터리") < heads.indexOf("프레임·현가") && heads.indexOf("프레임·현가") < heads.indexOf("에어로"), heads.join(", "));
+  const chassis = page.locator('#msBody .ms-groups:not(.past) .ms-group[aria-label="프레임·현가"]');
+  assert.deepEqual(await chassis.locator(".ms-title").allTextContents(), ["프레임 용접 마감"]);
+  assert.match(await chassis.getAttribute("style"), /--dc:var\(--c3\)/, "the group takes its department's colour");
+
+  // 날짜순: one list in date order, kept on this device; 부서별 again brings the groups back
+  await page.click('[data-msgroup="date"]');
+  assert.equal(await page.$("#msBody .ms-group"), null);
+  // the first list is the upcoming one ("2026. 11. 9" is read as a number, since as text it sorts after "2026. 11. 15")
+  const dates = await page.$eval("#msBody > .ms-list", (el) => [...el.querySelectorAll(".ms-date")].map((e) => e.textContent));
+  const dayNum = (t) => { const [y, m, d] = t.split(".").map(Number); return y * 10000 + m * 100 + d; };
+  assert.ok(dates.length >= 4 && dates.every((d, i) => !i || dayNum(dates[i - 1]) <= dayNum(d)), "upcoming schedules in date order: " + dates.join(", "));
+  assert.ok(await page.$('#msBody .ms.dept[style*="--c4-soft"]'), "rows keep their department's colour");
+  await page.reload();
+  await page.waitForSelector("#view-schedule:not([hidden]) #msBody .ms");
+  assert.equal(await page.getAttribute('[data-msgroup="date"]', "aria-pressed"), "true");
+  assert.equal(await page.$("#msBody .ms-group"), null);
+  await page.click('[data-msgroup="dept"]');
+  await page.waitForSelector("#msBody .ms-group");
+
+  // a department filter keeps every 공식 일정, that department's own and the team-wide 부서 일정
+  await page.selectOption("#msDept", "chassis");
+  assert.ok(await until(async () => { const t = await titles(); return t.includes("ESF 제출") && t.includes("프레임 용접 마감") && !t.includes("에어로 회의"); }));
+
+  // switching an organiser date to 부서 일정 swaps the 종류 list
+  await page.click('.ms-list > .ms:has-text("ESF 제출") [data-ms]');
+  await page.waitForSelector("#dlgMs[open]");
+  assert.ok(await page.isChecked('input[name="mScope"][value="official"]'));
+  assert.equal(await page.textContent("#mDeptLabel"), "준비 담당 부서");
+  await page.check('input[name="mScope"][value="dept"]');
+  assert.equal(await page.inputValue("#mKind"), "제작 마감");
+  assert.ok(!(await page.$$eval("#mKind option", (l) => l.map((o) => o.value))).includes("서류 제출"));
+  await page.keyboard.press("Escape");
+
+  await page.selectOption("#msDept", "");
+  await page.click('[data-msview="cal"]');
+  await page.waitForSelector(".cal-grid");
+  assert.equal(await page.isVisible("#msGroupSw"), false, "날짜순 / 부서별 is for the list only");
+  await page.uncheck("#calParts");
+  const month = (d) => d.slice(0, 7), d2 = dayOffset(2);
+  if (month(d2) !== month(dayOffset(0))) await page.click('[data-calnav="1"]');
+  await page.click(`[data-calday="${d2}"] .cal-n`);
+  assert.deepEqual(await page.$$eval(".cal-list .cal-gh", (l) => l.map((e) => e.textContent)), ["배터리", "에어로"], "a day with several schedules lists them by department");
+  assert.deepEqual(await page.$$eval(`[data-calday="${d2}"] .cal-ev`, (l) => l.map((e) => e.textContent)), ["셀 수입 검사", "에어로 회의"], "the day's cell keeps the same department order");
+  if (month(dayOffset(10)) !== month(d2)) await page.click('[data-calnav="1"]');
+  await page.waitForSelector('.cal-ev.ms.official:has-text("ESF 제출")'); // 공식 일정 chips are marked in the calendar
+  await shot(page, "desktop-schedule-scopes", true);
+  await ctx.close();
+
+  const phone = await browser.newContext({ baseURL: srv.base, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p2 = await signIn(phone, "aaa", "password-aaa");
+  await p2.click("#tab-schedule");
+  await p2.waitForSelector("#view-schedule:not([hidden]) .viewsw");
+  assert.ok(await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, "no sideways scrolling on the schedule tab");
+  await phone.close();
 });

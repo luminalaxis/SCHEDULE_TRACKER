@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <style>
-/* Layout (pit-wall redesign): dark left sidebar (car · tabs · 일반/TV · 차량 설정; a bottom tab bar on phones) + sticky top bar (D-day chip · account). Red only for D-day / overdue / problems, part stages as a grey → green ramp, condensed racing numerals.
+/* Layout (pit-wall redesign): dark left sidebar (car · tabs · 차량 설정; a bottom tab bar on phones) + sticky top bar (D-day chip · account). Red only for D-day / overdue / problems, part stages as a grey → green ramp, condensed racing numerals.
    Previous layout: one-line sticky header (car · D-day pill · account · 일반/TV switch) → pill tabs. 오늘 = today's cards + my department's parts. TV = read-only workshop screen (full-window overlay).
    Earlier layout notes: pit-board header (car + D-day + next deadline + who am I) → tabs. 부품 현황 = gauges, department matrix, parts sheet. 테스트 세션 = list + pre-run checklist + per-department cards. 추이 분석 = metric chart + verdict matrix. 이슈, 일정 (timeline), 변경 이력 (activity log). Workshop-drawing neutrals, CAD-selection blue accent, part stages as a sequential ramp ending in green, departments as fixed categorical hues. */
 :root {
@@ -472,44 +472,12 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .tdue { font-family: var(--font-num); font-size: 19px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 .tdue.late { color: var(--bad); } .tdue.soon { color: var(--warn); } .tdue.none { color: var(--muted); font-family: var(--font-body); font-weight: 500; font-size: 12px; }
 
-/* TV: read-only workshop screen, always dark, sized to the screen */
-body.tv-on { overflow: hidden; }
-.tv { position: fixed; inset: 0; z-index: 50; background: #08090A; color: #F3F5F8; display: grid; grid-template-columns: 1fr 1.25fr 1.2fr; grid-template-rows: 1fr auto; gap: clamp(16px, 2.2vw, 36px); padding: clamp(18px, 3vw, 52px) clamp(18px, 3.4vw, 60px) clamp(14px, 1.6vw, 28px); overflow: auto; font-family: var(--font-body); }
-.tv h4 { font-size: clamp(11px, .85vw, 15px); letter-spacing: .14em; color: #8A93A2; margin: 0 0 clamp(8px, .8vw, 14px); font-weight: 600; }
-.tv-car { font-family: var(--font-num); font-size: clamp(26px, 2.6vw, 52px); font-weight: 700; letter-spacing: .03em; overflow-wrap: anywhere; }
-.tv-dday { font-family: var(--font-num); font-size: clamp(84px, 10.5vw, 220px); line-height: .9; font-weight: 700; color: #FF5A4E; margin: clamp(8px, 1vw, 18px) 0 6px; }
-.tv-dday.unset { font-size: clamp(36px, 4vw, 80px); color: #8A93A2; }
-.tv-sub { font-size: clamp(14px, 1.2vw, 22px); color: #B8C0CC; }
-.tv-block { margin-top: clamp(18px, 2.2vw, 40px); }
-.tv-ms { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(14px, 1.15vw, 22px); border-bottom: 1px solid #262B34; padding: 8px 0; }
-.tv-ms b, .tv-li b, .tv-dep b, .tv-big b { font-family: var(--font-num); font-weight: 700; }
-.tv-ms b { font-size: clamp(18px, 1.5vw, 28px); color: #FF5A4E; white-space: nowrap; }
-.tv-ms small { display: inline-flex; align-items: center; gap: 6px; font-size: .78em; color: #B8C0CC; margin-left: 10px; white-space: nowrap; }
-.tv-ms small i { width: .8em; height: .8em; border-radius: 2px; background: var(--dc, #8A93A2); }
-.tv-ms.dept b { color: #F3F5F8; }
-.tv-big { display: flex; gap: clamp(14px, 2vw, 34px); margin-bottom: clamp(16px, 1.8vw, 32px); }
-.tv-big div { flex: 1; min-width: 0; }
-.tv-big b { display: block; font-size: clamp(40px, 4.2vw, 80px); line-height: 1; }
-.tv-big span { font-size: clamp(12px, .95vw, 17px); color: #8A93A2; }
-.tv-dep { display: grid; grid-template-columns: minmax(80px, 8vw) 1fr 64px; gap: 14px; align-items: center; font-size: clamp(14px, 1.1vw, 20px); margin-bottom: clamp(10px, .9vw, 16px); }
-.tv-dep .t { height: clamp(10px, 1vw, 18px); background: #1E1F23; overflow: hidden; }
-.tv-dep .t i { display: block; height: 100%; background: #45C27F; }
-.tv-dep b { text-align: right; font-size: clamp(18px, 1.4vw, 26px); }
-.tv-li { display: flex; flex-direction: column; gap: 8px; margin-bottom: clamp(16px, 1.6vw, 28px); }
-.tv-li div { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: clamp(14px, 1.1vw, 20px); background: #13161B; border-radius: 8px; padding: clamp(8px, .7vw, 12px) 16px; border-left: 5px solid var(--c); }
-.tv-li em { font-style: normal; color: #8A93A2; font-size: .85em; margin-left: 6px; }
-.tv-li b { font-size: clamp(18px, 1.3vw, 24px); color: var(--c); white-space: nowrap; }
-.tv-none { color: #5F6876; font-size: clamp(14px, 1.1vw, 20px); padding: 6px 0 18px; }
-.tv-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; color: #5F6876; font-size: clamp(12px, .9vw, 16px); border-top: 1px solid #262B34; padding-top: 14px; }
-.tv-foot div { display: flex; gap: 8px; }
-.tv-foot button { font: inherit; font-size: 13px; color: #B8C0CC; background: #13161B; border: 1px solid #262B34; border-radius: 999px; padding: 6px 14px; cursor: pointer; }
-.tv-foot button:hover { color: #fff; border-color: #5F6876; }
 
 /* toast with an action (되돌리기) */
 .toast { display: flex; align-items: center; gap: 14px; }
 .toast button { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 2px 0; white-space: nowrap; }
 
-/* 일정 목록 / 달력 switch (the sidebar's TV switch, on a light surface) */
+/* 일정 page switches (목록 / 달력, 날짜순 / 부서별, 전체 / 공식 / 부서): .viewsw pills on a light surface */
 .msview { border-color: var(--line); background: var(--surface-2); }
 .msview button { color: var(--muted); }
 .msview button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
@@ -600,8 +568,7 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
   .toast { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 900px) { .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split { grid-template-columns: minmax(0, 1fr); } .slist { max-height: 360px; overflow-y: auto; }
-  .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tgrid .tcard:last-child { grid-column: 1 / -1; }
-  .tv { grid-template-columns: 1fr; grid-template-rows: none; } }
+  .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tgrid .tcard:last-child { grid-column: 1 / -1; } }
 @media (max-width: 600px) {
   .ms { grid-template-columns: auto minmax(0, 1fr); }
   .ms-side { grid-column: 1 / -1; justify-content: flex-end; }
@@ -678,10 +645,6 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
       <button class="tab" role="tab" id="tab-history" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2"/></svg><span class="tl">변경 이력</span><span class="ts" aria-hidden="true">이력</span></button>
     </nav>
     <div class="side-foot">
-      <div class="viewsw" role="group" aria-label="화면 전환">
-        <button type="button" data-view="normal" aria-pressed="true">일반</button>
-        <button type="button" data-view="tv" aria-pressed="false" title="작업실 모니터용 읽기 전용 화면">TV</button>
-      </div>
       <button class="btn ghost side-btn" id="btnSettings" type="button" aria-label="차량 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg><span>차량 설정</span></button>
     </div>
   </aside>
@@ -869,6 +832,10 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
         <div class="viewsw msview" role="group" aria-label="일정 보기 방식">
           <button type="button" data-msview="list" aria-pressed="true">목록</button>
           <button type="button" data-msview="cal" aria-pressed="false">달력</button>
+        </div>
+        <div class="viewsw msview" role="group" aria-label="목록 정렬" id="msGroupSw">
+          <button type="button" data-msgroup="date" aria-pressed="false">날짜순</button>
+          <button type="button" data-msgroup="dept" aria-pressed="true">부서별</button>
         </div>
         <div class="viewsw msview" role="group" aria-label="일정 구분">
           <button type="button" data-msscope="all" aria-pressed="true">전체</button>
@@ -1152,7 +1119,6 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
   </form>
 </dialog>
 
-<div class="tv" id="tv" role="region" aria-label="공방 TV 화면" hidden></div>
 
 <dialog id="dlgPrivacy" aria-labelledby="pvTitle">
   <div class="dlg">
@@ -1161,7 +1127,7 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
       <li>이 페이지는 claude.ai Artifact에서 돌아가요. 데이터는 Artifact의 공유 저장소에 있고, 페이지를 열 수 있는 사람이 함께 봐요. 사람 구분은 claude.ai 계정 기준이고, 계정 정보는 claude.ai(Anthropic)의 개인정보 처리방침을 따라요.</li>
       <li>저장하는 것: 각자 적은 이름·부서, 부품·테스트 기록·의견·점검·일정, 변경 이력(90일), 사비 내역서(신청자 이름, 계좌번호가 든 원본 파일, 영수증 사진, 금액).</li>
       <li>사비 내역서 원본과 영수증은 페이지를 열 수 있는 사람이 기술적으로 열어 볼 수 있어요. 화면에서 전체 계좌번호는 총무와 소유자에게만 보여요. 계좌 정보를 더 안전하게 다루려면 자체 서버 버전을 쓰세요.</li>
-      <li>이 기기의 브라우저 저장소에는 내 이름·부서와 화면 설정(일반/TV, 닫은 안내)만 저장해요. 광고·분석·추적 쿠키는 없어요.</li>
+      <li>이 기기의 브라우저 저장소에는 내 이름·부서와 화면 설정(일정 보기 방식, 닫은 안내)만 저장해요. 광고·분석·추적 쿠키는 없어요.</li>
       <li>글꼴(Google Fonts)과 xlsx 읽기 도구(JSZip, cdnjs)를 외부에서 불러와요. 이때 접속 IP 주소가 Google과 Cloudflare에 전달돼요.</li>
       <li>내 정보를 지우고 싶으면 페이지 소유자(개발자)에게 요청하세요. 소유자는 사비 내역서를 "완전 삭제"로 파일까지 지울 수 있어요.</li>
     </ul>
@@ -1583,15 +1549,14 @@ window.FSKBom = (() => {
   let colP, cfgRef, ckRef, colS, colL, colC, colK, colM, colH, colPeople, colExp, colRev, rolesRef;
   const state = {
     phase: "loading", canWrite: true, canManageTeam: false, tab: "today", uid: "", isOwner: false,
-    // 일반 / TV: ?view=tv in the address (for a kiosk bookmark) wins over the last choice on this device
-    view: (() => { try { const v = new URLSearchParams(location.search).get("view"); if (v === "tv" || v === "normal") return v; } catch {} return store.get("fsk.view") === "tv" ? "tv" : "normal"; })(),
     roles: null, rolesLoaded: false, people: [], expenseDocs: [], reviewDocs: [], xDraft: null, acctCache: {},
     parts: [], cfg: {}, ckCfg: null, sessions: [], logs: [], comments: [], checks: [], milestones: [], history: [],
     sel: null, editPart: null, editSession: null, editLog: null, editMs: null, ckOpen: true,
     att: { keep: [], add: [], remove: [] }, linkDraft: [],
     me: { dept: store.get("fsk.me.dept"), name: store.get("fsk.me.name") },
     picked: new Set(), pendingOpen: null, expLoaded: false,
-    msView: store.get("fsk.ms.view") === "cal" ? "cal" : "list", msScope: ["official", "dept"].includes(store.get("fsk.ms.scope")) ? store.get("fsk.ms.scope") : "all", calMonth: todayStr().slice(0, 7), calDay: todayStr(), calParts: store.get("fsk.cal.parts") !== "0"
+    msView: store.get("fsk.ms.view") === "cal" ? "cal" : "list", msScope: ["official", "dept"].includes(store.get("fsk.ms.scope")) ? store.get("fsk.ms.scope") : "all",
+    msGroup: store.get("fsk.ms.group") === "date" ? "date" : "dept", calMonth: todayStr().slice(0, 7), calDay: todayStr(), calParts: store.get("fsk.cal.parts") !== "0"
   };
   const TABS = ["today", "parts", "sessions", "trend", "issues", "schedule", "expense", "history"];
 
@@ -1808,11 +1773,6 @@ window.FSKBom = (() => {
       $("tab-" + t).setAttribute("aria-selected", String(state.tab === t));
     });
     ({ today: renderToday, parts: renderParts, sessions: renderSessions, trend: renderTrend, issues: renderIssues, schedule: renderSchedule, expense: renderExpense, history: renderHistory })[state.tab]();
-    const tv = state.view === "tv";
-    document.querySelectorAll(".viewsw [data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
-    document.body.classList.toggle("tv-on", tv);
-    $("tv").hidden = !tv;
-    if (tv) renderTV();
     syncRoute();
     openPending();
   }
@@ -1889,46 +1849,10 @@ window.FSKBom = (() => {
   }
   document.addEventListener("click", (e) => { const c = e.target.closest("[data-today]"); if (c) openFromToday(c.dataset.today); });
 
-  // ---------- TV (workshop screen) ----------
-  function setView(v) {
-    state.view = v === "tv" ? "tv" : "normal"; store.set("fsk.view", state.view);
-    if (state.view === "normal" && document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    render();
-  }
-  const tvMs = (list, none) => list.length ? list.map((m) => `<div class="tv-ms${isOfficial(m) ? "" : " dept"}"><span>${esc(m.title)}${isOfficial(m) ? "" : `<small style="${groupTone(msGroupOf(m))}"><i></i>${DEPT[m.dept] ? DEPT[m.dept].l : "팀 전체"}</small>`}</span><b>${dLabel(daysUntil(m.date))}</b></div>`).join("") : `<div class="tv-none">${none}</div>`;
-  function renderTV() {
-    const c = state.cfg, foot = `<div class="tv-foot"><span>읽기 전용 화면 · 팀원이 바꾼 내용은 바로 반영돼요 · ${new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준</span><div><button type="button" data-fullscreen>전체 화면</button><button type="button" data-view="normal">일반 화면으로 (Esc)</button></div></div>`;
-    if (!live()) { $("tv").innerHTML = `<div><h4>FSK 피트보드</h4><div class="tv-sub">${state.phase === "loading" ? "불러오는 중…" : "저장소에 연결할 수 없어요."}</div></div>${foot}`; return; }
-    const parts = state.parts, total = parts.length, done = parts.filter((p) => p.stage === "done").length;
-    let massG = 0, cost = 0;
-    parts.forEach((p) => { const q = qtyOf(p); massG += (num(p.unitMass) || 0) * q; cost += (num(p.unitCost) || 0) * q; });
-    const budget = num(c.budget), target = num(c.targetMass), d = c.compDate ? daysUntil(c.compDate) : null;
-    const { late, soon, issues, ms, last } = todayFacts(), cp = last && last.date === todayStr() ? checkProgress(last) : null;
-    const due = late.concat(soon).slice(0, 5), costPct = budget ? Math.round((cost / budget) * 100) : null;
-    $("tv").innerHTML = `<div>
-        <h4>FSK · 대회까지</h4><div class="tv-car">${esc(c.carName || "우리 팀 차량")}</div>
-        <div class="tv-dday${d === null ? " unset" : ""}">${d === null ? "날짜 미정" : d > 0 ? "D-" + d : d === 0 ? "D-DAY" : "대회 종료"}</div>
-        <div class="tv-sub">${c.compDate ? esc(fmtDate(c.compDate)) + " 대회" : "차량 설정에서 대회 날짜를 정해요"}</div>
-        <div class="tv-block"><h4>공식 일정</h4>${tvMs(ms.filter(isOfficial).slice(0, 3), "남은 공식 일정이 없어요")}</div>
-        <div class="tv-block"><h4>부서 일정</h4>${tvMs(ms.filter((m) => !isOfficial(m)).slice(0, 3), "남은 부서 일정이 없어요")}</div>
-        ${cp ? `<div class="tv-block"><h4>오늘 주행 전 점검 · ${esc(last.event || "주행")}</h4><div class="tv-dep"><span>${cp.n}/${cp.total}</span><div class="t"><i style="width:${cp.total ? (cp.n / cp.total) * 100 : 0}%"></i></div><b>${cp.total ? Math.round((cp.n / cp.total) * 100) : 0}%</b></div></div>` : ""}
-      </div>
-      <div><h4>제작 현황</h4>
-        <div class="tv-big"><div><b>${total ? Math.round((done / total) * 100) : 0}%</b><span>${total}개 중 ${done}개 완료</span></div>
-          <div><b>${kg(massG)}</b><span>kg${target ? ` / 목표 ${target.toLocaleString("ko-KR")}kg` : ""}</span></div>
-          <div><b style="color:${costPct !== null && costPct > 100 ? "#FF5252" : "#F3F5F8"}">${costPct === null ? wonShort(cost).v : costPct + "%"}</b><span>${costPct === null ? wonShort(cost).u + " 부품 비용" : "예산 사용"}</span></div></div>
-        <h4>부서별 완료</h4>${DEPTS.map((x) => { const l = parts.filter((p) => deptOf(p) === x.k), v = l.length ? Math.round((l.filter((p) => p.stage === "done").length / l.length) * 100) : 0; return `<div class="tv-dep"><span>${x.l}</span><div class="t"><i style="width:${Math.max(v, 1)}%"></i></div><b>${l.length ? v + "%" : "–"}</b></div>`; }).join("")}
-      </div>
-      <div><h4>마감 지남 · 3일 안 마감</h4><div class="tv-li">${due.length ? due.map((p) => { const n = daysUntil(p.due); return `<div style="--c:${n < 0 ? "#FF5252" : "#FF9F1C"}"><span>${esc(p.name || "(이름 없음)")}<em>${DEPT[deptOf(p)].l}${ownerName(p) ? " · " + esc(ownerName(p)) : ""}</em></span><b>${dLabel(n)}</b></div>`; }).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
-        <h4>미해결 테스트 이슈</h4><div class="tv-li">${issues.length ? issues.slice(0, 4).map((l) => `<div style="--c:${l.status === "bad" ? "#FF5252" : "#FF9F1C"}"><span>${esc(DEPT[l.dept]?.l || "")}<em>${esc(String(l.analysis || l.observation || l.action || "").slice(0, 40))}</em></span><b>${l.status === "bad" ? "문제" : "주의"}</b></div>`).join("") : '<div class="tv-none" style="border:0;background:none;padding:0">없어요 👍</div>'}</div>
-      </div>${foot}`;
-  }
-  document.addEventListener("click", (e) => {
-    const v = e.target.closest("[data-view]"); if (v) { setView(v.dataset.view); return; }
-    if (e.target.closest("[data-fullscreen]")) { const el = document.documentElement; (el.requestFullscreen ? el.requestFullscreen() : Promise.reject()).catch(() => toast("이 화면에서는 전체 화면을 쓸 수 없어요. 브라우저의 전체 화면(F11)을 써 주세요.")); }
-  });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.view === "tv" && !document.querySelector("dialog[open]")) setView("normal"); });
-  setInterval(() => { if (state.view === "tv") renderTV(); else if (state.tab === "today") renderToday(); }, 60000);
+  // The TV screen (일반 / TV) was removed; forget a choice left on this device from before.
+  try { localStorage.removeItem("fsk.view"); } catch {}
+  // 오늘 shows D-days and "3일 안" counts: redraw it once a minute so it is right after midnight
+  setInterval(() => { if (state.tab === "today") renderToday(); }, 60000);
 
   // ---------- attachments view ----------
   function attView(list) {
@@ -2344,6 +2268,8 @@ window.FSKBom = (() => {
     $("msSugg").innerHTML = `<span>자주 쓰는 공식 일정:</span>` + sugg.map(([t, k]) => `<button class="btn sm" type="button" data-msnew="${esc(t)}" data-mskind="${esc(k)}">+ ${esc(t)}</button>`).join("");
     document.querySelectorAll("[data-msview]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msview === state.msView)));
     document.querySelectorAll("[data-msscope]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msscope === state.msScope)));
+    document.querySelectorAll("[data-msgroup]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msgroup === state.msGroup)));
+    $("msGroupSw").hidden = state.msView === "cal"; // the calendar has its own order
     if (!live()) { $("msBody").innerHTML = `<div class="empty"><p>저장소에 연결되면 대회 준비 일정이 여기에 나타나요.</p></div>`; return; }
     if (state.msView === "cal") { renderCalendar(); return; }
     const fd = $("msDept").value, t = todayStr();
@@ -2356,12 +2282,13 @@ window.FSKBom = (() => {
     // the highlighted row is the next 공식 일정 (the next of any kind when only 부서 일정 are shown)
     const upcoming = list.filter((m) => !m.done && m.date >= t), rest = list.filter((m) => m.done || m.date < t).reverse();
     const next = upcoming.find(isOfficial) || upcoming[0];
-    // grouped by department; each group keeps date order
-    const groups = (l, past) => byGroup(l, msGroupOf).map((g) => `<section class="ms-group" style="${groupTone(g.k)}" aria-label="${g.l}">
-        <h4 class="ms-gh">${g.l}<small>${past ? "" : "남은 "}${g.items.length}건</small></h4>
-        <div class="ms-list">${g.items.map((m) => msRow(m, !past && m === next)).join("")}</div></section>`).join("");
-    $("msBody").innerHTML = `${upcoming.length ? `<div class="ms-groups">${groups(upcoming)}</div>` : '<p class="dim">남은 일정이 없어요.</p>'}
-      ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4><div class="ms-groups past">${groups(rest, true)}</div>` : ""}`;
+    // 부서별: grouped (공식 일정, 팀 전체, then each department), each group in date order; 날짜순: one list
+    const rows = (l, past) => `<div class="ms-list">${l.map((m) => msRow(m, !past && m === next)).join("")}</div>`;
+    const groups = (l, past) => `<div class="ms-groups${past ? " past" : ""}">${byGroup(l, msGroupOf).map((g) => `<section class="ms-group" style="${groupTone(g.k)}" aria-label="${g.l}">
+        <h4 class="ms-gh">${g.l}<small>${past ? "" : "남은 "}${g.items.length}건</small></h4>${rows(g.items, past)}</section>`).join("")}</div>`;
+    const show = state.msGroup === "date" ? rows : groups;
+    $("msBody").innerHTML = `${upcoming.length ? show(upcoming) : '<p class="dim">남은 일정이 없어요.</p>'}
+      ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4>${show(rest, true)}` : ""}`;
   }
 
   // month calendar: milestones and part deadlines together, so a crowded week shows up before it arrives
@@ -2435,6 +2362,8 @@ window.FSKBom = (() => {
   document.addEventListener("click", (e) => {
     const v = e.target.closest("[data-msview]");
     if (v) { state.msView = v.dataset.msview; store.set("fsk.ms.view", state.msView); renderSchedule(); return; }
+    const gr = e.target.closest("[data-msgroup]");
+    if (gr) { state.msGroup = gr.dataset.msgroup; store.set("fsk.ms.group", state.msGroup); renderSchedule(); return; }
     const sc = e.target.closest("[data-msscope]");
     if (sc) { state.msScope = sc.dataset.msscope; store.set("fsk.ms.scope", state.msScope); renderSchedule(); return; }
     const nav = e.target.closest("[data-calnav]"); if (nav) { moveCalendar(Number(nav.dataset.calnav)); return; }

@@ -153,7 +153,7 @@ test("desktop and admin console screens", { skip, timeout: 90000 }, async () => 
   await ctx.close();
 });
 
-test("오늘 first screen, and switching to the TV screen and back", { skip, timeout: 90000 }, async () => {
+test("오늘 first screen", { skip, timeout: 90000 }, async () => {
   // parts with deadlines around today for the dev's department
   const d = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
   await dev.post("/api/db/set", { path: "parts/late1", data: { name: "지연된 업라이트", dept: "chassis", stage: "machining", owner: "김개발", due: d(-2), qty: 1 } });
@@ -186,23 +186,13 @@ test("오늘 first screen, and switching to the TV screen and back", { skip, tim
   assert.equal(await page.getAttribute("#tab-parts", "aria-selected"), "true");
   assert.equal(await page.inputValue("#fst"), "late", "the card opens the parts list filtered to overdue parts");
 
-  await page.click('.viewsw [data-view="tv"]');
-  await page.waitForSelector("#tv:not([hidden]) .tv-dday");
-  assert.match(await page.textContent("#tv"), /지연된 업라이트/);
-  assert.match(await page.textContent("#tv"), /셀 온도 과열/);
-  await shot(page, "tv");
-  await page.reload();
-  await page.waitForSelector("#tv:not([hidden]) .tv-dday");
-  assert.ok(true, "the TV choice survives a reload (for the workshop monitor)");
-  await dev.post("/api/db/update", { path: "parts/late1", data: { stage: "done" } });
-  await page.waitForFunction(() => !document.getElementById("tv").textContent.includes("지연된 업라이트"));
-  await page.keyboard.press("Escape");
-  await page.waitForSelector("#tv", { state: "hidden" });
-  assert.equal(await page.getAttribute('.viewsw [data-view="normal"]', "aria-pressed"), "true");
+  // the TV screen is gone: no 일반 / TV switch, and an old ?view=tv bookmark opens the normal page
+  assert.equal(await page.$("[data-view]"), null);
+  await page.evaluate(() => localStorage.setItem("fsk.view", "tv"));
   await page.goto("/?view=tv");
-  await page.waitForSelector("#tv:not([hidden])");
-  await page.click('#tv [data-view="normal"]');
-  await page.waitForSelector("#tv", { state: "hidden" });
+  await page.waitForSelector("#view-today:not([hidden]) .tcard");
+  assert.equal(await page.$("#tv"), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("fsk.view")), null, "the old TV choice is forgotten");
   await ctx.close();
 });
 
@@ -486,6 +476,21 @@ test("공식 일정 and 부서 일정: the pit board, the 구분 filter, departm
   assert.deepEqual(await chassis.locator(".ms-title").allTextContents(), ["프레임 용접 마감"]);
   assert.match(await chassis.getAttribute("style"), /--dc:var\(--c3\)/, "the group takes its department's colour");
 
+  // 날짜순: one list in date order, kept on this device; 부서별 again brings the groups back
+  await page.click('[data-msgroup="date"]');
+  assert.equal(await page.$("#msBody .ms-group"), null);
+  // the first list is the upcoming one ("2026. 11. 9" is read as a number, since as text it sorts after "2026. 11. 15")
+  const dates = await page.$eval("#msBody > .ms-list", (el) => [...el.querySelectorAll(".ms-date")].map((e) => e.textContent));
+  const dayNum = (t) => { const [y, m, d] = t.split(".").map(Number); return y * 10000 + m * 100 + d; };
+  assert.ok(dates.length >= 4 && dates.every((d, i) => !i || dayNum(dates[i - 1]) <= dayNum(d)), "upcoming schedules in date order: " + dates.join(", "));
+  assert.ok(await page.$('#msBody .ms.dept[style*="--c4-soft"]'), "rows keep their department's colour");
+  await page.reload();
+  await page.waitForSelector("#view-schedule:not([hidden]) #msBody .ms");
+  assert.equal(await page.getAttribute('[data-msgroup="date"]', "aria-pressed"), "true");
+  assert.equal(await page.$("#msBody .ms-group"), null);
+  await page.click('[data-msgroup="dept"]');
+  await page.waitForSelector("#msBody .ms-group");
+
   // a department filter keeps every 공식 일정, that department's own and the team-wide 부서 일정
   await page.selectOption("#msDept", "chassis");
   assert.ok(await until(async () => { const t = await titles(); return t.includes("ESF 제출") && t.includes("프레임 용접 마감") && !t.includes("에어로 회의"); }));
@@ -503,6 +508,7 @@ test("공식 일정 and 부서 일정: the pit board, the 구분 filter, departm
   await page.selectOption("#msDept", "");
   await page.click('[data-msview="cal"]');
   await page.waitForSelector(".cal-grid");
+  assert.equal(await page.isVisible("#msGroupSw"), false, "날짜순 / 부서별 is for the list only");
   await page.uncheck("#calParts");
   const month = (d) => d.slice(0, 7), d2 = dayOffset(2);
   if (month(d2) !== month(dayOffset(0))) await page.click('[data-calnav="1"]');

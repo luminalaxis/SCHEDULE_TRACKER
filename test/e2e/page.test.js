@@ -443,9 +443,10 @@ test("bulk edit, CSV import and the calendar", { skip, timeout: 90000 }, async (
   await ctx.close();
 });
 
-test("공식 일정 and 부서 일정: the pit board, the 구분 filter and the dialog tell them apart", { skip, timeout: 90000 }, async () => {
+test("공식 일정 and 부서 일정: the pit board, the 구분 filter, department groups and the dialog tell them apart", { skip, timeout: 90000 }, async () => {
   await dev.post("/api/db/set", { path: "milestones/sc-off", data: { title: "ESF 제출", date: dayOffset(10), kind: "서류 제출", dept: "battery", scope: "official" } });
   await dev.post("/api/db/set", { path: "milestones/sc-dep", data: { title: "에어로 회의", date: dayOffset(2), kind: "회의", dept: "aero", scope: "dept" } });
+  await dev.post("/api/db/set", { path: "milestones/sc-bat", data: { title: "셀 수입 검사", date: dayOffset(2), kind: "테스트", dept: "battery", scope: "dept" } });
   const ctx = await browser.newContext({ baseURL: srv.base, viewport: { width: 1280, height: 900 } });
   const page = await signIn(ctx, "dev", "password1");
   await page.waitForSelector("#pitNext:not([hidden])");
@@ -476,8 +477,16 @@ test("공식 일정 and 부서 일정: the pit board, the 구분 filter and the 
   const saved = (await dev.post("/api/db/query", { collection: "milestones" })).json.docs.find((d) => d.data.title === "프레임 용접 마감");
   assert.deepEqual([saved.data.scope, saved.data.kind, saved.data.dept], ["dept", "제작 마감", "chassis"]);
 
-  // a department filter keeps every 공식 일정, that department's own and the team-wide 부서 일정
+  // grouped: 공식 일정 first, then 팀 전체, then the departments in their usual order, each in its own colour
   await page.click('[data-msscope="all"]');
+  const heads = await page.$$eval("#msBody .ms-groups:not(.past) .ms-gh", (l) => l.map((e) => e.firstChild.textContent));
+  assert.equal(heads[0], "공식 일정");
+  assert.ok(heads.indexOf("배터리") < heads.indexOf("프레임·현가") && heads.indexOf("프레임·현가") < heads.indexOf("에어로"), heads.join(", "));
+  const chassis = page.locator('#msBody .ms-groups:not(.past) .ms-group[aria-label="프레임·현가"]');
+  assert.deepEqual(await chassis.locator(".ms-title").allTextContents(), ["프레임 용접 마감"]);
+  assert.match(await chassis.getAttribute("style"), /--dc:var\(--c3\)/, "the group takes its department's colour");
+
+  // a department filter keeps every 공식 일정, that department's own and the team-wide 부서 일정
   await page.selectOption("#msDept", "chassis");
   assert.ok(await until(async () => { const t = await titles(); return t.includes("ESF 제출") && t.includes("프레임 용접 마감") && !t.includes("에어로 회의"); }));
 
@@ -491,9 +500,16 @@ test("공식 일정 and 부서 일정: the pit board, the 구분 filter and the 
   assert.ok(!(await page.$$eval("#mKind option", (l) => l.map((o) => o.value))).includes("서류 제출"));
   await page.keyboard.press("Escape");
 
+  await page.selectOption("#msDept", "");
   await page.click('[data-msview="cal"]');
   await page.waitForSelector(".cal-grid");
-  if (dayOffset(10).slice(0, 7) !== dayOffset(0).slice(0, 7)) await page.click('[data-calnav="1"]');
+  await page.uncheck("#calParts");
+  const month = (d) => d.slice(0, 7), d2 = dayOffset(2);
+  if (month(d2) !== month(dayOffset(0))) await page.click('[data-calnav="1"]');
+  await page.click(`[data-calday="${d2}"] .cal-n`);
+  assert.deepEqual(await page.$$eval(".cal-list .cal-gh", (l) => l.map((e) => e.textContent)), ["배터리", "에어로"], "a day with several schedules lists them by department");
+  assert.deepEqual(await page.$$eval(`[data-calday="${d2}"] .cal-ev`, (l) => l.map((e) => e.textContent)), ["셀 수입 검사", "에어로 회의"], "the day's cell keeps the same department order");
+  if (month(dayOffset(10)) !== month(d2)) await page.click('[data-calnav="1"]');
   await page.waitForSelector('.cal-ev.ms.official:has-text("ESF 제출")'); // 공식 일정 chips are marked in the calendar
   await shot(page, "desktop-schedule-scopes", true);
   await ctx.close();

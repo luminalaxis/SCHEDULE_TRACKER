@@ -15,6 +15,8 @@
   --s0: #D9DAD6; --s1: #B5B7B3; --s2: #8B8E8B; --s3: #5E6161; --s4: #2E3031; --s5: #2A9D5C; --track-bg: #E7E7E3;
   --card-border: var(--line); --card-shadow: none;
   --c1: #2F6BDB; --c2: #D48A00; --c3: #11907A; --c4: #7A5AE0; --c5: #C04B95;
+  /* department tints: a schedule row or calendar chip takes its department's soft colour */
+  --c1-soft: #EAF0FB; --c2-soft: #FBF3E6; --c3-soft: #E7F4F2; --c4-soft: #F2EEFC; --c5-soft: #F9EDF4;
   --side: #121315; --side-ink: #C9CACD; --side-muted: #9A9CA1; --side-hover: #1C1D20; --side-active: #26272B; --side-line: #2A2B2F; --side-red: #FF5A4E;
   --chip: #131415; --chip-ink: #F4F4F1; --chip-muted: #A6A8AD; --chip-line: #131415; --chip-red: #FF6A5E;
   --font-display: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
@@ -32,6 +34,7 @@
     --s0: #34363B; --s1: #4F5258; --s2: #72757C; --s3: #9A9DA3; --s4: #CDCFD2; --s5: #45C27F; --track-bg: #24252A;
     --card-border: var(--line); --card-shadow: none;
     --c1: #5B8DF0; --c2: #E8A21C; --c3: #2DB596; --c4: #9B82F5; --c5: #DB6BB0;
+    --c1-soft: #20293A; --c2-soft: #352C1A; --c3-soft: #1A2F2D; --c4-soft: #2A273B; --c5-soft: #342430;
     --side: #08090A; --side-hover: #141518; --side-active: #1C1D21; --side-line: #1E1F22;
     --chip: #1F2024; --chip-ink: #ECECE9; --chip-muted: #A0A2A8; --chip-line: #383A40;
     color-scheme: dark;
@@ -45,6 +48,7 @@
   --s0: #34363B; --s1: #4F5258; --s2: #72757C; --s3: #9A9DA3; --s4: #CDCFD2; --s5: #45C27F; --track-bg: #24252A;
   --card-border: var(--line); --card-shadow: none;
   --c1: #5B8DF0; --c2: #E8A21C; --c3: #2DB596; --c4: #9B82F5; --c5: #DB6BB0;
+  --c1-soft: #20293A; --c2-soft: #352C1A; --c3-soft: #1A2F2D; --c4-soft: #2A273B; --c5-soft: #342430;
   --side: #08090A; --side-hover: #141518; --side-active: #1C1D21; --side-line: #1E1F22;
   --chip: #1F2024; --chip-ink: #ECECE9; --chip-muted: #A0A2A8; --chip-line: #383A40;
   color-scheme: dark;
@@ -334,11 +338,18 @@ details.tbl summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .ms-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--muted); }
 .ms-note { font-size: 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .ms-side { display: flex; gap: 8px; align-items: center; }
-/* 공식 일정 (organiser dates) carry a red bar and a filled 공식 tag; 부서 일정 the department's colour (grey for 팀 전체) */
+/* Each row carries its group's colour (--dc, set inline): red for 공식 일정, the department's colour for its
+   부서 일정 (tinted with --dcs), grey for 팀 전체. Rows are grouped: 공식 일정, 팀 전체, then each department. */
+.ms-groups { display: flex; flex-direction: column; gap: 18px; }
+.ms-gh { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; margin: 0 0 8px; }
+.ms-gh::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 2px; background: var(--dc, var(--muted)); }
+.ms-gh small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.ms-groups.past .ms-gh { font-size: 13px; color: var(--muted); }
 .ms-list > .ms { position: relative; }
-.ms-list > .ms::before { content: ""; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 4px; border-radius: var(--r-card) 0 0 var(--r-card); background: var(--bar, var(--line-2)); }
-.ms-list > .ms.official { --bar: var(--race); }
+.ms-list > .ms::before { content: ""; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 4px; border-radius: var(--r-card) 0 0 var(--r-card); background: var(--dc, var(--line-2)); }
+.ms-list > .ms.dept { background: var(--dcs, var(--surface)); }
 .tag.official { background: var(--race); border-color: var(--race); color: var(--surface); font-weight: 600; }
+.dchip { display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; line-height: 18px; border-radius: 4px; border: 1px solid var(--dc, var(--line)); background: var(--surface); color: var(--ink); font-weight: 600; white-space: nowrap; }
 .sub-h { font-size: 12px; color: var(--muted); letter-spacing: .06em; margin-top: 8px; }
 .sugg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
 
@@ -473,7 +484,8 @@ body.tv-on { overflow: hidden; }
 .tv-ms { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(14px, 1.15vw, 22px); border-bottom: 1px solid #262B34; padding: 8px 0; }
 .tv-ms b, .tv-li b, .tv-dep b, .tv-big b { font-family: var(--font-num); font-weight: 700; }
 .tv-ms b { font-size: clamp(18px, 1.5vw, 28px); color: #FF5A4E; white-space: nowrap; }
-.tv-ms small { font-size: .78em; color: #8A93A2; margin-left: 8px; white-space: nowrap; }
+.tv-ms small { display: inline-flex; align-items: center; gap: 6px; font-size: .78em; color: #B8C0CC; margin-left: 10px; white-space: nowrap; }
+.tv-ms small i { width: .8em; height: .8em; border-radius: 2px; background: var(--dc, #8A93A2); }
 .tv-ms.dept b { color: #F3F5F8; }
 .tv-big { display: flex; gap: clamp(14px, 2vw, 34px); margin-bottom: clamp(16px, 1.8vw, 32px); }
 .tv-big div { flex: 1; min-width: 0; }
@@ -540,8 +552,9 @@ tr.picked td { background: var(--accent-soft); }
 .cal-n { font-size: 12px; font-weight: 600; width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 999px; flex: none; }
 .cal-day.today .cal-n { background: var(--accent); color: var(--accent-ink); }
 .cal-ev { display: block; width: 100%; border: 0; font: inherit; text-align: left; font-size: 11px; line-height: 1.4; padding: 1px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface-2); color: var(--ink); cursor: pointer; }
-.cal-ev.ms { background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--dc, var(--line-2)); }
-.cal-ev.ms.official:not(.done) { background: var(--race-soft); color: var(--race); box-shadow: inset 3px 0 0 var(--race); }
+.cal-ev.ms { background: var(--dcs, var(--accent-soft)); color: var(--ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--dc, var(--line-2)); }
+.cal-ev.ms.official:not(.done) { color: var(--race); }
+.cal-ev.ms.done { background: var(--surface-2); }
 .cal-ev.comp { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .cal-ev.part { box-shadow: inset 3px 0 0 var(--dc, var(--muted)); }
 .cal-ev.part.late { color: var(--bad); font-weight: 600; }
@@ -549,13 +562,17 @@ tr.picked td { background: var(--accent-soft); }
 .cal-more { font-size: 11px; color: var(--muted); padding-left: 6px; }
 .cal-dots { display: none; gap: 3px; flex-wrap: wrap; padding-left: 4px; }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--dc, var(--accent)); }
+.cal-dots i.sq { border-radius: 1px; } /* a schedule; round dots are part deadlines */
 .cal-list { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
 .cal-list h4 { font-size: 14px; font-weight: 600; }
+.cal-gh { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 6px; }
+.cal-gh::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--dc, var(--muted)); }
+.legend.dkey { padding: 0 14px 10px; }
 .cal-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; border: 0; background: none; font: inherit; color: inherit; text-align: left; padding: 6px 0; border-top: 1px solid var(--grid); width: 100%; }
 button.cal-row { cursor: pointer; }
 button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .cal-t { font-weight: 600; }
-.cal-load { font-size: 12px; color: var(--muted); }
+.cal-load { font-size: 12px; color: var(--muted); padding: 0 14px 6px; }
 .cal-load b { color: var(--warn); }
 
 @media (max-width: 860px) {
@@ -1474,6 +1491,17 @@ window.FSKBom = (() => {
   const MS_OFFICIAL_KINDS = new Set(["서류 제출", "차량 검사", "대회"]);
   const msScope = (m) => m.scope === "official" || m.scope === "dept" ? m.scope : MS_OFFICIAL_KINDS.has(m.kind) ? "official" : "dept";
   const isOfficial = (m) => msScope(m) === "official";
+  // Schedules are shown in groups, in this order: 공식 일정, 팀 전체 (부서 일정 for everyone), then each department.
+  // A group's colours go in --dc (bar, mark) and --dcs (tint): red for 공식, grey for 팀 전체, else the department's.
+  const MS_GROUPS = [["official", "공식 일정"], ["team", "팀 전체"], ...DEPTS.map((d) => [d.k, d.l])];
+  const MS_GROUP_RANK = Object.fromEntries(MS_GROUPS.map(([k], i) => [k, i]));
+  const msGroupOf = (m) => isOfficial(m) ? "official" : DEPT[m.dept] ? m.dept : "team";
+  const groupTone = (k) => k === "official" ? "--dc:var(--race);--dcs:var(--race-soft)" : DEPT[k] ? `--dc:var(--c${DEPT[k].c});--dcs:var(--c${DEPT[k].c}-soft)` : "--dc:var(--s2);--dcs:var(--surface-2)";
+  function byGroup(items, groupOf) {
+    const by = {};
+    items.forEach((x) => { const k = groupOf(x); (by[k] = by[k] || []).push(x); });
+    return MS_GROUPS.filter(([k]) => by[k]).map(([k, l]) => ({ k, l, items: by[k] }));
+  }
   const MS_SUGGEST = [["설계 보고서 제출", "서류 제출"], ["비용 보고서 (BOM) 제출", "서류 제출"], ["ESF (전기 안전 양식) 제출", "서류 제출"], ["차량 검사", "차량 검사"], ["대회 본선", "대회"]];
   const HIST_TYPES = { part: "부품", session: "세션", log: "부서 기록", comment: "의견", check: "점검", milestone: "일정", expense: "사비 정산", config: "설정" };
 
@@ -1867,7 +1895,7 @@ window.FSKBom = (() => {
     if (state.view === "normal" && document.fullscreenElement) document.exitFullscreen().catch(() => {});
     render();
   }
-  const tvMs = (list, none) => list.length ? list.map((m) => `<div class="tv-ms${isOfficial(m) ? "" : " dept"}"><span>${esc(m.title)}${isOfficial(m) ? "" : `<small>${DEPT[m.dept] ? DEPT[m.dept].l : "팀 전체"}</small>`}</span><b>${dLabel(daysUntil(m.date))}</b></div>`).join("") : `<div class="tv-none">${none}</div>`;
+  const tvMs = (list, none) => list.length ? list.map((m) => `<div class="tv-ms${isOfficial(m) ? "" : " dept"}"><span>${esc(m.title)}${isOfficial(m) ? "" : `<small style="${groupTone(msGroupOf(m))}"><i></i>${DEPT[m.dept] ? DEPT[m.dept].l : "팀 전체"}</small>`}</span><b>${dLabel(daysUntil(m.date))}</b></div>`).join("") : `<div class="tv-none">${none}</div>`;
   function renderTV() {
     const c = state.cfg, foot = `<div class="tv-foot"><span>읽기 전용 화면 · 팀원이 바꾼 내용은 바로 반영돼요 · ${new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준</span><div><button type="button" data-fullscreen>전체 화면</button><button type="button" data-view="normal">일반 화면으로 (Esc)</button></div></div>`;
     if (!live()) { $("tv").innerHTML = `<div><h4>FSK 피트보드</h4><div class="tv-sub">${state.phase === "loading" ? "불러오는 중…" : "저장소에 연결할 수 없어요."}</div></div>${foot}`; return; }
@@ -2293,13 +2321,12 @@ window.FSKBom = (() => {
   // which schedules a filter keeps: 구분 (전체 · 공식 · 부서), and for a department its own and the team-wide
   // 부서 일정 plus every 공식 일정, since the whole team works towards those whoever prepares them
   const msShown = (m, fd) => (state.msScope === "all" || msScope(m) === state.msScope) && (!fd || isOfficial(m) || !m.dept || m.dept === fd);
-  const msWho = (m) => isOfficial(m)
-    ? (DEPT[m.dept] ? `<span class="dname">준비 ${dmark(m.dept)}${DEPT[m.dept].l}</span>` : "<span>팀 전체</span>")
-    : (DEPT[m.dept] ? `<span class="dname">${dmark(m.dept)}${DEPT[m.dept].l}</span>` : "<span>팀 전체</span>");
+  const dchip = (k) => `<span class="dchip" style="${groupTone(k)}">${dmark(k)}${DEPT[k].l}</span>`;
+  const msWho = (m) => !DEPT[m.dept] ? "<span>팀 전체</span>" : isOfficial(m) ? `<span class="dname">준비 ${dchip(m.dept)}</span>` : dchip(m.dept);
   function msRow(m, isNext) {
     const n = m.date ? daysUntil(m.date) : null, cw = state.canWrite && state.canManageTeam, off = isOfficial(m);
     const dcls = m.done ? "past" : n < 0 ? "past" : n <= 7 ? "soon" : "";
-    return `<div class="ms${off ? " official" : ""}${m.done ? " done" : ""}${isNext ? " next" : ""}"${!off && DEPT[m.dept] ? ` style="--bar:var(--c${DEPT[m.dept].c})"` : ""}>
+    return `<div class="ms ${off ? "official" : "dept"}${m.done ? " done" : ""}${isNext ? " next" : ""}" style="${groupTone(msGroupOf(m))}">
       <span class="ms-date">${esc(fmtDate(m.date))}</span>
       <span class="ms-d ${dcls}">${m.done ? "완료" : n === null ? "–" : dLabel(n)}</span>
       <div class="ms-main"><span class="ms-title">${esc(m.title)}</span>
@@ -2329,8 +2356,12 @@ window.FSKBom = (() => {
     // the highlighted row is the next 공식 일정 (the next of any kind when only 부서 일정 are shown)
     const upcoming = list.filter((m) => !m.done && m.date >= t), rest = list.filter((m) => m.done || m.date < t).reverse();
     const next = upcoming.find(isOfficial) || upcoming[0];
-    $("msBody").innerHTML = `<div class="ms-list">${upcoming.length ? upcoming.map((m) => msRow(m, m === next)).join("") : '<p class="dim">남은 일정이 없어요.</p>'}</div>
-      ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4><div class="ms-list">${rest.map((m) => msRow(m, false)).join("")}</div>` : ""}`;
+    // grouped by department; each group keeps date order
+    const groups = (l, past) => byGroup(l, msGroupOf).map((g) => `<section class="ms-group" style="${groupTone(g.k)}" aria-label="${g.l}">
+        <h4 class="ms-gh">${g.l}<small>${past ? "" : "남은 "}${g.items.length}건</small></h4>
+        <div class="ms-list">${g.items.map((m) => msRow(m, !past && m === next)).join("")}</div></section>`).join("");
+    $("msBody").innerHTML = `${upcoming.length ? `<div class="ms-groups">${groups(upcoming)}</div>` : '<p class="dim">남은 일정이 없어요.</p>'}
+      ${rest.length ? `<h4 class="sub-h">지난 일정 · 완료</h4><div class="ms-groups past">${groups(rest, true)}</div>` : ""}`;
   }
 
   // month calendar: milestones and part deadlines together, so a crowded week shows up before it arrives
@@ -2341,22 +2372,24 @@ window.FSKBom = (() => {
     const byDay = {}, add = (date, ev) => { if (date) (byDay[date] = byDay[date] || []).push(ev); };
     const ms = state.milestones.filter((m) => msShown(m, fd));
     const comp = state.msScope === "dept" ? "" : state.cfg.compDate;
-    if (comp && !ms.some((m) => m.date === comp && m.kind === "대회")) add(comp, { kind: "comp", order: 0 });
-    ms.forEach((m) => add(m.date, { kind: "ms", m, order: isOfficial(m) ? 1 : 2 }));
-    if (state.calParts) state.parts.filter((p) => p.due && (!fd || deptOf(p) === fd)).forEach((p) => add(p.due, { kind: "part", p, order: p.stage === "done" ? 5 : isLate(p) ? 3 : 4 }));
+    // a day lists 대회 and 공식 일정 first, then 부서 일정 by department, then part deadlines by department
+    // (late ones first); g is the group the day's list below files it under
+    if (comp && !ms.some((m) => m.date === comp && m.kind === "대회")) add(comp, { kind: "comp", g: "official", order: 0 });
+    ms.forEach((m) => { const g = msGroupOf(m); add(m.date, { kind: "ms", m, g, order: 10 + MS_GROUP_RANK[g] }); });
+    if (state.calParts) state.parts.filter((p) => p.due && (!fd || deptOf(p) === fd)).forEach((p) => { const g = deptOf(p); add(p.due, { kind: "part", p, g, order: 100 + MS_GROUP_RANK[g] * 3 + (p.stage === "done" ? 2 : isLate(p) ? 0 : 1) }); });
     Object.values(byDay).forEach((l) => l.sort((a, b) => a.order - b.order));
     const partTitle = (p) => `${p.name || "(이름 없음)"} · ${DEPT[deptOf(p)].l} · ${STAGE_LABEL[p.stage] || "설계"}${p.owner ? " · " + p.owner : ""}`;
     const chip = (e) => {
       if (e.kind === "comp") return `<span class="cal-ev comp">🏁 대회</span>`;
       if (e.kind === "ms") {
-        const m = e.m, off = isOfficial(m), cls = `cal-ev ms${off ? " official" : ""}${m.done ? " done" : ""}`, st = !off && DEPT[m.dept] ? ` style="--dc:var(--c${DEPT[m.dept].c})"` : "";
+        const m = e.m, off = isOfficial(m), cls = `cal-ev ms${off ? " official" : ""}${m.done ? " done" : ""}`, st = ` style="${e.g === "team" ? "--dc:var(--s2)" : groupTone(e.g)}"`;
         const tt = esc(`${m.title} · ${off ? "공식" : DEPT[m.dept] ? DEPT[m.dept].l : "팀 전체"} · ${m.kind || "기타"}`);
         return cw ? `<button type="button" class="${cls}" data-ms="${esc(m.id)}" title="${tt}"${st}>${esc(m.title)}</button>` : `<span class="${cls}" title="${tt}"${st}>${esc(m.title)}</span>`;
       }
       const p = e.p;
       return `<button type="button" class="cal-ev part${isLate(p) ? " late" : ""}${p.stage === "done" ? " done" : ""}" data-part="${esc(p.id)}" style="--dc:var(--c${DEPT[deptOf(p)].c})" title="${esc(partTitle(p))}">${esc(p.name || "(이름 없음)")}</button>`;
     };
-    const dotColor = (e) => e.kind === "part" ? (isLate(e.p) ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : e.kind === "comp" || isOfficial(e.m) ? "var(--race)" : "var(--accent)";
+    const dotColor = (e) => e.kind === "part" ? (isLate(e.p) ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : e.g === "official" ? "var(--race)" : e.g === "team" ? "var(--s2)" : `var(--c${DEPT[e.g].c})`;
     let grid = "", monthParts = 0, monthOff = 0, monthDept = 0, busy = { n: 0, from: "", to: "" }, week = 0, weekFrom = "";
     for (let i = 0; i < cells; i++) {
       const d = new Date(y, mo - 1, 1 - lead + i), ds = ymd(d), evs = byDay[ds] || [], inMonth = d.getMonth() === mo - 1;
@@ -2366,7 +2399,7 @@ window.FSKBom = (() => {
       week += openParts;
       if (i % 7 === 6 && week > busy.n) busy = { n: week, from: weekFrom, to: ds };
       grid += `<div class="cal-day${inMonth ? "" : " out"}${ds === t ? " today" : ""}${d.getDay() === 0 ? " sun" : ""}" role="gridcell" tabindex="0" data-calday="${ds}" aria-selected="${ds === state.calDay}" aria-label="${d.getMonth() + 1}월 ${d.getDate()}일${evs.length ? `, ${evs.length}건` : ""}">
-        <span class="cal-n">${d.getDate()}</span>${evs.slice(0, 3).map(chip).join("")}${evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}건 더</span>` : ""}<span class="cal-dots">${evs.slice(0, 5).map((e) => `<i style="--dc:${dotColor(e)}"></i>`).join("")}</span></div>`;
+        <span class="cal-n">${d.getDate()}</span>${evs.slice(0, 3).map(chip).join("")}${evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}건 더</span>` : ""}<span class="cal-dots">${evs.slice(0, 5).map((e) => `<i${e.kind === "part" ? "" : ' class="sq"'} style="--dc:${dotColor(e)}"></i>`).join("")}</span></div>`;
     }
     const sel = byDay[state.calDay] || [];
     const row = (e) => {
@@ -2376,21 +2409,22 @@ window.FSKBom = (() => {
         return cw ? `<button type="button" class="cal-row" data-ms="${esc(m.id)}">${inner}</button>` : `<div class="cal-row">${inner}</div>`;
       }
       const p = e.p, dk = deptOf(p);
-      return `<button type="button" class="cal-row" data-part="${esc(p.id)}"><span class="dname">${dmark(dk)}${DEPT[dk].l}</span><span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${isLate(p) ? '<b class="late">마감 지남</b>' : ""}</button>`;
+      return `<button type="button" class="cal-row" data-part="${esc(p.id)}">${dchip(dk)}<span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${isLate(p) ? '<b class="late">마감 지남</b>' : ""}</button>`;
     };
-    const [sy, sm, sd] = state.calDay.split("-").map(Number);
+    const [sy, sm, sd] = state.calDay.split("-").map(Number), selGroups = byGroup(sel, (e) => e.g);
     $("msBody").innerHTML = `<div class="cal">
       <div class="cal-h">
         <button class="btn sm" type="button" data-calnav="-1" aria-label="이전 달">‹</button><h3>${y}년 ${mo}월</h3><button class="btn sm" type="button" data-calnav="1" aria-label="다음 달">›</button>
         <button class="btn ghost sm" type="button" data-calnav="0">오늘</button>
         <label class="check"><input type="checkbox" id="calParts"${state.calParts ? " checked" : ""}> 부품 마감 보기</label>
-        <div class="legend"><span><i class="chip" style="background:var(--race-soft);box-shadow:inset 3px 0 0 var(--race)"></i>공식 일정</span><span><i class="chip" style="background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--c3)"></i>부서 일정</span><span><i class="chip" style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--c3)"></i>부품 마감 (색 = 부서)</span><span><i style="background:var(--bad)"></i>마감 지남</span></div>
+        <div class="legend"><span><i class="chip" style="background:var(--race-soft);box-shadow:inset 3px 0 0 var(--race)"></i>공식 일정</span><span><i class="chip" style="background:var(--c3-soft);box-shadow:inset 3px 0 0 var(--c3)"></i>부서 일정</span><span><i class="chip" style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--c3)"></i>부품 마감</span><span><i style="background:var(--bad)"></i>마감 지남</span></div>
       </div>
       <p class="cal-load hint pad">이번 달 ${[state.msScope !== "dept" ? `공식 일정 ${monthOff}건` : "", state.msScope !== "official" ? `부서 일정 ${monthDept}건` : ""].filter(Boolean).join(" · ")}${state.calParts ? ` · 부품 마감 ${monthParts}개${busy.n >= 3 ? ` · 가장 몰린 주 ${fmtShort(busy.from)}~${fmtShort(busy.to)} <b>남은 부품 ${busy.n}개</b>` : ""}` : ""}</p>
+      <div class="legend dkey" role="list" aria-label="부서 색">${DEPTS.map((d) => `<span role="listitem"><i style="background:var(--c${d.c})"></i>${d.l}</span>`).join("")}<span role="listitem"><i style="background:var(--s2)"></i>팀 전체</span></div>
       <div class="cal-dow" aria-hidden="true">${["일", "월", "화", "수", "목", "금", "토"].map((w) => `<span>${w}</span>`).join("")}</div>
       <div class="cal-grid" role="grid" aria-label="${y}년 ${mo}월">${grid}</div>
       <div class="cal-list"><h4>${new Date(sy, sm - 1, sd).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}</h4>
-        ${sel.length ? sel.map(row).join("") : '<p class="hint">이 날은 일정이나 부품 마감이 없어요.</p>'}</div>
+        ${!sel.length ? '<p class="hint">이 날은 일정이나 부품 마감이 없어요.</p>' : selGroups.length > 1 ? selGroups.map((g) => `<div class="cal-gh" style="${groupTone(g.k)}">${g.l}</div>${g.items.map(row).join("")}`).join("") : sel.map(row).join("")}</div>
     </div>`;
   }
   function moveCalendar(step) {

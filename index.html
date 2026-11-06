@@ -4,7 +4,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <style>
-/* Layout (pit-wall redesign): dark left sidebar (car · tabs · 차량 설정; a bottom tab bar on phones) + sticky top bar (D-day chip · account). Red only for D-day / overdue / problems, part stages as a grey → green ramp, condensed racing numerals.
+/* Layout (pit-wall redesign): dark left sidebar (car · tabs · 차량 설정; folds to an icon rail on wider screens, a bottom tab bar on phones) + sticky top bar (D-day chip · account). Red only for D-day / overdue / problems, part stages as a grey → green ramp, condensed racing numerals.
    Previous layout: one-line sticky header (car · D-day pill · account · 일반/TV switch) → pill tabs. 오늘 = today's cards + my department's parts. TV = read-only workshop screen (full-window overlay).
    Earlier layout notes: pit-board header (car + D-day + next deadline + who am I) → tabs. 부품 현황 = gauges, department matrix, parts sheet. 테스트 세션 = list + pre-run checklist + per-department cards. 추이 분석 = metric chart + verdict matrix. 이슈, 일정 (timeline), 변경 이력 (activity log). Workshop-drawing neutrals, CAD-selection blue accent, part stages as a sequential ramp ending in green, departments as fixed categorical hues. */
 :root {
@@ -86,6 +86,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .main-col { min-width: 0; display: flex; flex-direction: column; }
 .side { position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 24px; padding: 22px 14px 18px max(14px, env(safe-area-inset-left, 0px)); background: var(--side); color: var(--side-ink); }
 .side :focus-visible { outline-color: #FFFFFF; }
+.side-head { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.side-head .brand { flex: 1; }
+.side-toggle { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin-top: -6px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--side-muted); cursor: pointer; }
+.side-toggle:hover { background: var(--side-hover); color: #FFFFFF; }
+.side-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.side-toggle .unfold, .rail .side-toggle .fold { display: none; }
+.rail .side-toggle .unfold { display: inline; }
 .brand { display: flex; flex-direction: column; gap: 6px; padding: 0 10px; min-width: 0; }
 .eyebrow { font-size: 11px; letter-spacing: .12em; color: var(--side-muted); font-weight: 600; }
 .car { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -543,6 +550,21 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
 .cal-load { font-size: 12px; color: var(--muted); padding: 0 14px 6px; }
 .cal-load b { color: var(--warn); }
 
+@media (min-width: 861px) {
+  /* folded sidebar: an icon rail (the 사이드바 button at the top folds and unfolds it; each tab keeps its name for screen readers and as a tooltip) */
+  .shell.rail { grid-template-columns: calc(72px + env(safe-area-inset-left, 0px)) minmax(0, 1fr); }
+  .rail .side { padding: 22px 12px 18px max(12px, env(safe-area-inset-left, 0px)); }
+  .rail .side-head { flex-direction: column; align-items: center; gap: 14px; }
+  .rail .side-head .brand { flex: none; align-items: center; padding: 0; }
+  .rail .side-toggle { margin: 0; width: 42px; height: 36px; }
+  .rail .eyebrow, .rail .car h1, .rail .tab .tl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .rail .tab { justify-content: center; gap: 0; padding: 0; }
+  .rail .tab::before { position: absolute; left: 5px; top: 50%; margin: -8px 0 0; }
+  .rail .badge { position: absolute; top: 3px; right: 2px; margin: 0; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
+  .rail .side-foot { align-items: center; padding: 16px 0 0; }
+  .rail .side .btn.side-btn { justify-content: center; width: 42px; min-height: 42px; padding: 0; }
+  .rail .side-btn span { display: none; }
+}
 @media (max-width: 860px) {
   /* phones & small tablets: the sidebar becomes a slim top band + a bottom tab bar */
   .shell { display: block; }
@@ -554,6 +576,8 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
   .side-foot { margin: 0; flex-direction: row; align-items: center; gap: 6px; padding: 0; border: 0; }
   .side .btn.side-btn { min-width: 40px; min-height: 40px; justify-content: center; padding: 0; }
   .side-btn span { display: none; }
+  .side-head { flex: 1; }
+  .side-toggle { display: none; }
   .tabs { position: fixed; z-index: 8; left: 0; right: 0; bottom: 0; flex-direction: row; gap: 2px; padding: 4px max(4px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(4px, env(safe-area-inset-left, 0px)); background: var(--side); border-top: 1px solid var(--side-line); }
   .tab { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 3px; min-height: 52px; padding: 4px 0; font-size: 11px; }
   .tab::before { position: absolute; top: 0; left: 50%; width: 18px; height: 3px; margin: 0 0 0 -9px; }
@@ -628,11 +652,15 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
 @media (prefers-reduced-motion: no-preference) { .track > span { transition: width .4s ease; } }
 </style>
 
-<div class="shell">
-  <aside class="side">
-    <div class="brand">
-      <span class="eyebrow">FSK 피트보드</span>
-      <div class="car"><span class="mark" aria-hidden="true"><i></i><i></i></span><h1 id="carName" title="FSK 차량 제작 현황">우리 팀 차량</h1></div>
+<div class="shell" id="shell">
+  <script>try { if (localStorage.getItem("fsk.side") === "rail") document.getElementById("shell").classList.add("rail"); } catch {}</script>
+  <aside class="side" id="side">
+    <div class="side-head">
+      <div class="brand">
+        <span class="eyebrow">FSK 피트보드</span>
+        <div class="car"><span class="mark" aria-hidden="true"><i></i><i></i></span><h1 id="carName" title="FSK 차량 제작 현황">우리 팀 차량</h1></div>
+      </div>
+      <button class="side-toggle" id="btnSide" type="button" aria-controls="side" aria-expanded="true" aria-label="사이드바" title="사이드바 접기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM9 4v16"/><path class="fold" d="M16 9l-3 3 3 3"/><path class="unfold" d="M13 9l3 3-3 3"/></svg></button>
     </div>
     <nav class="tabs" role="tablist" aria-label="화면">
       <button class="tab" role="tab" id="tab-today" data-tab="today" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 17.5a8.5 8.5 0 1 1 15 0M12 17l3.5-5"/></svg><span class="tl">오늘</span><span class="ts" aria-hidden="true">오늘</span></button>
@@ -2907,6 +2935,17 @@ window.FSKBom = (() => {
   $("meName").addEventListener("change", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); render(); });
   $("meName").addEventListener("input", (e) => { state.me.name = e.target.value.trim(); store.set("fsk.me.name", state.me.name); });
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { state.tab = t.dataset.tab; render(); }));
+  // sidebar: 접기 leaves an icon rail (wider screens only; phones keep the bottom tab bar). This device remembers the choice.
+  function setRail(on) {
+    $("shell").classList.toggle("rail", on);
+    $("btnSide").setAttribute("aria-expanded", String(!on));
+    $("btnSide").title = on ? "사이드바 펼치기" : "사이드바 접기";
+    document.querySelectorAll(".side .tab, #btnSettings").forEach((el) => {
+      if (on) el.title = (el.querySelector(".tl")?.textContent || el.getAttribute("aria-label") || "").trim(); else el.removeAttribute("title");
+    });
+  }
+  setRail(store.get("fsk.side") === "rail");
+  $("btnSide").addEventListener("click", () => { const on = !$("shell").classList.contains("rail"); setRail(on); store.set("fsk.side", on ? "rail" : ""); });
   // links to a session or a part
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-copylink]");

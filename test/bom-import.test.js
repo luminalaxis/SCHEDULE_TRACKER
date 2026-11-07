@@ -44,6 +44,14 @@ test("the page's own BOM export reads back", () => {
   assert.equal(r.items.every((i) => !i.warns.length), true);
 });
 
+test("설계 마감일 and 제작 마감일 are read as two deadlines", () => {
+  const r = parts("부품명,설계 마감일,제작 마감일\n업라이트,2026-10-01,2026-11-02\n휠,모름,\n");
+  assert.deepEqual(plain(r.cols), ["name", "designDue", "due"]);
+  assert.deepEqual(plain(r.items[0].data), { name: "업라이트", designDue: "2026-10-01", due: "2026-11-02" });
+  assert.match(r.items[1].warns.join(), /설계 마감일 '모름'/);
+  assert.equal(r.items[1].data.due, "");
+});
+
 test("other sheets: aliases, kg, 원 and commas, short dates, and warnings", () => {
   const r = parts("품명,팀,상태,무게(kg),단가,납기,개수\n리어 윙,에어로,완료,1.25,\"12,000원\",11/5,x\n뭔가,이상한부서,곧,,abc,내일,3\n,배터리,,,,,\n");
   const year = new Date().getFullYear();

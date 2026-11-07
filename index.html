@@ -477,6 +477,7 @@ legend.fl { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .towner { color: var(--muted); font-size: 13px; }
 .tme { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 8px; padding: 1px 7px; border: 1px solid var(--line-2); border-radius: 4px; white-space: nowrap; }
 .tdue { font-family: var(--font-num); font-size: 19px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.tdue small { font-family: var(--font-body); font-size: 11px; font-weight: 600; color: var(--muted); margin-right: 4px; }
 .tdue.late { color: var(--bad); } .tdue.soon { color: var(--warn); } .tdue.none { color: var(--muted); font-family: var(--font-body); font-weight: 500; font-size: 12px; }
 
 
@@ -781,7 +782,7 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
         </div>
         <div class="scroll">
           <table id="partTable">
-            <thead><tr><th class="sel"><input type="checkbox" id="pickAll" aria-label="보이는 부품 모두 선택"></th><th>단계</th><th>부품</th><th>부서</th><th>구분</th><th class="r">수량</th><th class="r">질량</th><th class="r">금액</th><th>담당</th><th>마감</th></tr></thead>
+            <thead><tr><th class="sel"><input type="checkbox" id="pickAll" aria-label="보이는 부품 모두 선택"></th><th>단계</th><th>부품</th><th>부서</th><th>구분</th><th class="r">수량</th><th class="r">질량</th><th class="r">금액</th><th>담당</th><th>설계 마감</th><th>제작 마감</th></tr></thead>
             <tbody id="partBody"></tbody>
           </table>
         </div>
@@ -790,7 +791,8 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
           <select class="field" id="bStage" aria-label="단계"></select>
           <select class="field" id="bDept" aria-label="부서"></select>
           <input class="field" id="bOwner" maxlength="40" placeholder="담당 그대로" aria-label="담당">
-          <label>마감<input class="field" type="date" id="bDue" aria-label="마감일"></label>
+          <label>설계 마감<input class="field" type="date" id="bDesignDue" aria-label="설계 마감일"></label>
+          <label>제작 마감<input class="field" type="date" id="bDue" aria-label="제작 마감일"></label>
           <button class="btn primary sm" type="button" id="bApply">적용</button>
           <div class="right">
             <button class="btn danger sm" type="button" id="bDelete">삭제</button>
@@ -939,7 +941,8 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
       <label class="f">개당 비용<div class="unit"><input id="pCost" type="number" min="0" step="1" inputmode="numeric" placeholder="미입력"><span>원</span></div></label>
       <label class="f">담당자<select id="pOwner"></select></label>
       <label class="f">공급처 / 가공처<input id="pSupplier" maxlength="60"></label>
-      <label class="f">마감일<input id="pDue" type="date"></label>
+      <label class="f">설계 마감일<input id="pDesignDue" type="date"></label>
+      <label class="f">제작 마감일<input id="pDue" type="date"></label>
       <label class="f full">메모<textarea id="pNote" maxlength="1000" placeholder="재질, 도면 링크, 특이사항"></textarea></label>
     </div>
     <label class="check" id="pLockRow" hidden><input type="checkbox" id="pLock"> 잠금 · 이 부서 파트장과 팀장·부팀장만 고칠 수 있게 해요</label>
@@ -1133,7 +1136,7 @@ button.cal-row:hover .cal-t { color: var(--accent); text-decoration: underline; 
 <dialog id="dlgImport">
   <form class="dlg" id="formImport">
     <h3>CSV에서 부품 가져오기</h3>
-    <p class="hint">'BOM 내보내기'로 받은 파일이나 엑셀·구글 시트에서 CSV로 저장한 파일을 올려요. 첫 줄은 머리글이어야 하고, <b>부품명</b> 열만 있으면 돼요. 부서 · 부품번호 · 구분 · 제작 단계 · 수량 · 개당 질량(g) · 개당 비용(원) · 공급처 · 담당자 · 마감일 · 메모 열을 알아봐요. 엑셀의 한글 CSV(EUC-KR)도 읽어요.</p>
+    <p class="hint">'BOM 내보내기'로 받은 파일이나 엑셀·구글 시트에서 CSV로 저장한 파일을 올려요. 첫 줄은 머리글이어야 하고, <b>부품명</b> 열만 있으면 돼요. 부서 · 부품번호 · 구분 · 제작 단계 · 수량 · 개당 질량(g) · 개당 비용(원) · 공급처 · 담당자 · 설계 마감일 · 제작 마감일 · 메모 열을 알아봐요. 그냥 '마감일' 열은 제작 마감일로 읽어요. 엑셀의 한글 CSV(EUC-KR)도 읽어요.</p>
     <div class="toolbar"><span class="btn filebtn">CSV 파일 선택<input type="file" id="impFile" accept=".csv,.tsv,.txt,text/csv"></span><span class="hint" id="impFileName">선택한 파일 없음</span></div>
     <label class="check"><input type="checkbox" id="impOverwrite" checked> 이미 있는 부품(부품번호, 또는 부서와 이름이 같은 것)은 파일 내용으로 고치기</label>
     <div id="impResult"></div>
@@ -1376,7 +1379,8 @@ window.FSKBom = (() => {
     unitCost: ["개당비용(원)", "개당비용", "단가(원)", "단가", "비용(원)", "비용", "가격", "cost", "unitcost", "price"],
     supplier: ["공급처/가공처", "공급처", "가공처", "구매처", "업체", "supplier", "vendor"],
     owner: ["담당자", "담당", "owner", "assignee"],
-    due: ["마감일", "마감", "납기", "due", "duedate", "deadline"],
+    designDue: ["설계마감일", "설계마감", "설계완료일", "designdue", "designdeadline"],
+    due: ["제작마감일", "제작마감", "마감일", "마감", "납기", "due", "duedate", "deadline"],
     note: ["메모", "비고", "note", "notes", "memo"]
   };
   const HEAD_OF = new Map(); Object.entries(HEAD).forEach(([k, list]) => list.forEach((h) => HEAD_OF.set(norm(h), k)));
@@ -1424,8 +1428,8 @@ window.FSKBom = (() => {
       const g = num(cell("unitMass"), "질량", 1), kgv = num(cell("unitMassKg"), "질량", 1000);
       if (kgv !== undefined && kgv !== null) data.unitMass = kgv; else if (g !== undefined) data.unitMass = g; else if (kgv === null) data.unitMass = null;
       const cost = num(cell("unitCost"), "비용", 1); if (cost !== undefined) data.unitCost = cost === null ? null : Math.round(cost);
-      const due = cell("due");
-      if (due !== undefined) { if (due === "") data.due = ""; else { const d = toDate(due); if (d) data.due = d; else warns.push(`마감일 '${due}'를 읽을 수 없어요`); } }
+      const day = (k, label) => { const v = cell(k); if (v === undefined) return; if (v === "") data[k] = ""; else { const d = toDate(v); if (d) data[k] = d; else warns.push(`${label} '${v}'를 읽을 수 없어요`); } };
+      day("designDue", "설계 마감일"); day("due", "마감일");
       items.push({ line: i + 2, data, warns });
     });
     return { cols, items };
@@ -1549,7 +1553,20 @@ window.FSKBom = (() => {
   const fmtWhen = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
   const daysUntil = (s) => { const [y, m, d] = s.split("-").map(Number); const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((new Date(y, m - 1, d) - t) / 86400000); };
   const dLabel = (n) => n > 0 ? `D-${n}` : n === 0 ? "D-DAY" : `D+${-n}`;
-  const isLate = (p) => p.due && p.stage !== "done" && p.due < todayStr();
+  // Two deadlines per part: 설계 마감 (designDue) counts while the part is still in 설계, 제작 마감 (due) until it is 완료.
+  // nextDue is the one the part is working towards now (the earlier of the two while both count).
+  const inDesign = (p) => (p.stage || "design") === "design";
+  const designLate = (p) => !!(inDesign(p) && p.designDue && p.designDue < todayStr());
+  const makeLate = (p) => !!(p.stage !== "done" && p.due && p.due < todayStr());
+  const isLate = (p) => designLate(p) || makeLate(p);
+  function nextDue(p) {
+    if (p.stage === "done") return null;
+    const l = [];
+    if (inDesign(p) && p.designDue) l.push({ date: p.designDue, kind: "설계" });
+    if (p.due) l.push({ date: p.due, kind: "제작" });
+    return l.sort((a, b) => a.date.localeCompare(b.date))[0] || null;
+  }
+  const nextDueDate = (p) => nextDue(p)?.date || "";
   const deptOf = (x) => DEPT[x.dept] ? x.dept : "chassis";
   // 담당 is picked from the people list (ownerUid, and owner keeps the name); older parts may only have a typed name
   const personName = (uid) => { const x = state.people.find((p) => p.id === uid); return x && x.name ? x.name : ""; };
@@ -1806,14 +1823,14 @@ window.FSKBom = (() => {
   }
 
   // ---------- 오늘 ----------
-  const byDue = (a, b) => String(a.due || "9999").localeCompare(String(b.due || "9999"));
+  const byDue = (a, b) => (nextDueDate(a) || "9999").localeCompare(nextDueDate(b) || "9999");
   const partNames = (l) => l.length ? esc(l.slice(0, 2).map((p) => p.name || "(이름 없음)").join(", ")) + (l.length > 2 ? ` 외 ${l.length - 2}개` : "") : "없어요";
   function todayFacts() {
-    const t = todayStr(), open = state.parts.filter((p) => p.stage !== "done" && p.due);
+    const t = todayStr(), open = state.parts.filter((p) => nextDue(p));
     const ids = sessionIds();
     return {
-      late: open.filter((p) => p.due < t).sort(byDue),
-      soon: open.filter((p) => p.due >= t && daysUntil(p.due) <= 3).sort(byDue),
+      late: open.filter(isLate).sort(byDue),
+      soon: open.filter((p) => !isLate(p) && daysUntil(nextDueDate(p)) <= 3).sort(byDue),
       issues: state.logs.filter((l) => openIssue(l, ids)).sort((a, b) => (b.status === "bad") - (a.status === "bad")),
       ms: upcomingMs(),
       last: sortedSessions(-1)[0] || null
@@ -1858,8 +1875,8 @@ window.FSKBom = (() => {
     if (!dk) { $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일</h3></div><p class="hint" style="padding:0 16px 14px">${deptLocked() ? "부서가 정해지면 우리 부서의 남은 부품이 마감 순서로 보여요. 부서는 개발자가 정해요." : "위에서 '내 부서'를 고르면 우리 부서의 남은 부품이 마감 순서로 보여요."}</p>`; return; }
     const list = state.parts.filter((p) => deptOf(p) === dk && p.stage !== "done").sort(byDue);
     const row = (p) => {
-      const n = p.due ? daysUntil(p.due) : null;
-      return `<button type="button" class="trow" data-part="${esc(p.id)}"><span class="tstage" style="--sc:var(--s${STAGE_INDEX[p.stage] ?? 0})">${STAGE_LABEL[p.stage] || "설계"}</span><span>${esc(p.name || "(이름 없음)")}${isMine(p) ? '<span class="tme">내 담당</span>' : ""}</span><span class="towner">${esc(ownerName(p) || "–")}</span><span class="tdue ${n === null ? "none" : n < 0 ? "late" : n <= 3 ? "soon" : ""}">${n === null ? "마감 없음" : dLabel(n)}</span></button>`;
+      const nd = nextDue(p), n = nd ? daysUntil(nd.date) : null;
+      return `<button type="button" class="trow" data-part="${esc(p.id)}"><span class="tstage" style="--sc:var(--s${STAGE_INDEX[p.stage] ?? 0})">${STAGE_LABEL[p.stage] || "설계"}</span><span>${esc(p.name || "(이름 없음)")}${isMine(p) ? '<span class="tme">내 담당</span>' : ""}</span><span class="towner">${esc(ownerName(p) || "–")}</span><span class="tdue ${n === null ? "none" : n < 0 ? "late" : n <= 3 ? "soon" : ""}">${n === null ? "마감 없음" : `<small>${nd.kind}</small>${dLabel(n)}`}</span></button>`;
     };
     $("todayMine").innerHTML = `<div class="tlist-h"><h3>내 부서 할 일 · ${DEPT[dk].l}</h3>${list.length > 8 ? `<button class="btn ghost sm" type="button" data-today="dept">남은 부품 ${list.length}개 모두 보기 →</button>` : ""}</div>`
       + (list.length ? list.slice(0, 8).map(row).join("") : `<p class="hint" style="padding:0 16px 14px">남은 부품이 없어요. 모두 완료됐어요.</p>`);
@@ -1940,7 +1957,7 @@ window.FSKBom = (() => {
     gLate.textContent = total ? String(late.length) : "–";
     gLate.className = "g-value num" + (total ? (late.length ? " alert" : " calm") : "");
     $("gLateSub").textContent = late.length
-      ? late.slice().sort((a, b) => a.due.localeCompare(b.due)).slice(0, 3).map((p) => p.name).join(", ") + (late.length > 3 ? ` 외 ${late.length - 3}개` : "")
+      ? late.slice().sort(byDue).slice(0, 3).map((p) => p.name).join(", ") + (late.length > 3 ? ` 외 ${late.length - 3}개` : "")
       : "마감일이 지났는데 완료되지 않은 부품";
 
     const anyData = total || state.logs.length, ids = sessionIds();
@@ -1987,7 +2004,7 @@ window.FSKBom = (() => {
     });
     const by = {
       dept: (a, b) => DEPT_INDEX[deptOf(a)] - DEPT_INDEX[deptOf(b)] || (STAGE_INDEX[a.stage] ?? 0) - (STAGE_INDEX[b.stage] ?? 0) || String(a.name).localeCompare(String(b.name), "ko"),
-      due: (a, b) => (a.stage === "done") - (b.stage === "done") || (a.due || "9999").localeCompare(b.due || "9999"),
+      due: (a, b) => (a.stage === "done") - (b.stage === "done") || byDue(a, b),
       recent: (a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
       mass: (a, b) => (num(b.unitMass) || 0) * qtyOf(b) - (num(a.unitMass) || 0) * qtyOf(a)
     };
@@ -2013,9 +2030,10 @@ window.FSKBom = (() => {
         <td class="r num">${m === null ? '<span class="dim">–</span>' : kg(m * q) + " kg"}</td>
         <td class="r num">${c === null ? '<span class="dim">–</span>' : won(c * q)}</td>
         <td>${ownerName(p) ? esc(ownerName(p)) : '<span class="dim">–</span>'}</td>
-        <td class="num ${isLate(p) ? "late" : ""}">${p.due ? esc(fmtDate(p.due)) : '<span class="dim">–</span>'}</td>
+        <td class="num ${designLate(p) ? "late" : !inDesign(p) && p.designDue ? "dim" : ""}"${!inDesign(p) && p.designDue ? ' title="설계 단계를 지났어요"' : ""}>${p.designDue ? esc(fmtDate(p.designDue)) : '<span class="dim">–</span>'}</td>
+        <td class="num ${makeLate(p) ? "late" : ""}">${p.due ? esc(fmtDate(p.due)) : '<span class="dim">–</span>'}</td>
       </tr>`;
-    }).join("") : `<tr><td colspan="10" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
+    }).join("") : `<tr><td colspan="11" class="dim">조건에 맞는 부품이 없어요.</td></tr>`;
     renderBulk(list.filter((p) => !lockedFor(p)).length);
   }
   function renderBulk(visible) {
@@ -2331,9 +2349,15 @@ window.FSKBom = (() => {
     // (late ones first); g is the group the day's list below files it under
     if (comp && !ms.some((m) => m.date === comp && m.kind === "대회")) add(comp, { kind: "comp", g: "official", order: 0 });
     ms.forEach((m) => { const g = msGroupOf(m); add(m.date, { kind: "ms", m, g, order: 10 + MS_GROUP_RANK[g] }); });
-    if (state.calParts) state.parts.filter((p) => p.due && (!fd || deptOf(p) === fd)).forEach((p) => { const g = deptOf(p); add(p.due, { kind: "part", p, g, order: 100 + MS_GROUP_RANK[g] * 3 + (p.stage === "done" ? 2 : isLate(p) ? 0 : 1) }); });
+    // each part shows its 설계 마감 and its 제작 마감; a 설계 마감 is closed once the part has left 설계
+    if (state.calParts) state.parts.filter((p) => !fd || deptOf(p) === fd).forEach((p) => {
+      const g = deptOf(p);
+      [["설계", p.designDue, inDesign(p), designLate(p)], ["제작", p.due, p.stage !== "done", makeLate(p)]].forEach(([dk, date, open, late]) => {
+        if (date) add(date, { kind: "part", p, g, dk, open, late, order: 100 + MS_GROUP_RANK[g] * 3 + (!open ? 2 : late ? 0 : 1) });
+      });
+    });
     Object.values(byDay).forEach((l) => l.sort((a, b) => a.order - b.order));
-    const partTitle = (p) => `${p.name || "(이름 없음)"} · ${DEPT[deptOf(p)].l} · ${STAGE_LABEL[p.stage] || "설계"}${p.owner ? " · " + p.owner : ""}`;
+    const partTitle = (e) => `${e.p.name || "(이름 없음)"} · ${e.dk} 마감 · ${DEPT[deptOf(e.p)].l} · ${STAGE_LABEL[e.p.stage] || "설계"}${e.p.owner ? " · " + e.p.owner : ""}`;
     const chip = (e) => {
       if (e.kind === "comp") return `<span class="cal-ev comp">🏁 대회</span>`;
       if (e.kind === "ms") {
@@ -2342,13 +2366,13 @@ window.FSKBom = (() => {
         return cw ? `<button type="button" class="${cls}" data-ms="${esc(m.id)}" title="${tt}"${st}>${esc(m.title)}</button>` : `<span class="${cls}" title="${tt}"${st}>${esc(m.title)}</span>`;
       }
       const p = e.p;
-      return `<button type="button" class="cal-ev part${isLate(p) ? " late" : ""}${p.stage === "done" ? " done" : ""}" data-part="${esc(p.id)}" style="--dc:var(--c${DEPT[deptOf(p)].c})" title="${esc(partTitle(p))}">${esc(p.name || "(이름 없음)")}</button>`;
+      return `<button type="button" class="cal-ev part${e.late ? " late" : ""}${e.open ? "" : " done"}" data-part="${esc(p.id)}" style="--dc:var(--c${DEPT[deptOf(p)].c})" title="${esc(partTitle(e))}">${e.dk} · ${esc(p.name || "(이름 없음)")}</button>`;
     };
-    const dotColor = (e) => e.kind === "part" ? (isLate(e.p) ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : e.g === "official" ? "var(--race)" : e.g === "team" ? "var(--s2)" : `var(--c${DEPT[e.g].c})`;
+    const dotColor = (e) => e.kind === "part" ? (e.late ? "var(--bad)" : `var(--c${DEPT[deptOf(e.p)].c})`) : e.g === "official" ? "var(--race)" : e.g === "team" ? "var(--s2)" : `var(--c${DEPT[e.g].c})`;
     let grid = "", monthParts = 0, monthOff = 0, monthDept = 0, busy = { n: 0, from: "", to: "" }, week = 0, weekFrom = "";
     for (let i = 0; i < cells; i++) {
       const d = new Date(y, mo - 1, 1 - lead + i), ds = ymd(d), evs = byDay[ds] || [], inMonth = d.getMonth() === mo - 1;
-      const openParts = evs.filter((e) => e.kind === "part" && e.p.stage !== "done").length;
+      const openParts = evs.filter((e) => e.kind === "part" && e.open).length;
       if (inMonth) evs.forEach((e) => { if (e.kind === "part") monthParts++; else if (e.kind === "ms") { if (isOfficial(e.m)) monthOff++; else monthDept++; } });
       if (i % 7 === 0) { week = 0; weekFrom = ds; }
       week += openParts;
@@ -2364,7 +2388,7 @@ window.FSKBom = (() => {
         return cw ? `<button type="button" class="cal-row" data-ms="${esc(m.id)}">${inner}</button>` : `<div class="cal-row">${inner}</div>`;
       }
       const p = e.p, dk = deptOf(p);
-      return `<button type="button" class="cal-row" data-part="${esc(p.id)}">${dchip(dk)}<span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${isLate(p) ? '<b class="late">마감 지남</b>' : ""}</button>`;
+      return `<button type="button" class="cal-row" data-part="${esc(p.id)}">${dchip(dk)}<span class="tag${e.dk === "제작" ? " make" : ""}">${e.dk} 마감</span><span class="cal-t">${esc(p.name || "(이름 없음)")}</span><span class="tstage">${STAGE_LABEL[p.stage] || "설계"}</span>${p.owner ? `<span class="dim">${esc(p.owner)}</span>` : ""}${e.late ? '<b class="late">마감 지남</b>' : ""}</button>`;
     };
     const [sy, sm, sd] = state.calDay.split("-").map(Number), selGroups = byGroup(sel, (e) => e.g);
     $("msBody").innerHTML = `<div class="cal">
@@ -2524,7 +2548,8 @@ window.FSKBom = (() => {
   }
   // what a read-only part dialog shows (no write access, or a part locked for me): filled-in fields only
   function partView(p) {
-    const q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost), dk = deptOf(p), n = p.due && p.stage !== "done" ? daysUntil(p.due) : null;
+    const q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost), dk = deptOf(p);
+    const dueRow = (date, open) => { if (!date) return ""; const n = open ? daysUntil(date) : null; return `${esc(fmtDate(date))}${n === null ? "" : ` <span class="${n < 0 ? "late" : ""}">${dLabel(n)}</span>`}`; };
     const rows = [
       ["부품명", `<span class="pv-name">${esc(p.name || "(이름 없음)")}</span>`, true],
       ["부서", `<span class="dname">${dmark(dk)}${DEPT[dk].l}</span>`],
@@ -2534,7 +2559,8 @@ window.FSKBom = (() => {
       ["질량", m === null ? "" : q > 1 ? `개당 ${fmtN(m)} g · 합계 ${kg(m * q)} kg` : `${fmtN(m)} g`],
       ["비용", c === null ? "" : q > 1 ? `개당 ${won(c)} · 합계 ${won(c * q)}` : won(c)],
       ["담당", esc(ownerName(p))],
-      ["마감", p.due ? `${esc(fmtDate(p.due))}${n === null ? "" : ` <span class="${n < 0 ? "late" : ""}">${dLabel(n)}</span>`}` : ""],
+      ["설계 마감", dueRow(p.designDue, inDesign(p))],
+      ["제작 마감", dueRow(p.due, p.stage !== "done")],
       ["공급처 · 가공처", esc(p.supplier || "")],
       ["메모", p.note ? linkify(p.note) : "", true]
     ];
@@ -2554,7 +2580,7 @@ window.FSKBom = (() => {
     $("pOwner").innerHTML = ownerOptions(p);
     $("pOwner").value = p ? (p.ownerUid ? "u:" + p.ownerUid : p.owner ? "n:" + p.owner : "") : (state.uid && state.me.name ? "u:" + state.uid : "");
     $("pSupplier").value = p?.supplier || "";
-    $("pDue").value = p?.due || ""; $("pNote").value = p?.note || "";
+    $("pDesignDue").value = p?.designDue || ""; $("pDue").value = p?.due || ""; $("pNote").value = p?.note || "";
     resetDelete($("btnDelPart"), "삭제", !!(p && cw));
     $("btnSavePart").hidden = !cw;
     $("formPart").querySelectorAll("input,select,textarea").forEach((el) => { el.disabled = !cw; });
@@ -2591,7 +2617,8 @@ window.FSKBom = (() => {
     if (num(old.unitCost) !== nw.unitCost) ch.push(`비용 ${fmtN(num(old.unitCost))} → ${fmtN(nw.unitCost)}원`);
     if (ownerName(old) !== nw.owner) ch.push(`담당 ${ownerName(old) || "–"} → ${nw.owner || "–"}`);
     if (!!old.locked !== !!nw.locked) ch.push(nw.locked ? "잠금" : "잠금 해제");
-    if ((old.due || "") !== nw.due) ch.push(`마감 ${old.due || "–"} → ${nw.due || "–"}`);
+    if ((old.designDue || "") !== nw.designDue) ch.push(`설계 마감 ${old.designDue || "–"} → ${nw.designDue || "–"}`);
+    if ((old.due || "") !== nw.due) ch.push(`제작 마감 ${old.due || "–"} → ${nw.due || "–"}`);
     if ((old.supplier || "") !== nw.supplier) ch.push("공급처 변경");
     if ((old.note || "") !== nw.note) ch.push("메모 변경");
     if ((old.partNo || "") !== nw.partNo) ch.push("부품 번호 변경");
@@ -2622,7 +2649,7 @@ window.FSKBom = (() => {
       const body = {
         name, partNo: $("pNo").value.trim(), dept: $("pDept").value, make: $("pMake").value, stage: $("pStage").value,
         qty: Math.max(1, Math.round(Number($("pQty").value) || 1)), unitMass: num($("pMass").value), unitCost: num($("pCost").value),
-        owner, ownerUid, supplier: $("pSupplier").value.trim(), due: $("pDue").value, note: $("pNote").value.trim(), attachments,
+        owner, ownerUid, supplier: $("pSupplier").value.trim(), designDue: $("pDesignDue").value, due: $("pDue").value, note: $("pNote").value.trim(), attachments,
         locked: lock ? (old?.locked || { uid: state.uid || "", by: state.me.name || "", at: stamp() }) : null
       };
       const id = await savePart(state.editPart, body);
@@ -2962,7 +2989,7 @@ window.FSKBom = (() => {
       resetDelete($("bDelete"), "삭제", true); renderPartList();
     }
   });
-  function clearPicked() { state.picked.clear(); ["bStage", "bDept", "bOwner", "bDue"].forEach((id) => { $(id).value = ""; }); resetDelete($("bDelete"), "삭제", true); renderPartList(); }
+  function clearPicked() { state.picked.clear(); ["bStage", "bDept", "bOwner", "bDesignDue", "bDue"].forEach((id) => { $(id).value = ""; }); resetDelete($("bDelete"), "삭제", true); renderPartList(); }
   $("bClear").addEventListener("click", clearPicked);
   // writes one part at a time (the server has no batch call); stops at the first failure and says how far it got
   async function eachPart(ids, btn, label, fn) {
@@ -2975,11 +3002,12 @@ window.FSKBom = (() => {
     if ($("bStage").value) patch.stage = $("bStage").value;
     if ($("bDept").value) patch.dept = $("bDept").value;
     if ($("bOwner").value.trim()) { patch.owner = $("bOwner").value.trim(); patch.ownerUid = ""; }
+    if ($("bDesignDue").value) patch.designDue = $("bDesignDue").value;
     if ($("bDue").value) patch.due = $("bDue").value;
-    if (!Object.keys(patch).length) { toast("바꿀 단계, 부서, 담당, 마감 중 하나를 정해 주세요"); return; }
+    if (!Object.keys(patch).length) { toast("바꿀 단계, 부서, 담당, 설계·제작 마감 중 하나를 정해 주세요"); return; }
     const ids = [...state.picked].filter((id) => state.parts.some((p) => p.id === id));
-    const before = Object.fromEntries(ids.map((id) => { const p = state.parts.find((x) => x.id === id); return [id, { stage: p.stage || "design", dept: deptOf(p), owner: p.owner || "", ownerUid: p.ownerUid || "", due: p.due || "" }]; }));
-    const desc = [patch.stage && `단계 → ${STAGE_LABEL[patch.stage]}`, patch.dept && `부서 → ${DEPT[patch.dept].l}`, patch.owner && `담당 → ${patch.owner}`, patch.due && `마감 → ${patch.due}`].filter(Boolean).join(", ");
+    const before = Object.fromEntries(ids.map((id) => { const p = state.parts.find((x) => x.id === id); return [id, { stage: p.stage || "design", dept: deptOf(p), owner: p.owner || "", ownerUid: p.ownerUid || "", designDue: p.designDue || "", due: p.due || "" }]; }));
+    const desc = [patch.stage && `단계 → ${STAGE_LABEL[patch.stage]}`, patch.dept && `부서 → ${DEPT[patch.dept].l}`, patch.owner && `담당 → ${patch.owner}`, patch.designDue && `설계 마감 → ${patch.designDue}`, patch.due && `제작 마감 → ${patch.due}`].filter(Boolean).join(", ");
     btn.disabled = true;
     const { n, err } = await eachPart(ids, btn, "적용 중", (id) => attempt(() => colP.doc(id).update({ ...patch, updatedAt: stamp() })));
     btn.disabled = false; btn.textContent = "적용";
@@ -3099,7 +3127,7 @@ window.FSKBom = (() => {
     let n = 0;
     try {
       for (const [dept, name, qty, make] of TEMPLATE) {
-        await savePart(null, { name, partNo: "", dept, make, stage: "design", qty, unitMass: null, unitCost: null, owner: "", supplier: "", due: "", note: "", attachments: [] });
+        await savePart(null, { name, partNo: "", dept, make, stage: "design", qty, unitMass: null, unitCost: null, owner: "", supplier: "", designDue: "", due: "", note: "", attachments: [] });
         n++;
       }
       toast(`기본 부품 ${n}개를 넣었어요`);
@@ -3107,13 +3135,13 @@ window.FSKBom = (() => {
     finally { b.disabled = false; if (n) hist("part", "기본 부품 목록 추가", `${n}개`, "", "EV 기본 목록"); }
   });
   $("btnExport").addEventListener("click", async () => {
-    const head = ["부서", "부품명", "부품번호", "구분", "제작 단계", "수량", "개당 질량(g)", "총 질량(g)", "개당 비용(원)", "금액(원)", "공급처/가공처", "담당자", "마감일", "메모"];
+    const head = ["부서", "부품명", "부품번호", "구분", "제작 단계", "수량", "개당 질량(g)", "총 질량(g)", "개당 비용(원)", "금액(원)", "공급처/가공처", "담당자", "설계 마감일", "제작 마감일", "메모"];
     const cell = (v) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const sorted = state.parts.slice().sort((a, b) => DEPT_INDEX[deptOf(a)] - DEPT_INDEX[deptOf(b)] || String(a.name).localeCompare(String(b.name), "ko"));
     const lines = [head.join(",")].concat(sorted.map((p) => {
       const q = qtyOf(p), m = num(p.unitMass), c = num(p.unitCost);
       return [DEPT[deptOf(p)].l, p.name, p.partNo, p.make === "buy" ? "구매" : "제작", STAGE_LABEL[p.stage] || "설계", q,
-        m ?? "", m === null ? "" : m * q, c ?? "", c === null ? "" : c * q, p.supplier, ownerName(p), p.due, p.note].map(cell).join(",");
+        m ?? "", m === null ? "" : m * q, c ?? "", c === null ? "" : c * q, p.supplier, ownerName(p), p.designDue, p.due, p.note].map(cell).join(",");
     }));
     const csv = "﻿" + lines.join("\r\n");
     const filename = `${(state.cfg.carName || "차량").replace(/[\\/:*?"<>|]/g, "")}_BOM_${todayStr()}.csv`;
@@ -3129,7 +3157,7 @@ window.FSKBom = (() => {
 
   // ---------- BOM CSV import ----------
   const dlgI = $("dlgImport");
-  const FIELD_LABEL = { name: "이름", partNo: "번호", dept: "부서", make: "구분", stage: "단계", qty: "수량", unitMass: "질량", unitCost: "비용", supplier: "공급처", owner: "담당", due: "마감", note: "메모" };
+  const FIELD_LABEL = { name: "이름", partNo: "번호", dept: "부서", make: "구분", stage: "단계", qty: "수량", unitMass: "질량", unitCost: "비용", supplier: "공급처", owner: "담당", designDue: "설계 마감", due: "제작 마감", note: "메모" };
   // what a part holds for a field, with the same defaults the page shows
   const partField = (p, k) => k === "owner" ? ownerName(p) : k === "ownerUid" ? (p.ownerUid || "") : k === "dept" ? deptOf(p) : k === "stage" ? (p.stage || "design") : k === "qty" ? qtyOf(p) : k === "make" ? (p.make || "make") : (k === "unitMass" || k === "unitCost") ? num(p[k]) : (p[k] || "");
   function openImport() {
@@ -3191,7 +3219,7 @@ window.FSKBom = (() => {
       if (it.act === "new") {
         const d = it.data;
         added.push(await savePart(null, { name: d.name, partNo: d.partNo || "", dept: d.dept || fallback, make: d.make || "make", stage: d.stage || "design", qty: d.qty || 1,
-          unitMass: d.unitMass ?? null, unitCost: d.unitCost ?? null, owner: d.owner || "", supplier: d.supplier || "", due: d.due || "", note: d.note || "", attachments: [] }));
+          unitMass: d.unitMass ?? null, unitCost: d.unitCost ?? null, owner: d.owner || "", supplier: d.supplier || "", designDue: d.designDue || "", due: d.due || "", note: d.note || "", attachments: [] }));
       } else {
         const prev = Object.fromEntries(Object.keys(it.patch).map((f) => [f, partField(it.match, f)]));
         await attempt(() => colP.doc(it.match.id).update({ ...it.patch, updatedAt: stamp() }));

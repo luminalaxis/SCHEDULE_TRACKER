@@ -176,12 +176,17 @@ test("deadlines and milestones remind the right people once", async () => {
   await dev.post("/api/db/set", { path: "parts/p2", data: { name: "리어 윙", owner: "외부 업체", dept: "aero", stage: "design", due: dayOffset(-1) } });
   await dev.post("/api/db/set", { path: "parts/p3", data: { name: "완료된 부품", owner: "에이", dept: "chassis", stage: "done", due: dayOffset(0) } });
   await dev.post("/api/db/set", { path: "parts/p4", data: { name: "BMS 하우징", owner: "예전 이름", ownerUid: vice.id, dept: "battery", stage: "design", due: dayOffset(1) } });
+  // 설계 마감 reminds only while the part is still in 설계
+  await dev.post("/api/db/set", { path: "parts/p5", data: { name: "사이드 포드", owner: "에이", dept: "chassis", stage: "design", designDue: dayOffset(3), due: dayOffset(20) } });
+  await dev.post("/api/db/set", { path: "parts/p6", data: { name: "가공 중 브래킷", owner: "에이", dept: "chassis", stage: "machining", designDue: dayOffset(-5) } });
   await dev.post("/api/db/set", { path: "milestones/m1", data: { title: "설계 보고서 제출", date: dayOffset(7), kind: "서류 제출", dept: "" } });
   const first = (await dev.post("/api/admin/notify-run", {})).json;
   assert.ok(first.sent >= 6, `sent ${first.sent}`);
   const an = (await notes(a)).items;
   assert.ok(an.some((n) => n.title === "부품 마감 D-2" && n.link.part === "p1"), "the 담당 matched by name");
   assert.ok(!an.some((n) => /완료된 부품/.test(n.body)), "finished parts are skipped");
+  assert.ok(an.some((n) => n.title === "부품 설계 마감 D-3" && n.link.part === "p5" && /설계 마감/.test(n.body)), "a 설계 마감 while in 설계");
+  assert.ok(!an.some((n) => n.link?.part === "p6"), "a past 설계 마감 no longer counts once the part has left 설계");
   assert.ok((await notes(vice)).items.some((n) => n.title === "부품 마감 D-1" && n.link.part === "p4"), "the 담당 picked by account, whatever name the part shows");
   assert.ok((await notes(b)).items.some((n) => n.title === "마감 지난 부품" && /리어 윙/.test(n.body)), "no account by that name: the department's 파트장");
   for (const c of [dev, vice, a, b]) assert.ok((await notes(c)).items.some((n) => n.title === "D-7 · 설계 보고서 제출"), "team-wide milestone");

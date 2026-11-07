@@ -10,7 +10,7 @@
 import { DEPARTMENTS } from "./depts.js";
 
 export const WEBHOOK_HOSTS = ["discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com", "hooks.slack.com"];
-export const WEBHOOK_KINDS = { schedule: "일정 D-7 · D-1 · 당일", parts: "마감 지난 부품 (하루 한 번 요약)", issues: "테스트 주의·문제 판정" };
+export const WEBHOOK_KINDS = { schedule: "일정 D-7 · D-1 · 당일", parts: "설계·제작 마감 지난 부품 (하루 한 번 요약)", issues: "테스트 주의·문제 판정" };
 const DEPT = DEPARTMENTS;
 const EXP_ST = { pending: "검토 대기", fix: "보완 요청", approved: "승인 · 지급 대기", paid: "지급 완료", rejected: "반려" };
 const EXP_TITLE = { fix: "사비 정산 보완 요청", approved: "사비 정산 승인 · 지급 대기", paid: "사비 정산 지급 완료", rejected: "사비 정산 반려" };
@@ -180,22 +180,30 @@ export function createNotifier({ db, docs, auth, setting, setSetting, push, audi
     const today = ymd(d), t = dayNo(today);
     let sent = 0;
     const late = [], dueToday = [];
+    // two deadlines per part: 설계 마감 while the part is still in 설계, 제작 마감 until it is 완료
     for (const p of docs.list("parts")) {
       const x = p.data;
-      if (!validDay(x.due) || x.stage === "done") continue;
-      const n = dayNo(x.due) - t;
-      const bucket = n < 0 ? "late" : n === 0 ? "today" : n <= 3 ? "soon" : null;
-      if (n < 0) late.push(x); else if (n === 0) dueToday.push(x);
-      if (!bucket) continue;
-      const picked = typeof x.ownerUid === "string" && active().some((u) => u.id === x.ownerUid) ? [x.ownerUid] : [];
-      const to = picked.length ? picked : named(x.owner).length ? named(x.owner) : partLeads(x.dept);
-      sent += notify(to, {
-        kind: "part.due", title: bucket === "late" ? "마감 지난 부품" : bucket === "today" ? "오늘 마감인 부품" : `부품 마감 D-${n}`,
-        body: `${x.name || "(이름 없음)"} · ${own(DEPT, x.dept) || ""} · 마감 ${fmtDate(x.due)}`, link: { tab: "parts", part: p.id }, dedupe: `due:${p.id}:${x.due}:${bucket}`
-      });
+      if (x.stage === "done") continue;
+      const deadlines = [];
+      if ((x.stage || "design") === "design" && validDay(x.designDue)) deadlines.push({ kind: "설계", day: x.designDue, key: "design" });
+      if (validDay(x.due)) deadlines.push({ kind: "제작", day: x.due, key: "due" });
+      for (const dl of deadlines) {
+        const n = dayNo(dl.day) - t;
+        const bucket = n < 0 ? "late" : n === 0 ? "today" : n <= 3 ? "soon" : null;
+        const entry = { ...x, dueKind: dl.kind };
+        if (n < 0) late.push(entry); else if (n === 0) dueToday.push(entry);
+        if (!bucket) continue;
+        const picked = typeof x.ownerUid === "string" && active().some((u) => u.id === x.ownerUid) ? [x.ownerUid] : [];
+        const to = picked.length ? picked : named(x.owner).length ? named(x.owner) : partLeads(x.dept);
+        const what = dl.kind === "설계" ? "설계 마감" : "마감";
+        sent += notify(to, {
+          kind: "part.due", title: bucket === "late" ? `${what} 지난 부품` : bucket === "today" ? `오늘 ${what}인 부품` : `부품 ${what} D-${n}`,
+          body: `${x.name || "(이름 없음)"} · ${own(DEPT, x.dept) || ""} · ${dl.kind} 마감 ${fmtDate(dl.day)}`, link: { tab: "parts", part: p.id }, dedupe: `${dl.key}:${p.id}:${dl.day}:${bucket}`
+        });
+      }
     }
     if (late.length || dueToday.length) {
-      const names = (list) => list.slice(0, 8).map((x) => `${x.name} (${own(DEPT, x.dept) || ""}${x.owner ? ", " + x.owner : ""})`).join(", ") + (list.length > 8 ? ` 외 ${list.length - 8}개` : "");
+      const names = (list) => list.slice(0, 8).map((x) => `${x.name} (${x.dueKind === "설계" ? "설계 마감, " : ""}${own(DEPT, x.dept) || ""}${x.owner ? ", " + x.owner : ""})`).join(", ") + (list.length > 8 ? ` 외 ${list.length - 8}개` : "");
       sendTeam("parts", [late.length ? `📦 마감 지난 부품 ${late.length}개: ${names(late)}` : "", dueToday.length ? `⏰ 오늘 마감 ${dueToday.length}개: ${names(dueToday)}` : ""].filter(Boolean).join("\n"), `parts:${today}`);
     }
     for (const m of docs.list("milestones")) {
